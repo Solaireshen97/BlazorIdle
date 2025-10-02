@@ -1,70 +1,72 @@
+using BlazorIdle.Server.Application;
+using BlazorIdle.Server.Infrastructure;
 using Microsoft.EntityFrameworkCore;
-using BlazorIdle.Server.Data;
+using BlazorIdle.Server.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// 1. 基础框架服务
 builder.Services.AddControllers();
-builder.Services.AddOpenApi();
 
-// Configure SQLite database
-builder.Services.AddDbContext<GameDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=gamedata.db"));
+// 2. OpenAPI / Swagger
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(); // 如果你用的是 AddOpenApi() 也可以保留
 
-// Configure CORS to allow Blazor client
+// 3. 业务分层注入
+builder.Services
+    .AddInfrastructure(builder.Configuration)   // 注册 DbContext / 仓储
+    .AddRepositories()
+    .AddApplication();                          // 注册 UseCase / Runner 等
+
+// 4. CORS（可把 Origins 放配置文件）
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowBlazorClient",
-        policy =>
-        {
-            policy.WithOrigins("https://localhost:5001", "http://localhost:5000")
-                  .AllowAnyMethod()
-                  .AllowAnyHeader();
-        });
+    options.AddPolicy("AllowBlazorClient", policy =>
+    {
+        policy
+            .WithOrigins(
+                "https://localhost:5001",
+                "http://localhost:5000")   // 视前端端口调整
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+        // 若未来需要 Cookie/身份: .AllowCredentials();
+    });
 });
 
 var app = builder.Build();
 
-// Create database if it doesn't exist
+// 5. 自动迁移（开发环境执行）
+//    生产环境推荐用命令行迁移或 CI/CD 脚本，不要直接在启动执行 Migrate()
 using (var scope = app.Services.CreateScope())
 {
-    var dbContext = scope.ServiceProvider.GetRequiredService<GameDbContext>();
-    dbContext.Database.EnsureCreated();
+    var env = scope.ServiceProvider.GetRequiredService<IHostEnvironment>();
+    var db = scope.ServiceProvider.GetRequiredService<GameDbContext>();
+    if (env.IsDevelopment())
+    {
+        // 确保使用 migrations（如果没有迁移，会抛错，先执行: dotnet ef migrations add InitBattle）
+        db.Database.Migrate();
+    }
+    else
+    {
+        // 可选：生产是否允许自动迁移
+        // db.Database.Migrate();
+        // 或仅检测
+        // if (db.Database.GetPendingMigrations().Any()) { /* 日志告警 */ }
+    }
 }
 
-// Configure the HTTP request pipeline.
+// 6. 中间件
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 
 app.UseHttpsRedirection();
 app.UseCors("AllowBlazorClient");
-app.UseAuthorization();
+
+// 如果后续引入身份/授权，此处按顺序添加 UseAuthentication / UseAuthorization
 app.MapControllers();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
-
+//（以后可添加 /health, /metrics）
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}

@@ -1,0 +1,229 @@
+﻿@page "/characters"
+@using BlazorIdle.Shared.Models
+@inject BlazorIdle.Client.Services.ApiClient Api
+@implements IDisposable
+
+<h3>角色 & 战斗测试</h3>
+
+<div class="panel">
+    <h4>1. 创建角色</h4>
+    <input @bind="newName" placeholder="角色名" />
+    <button @onclick="CreateCharacter" disabled="@isBusy">创建</button>
+    @if (lastCreated is not null)
+    {
+        <p>已创建: @lastCreated.Name (@lastCreated.Id)</p>
+        <button class="btn btn-sm" @onclick="ResetBattleState" disabled="@isBusy">重置战斗状态</button>
+    }
+</div>
+
+@if (lastCreated is not null)
+{
+    <div class="panel">
+        <h4>2. 发起战斗</h4>
+        时长(s):
+        <input type="number" min="1" max="120" @bind="battleSeconds" style="width:80px" />
+        <button @onclick="StartBattle" disabled="@(!CanStartBattle)">开始战斗</button>
+        @if (currentBattleId != Guid.Empty)
+        {
+            <p>当前 BattleId: @currentBattleId</p>
+        }
+        @if (!battleInProgress && currentBattleId != Guid.Empty)
+        {
+            <button class="btn btn-sm" @onclick="StartAnotherBattle" disabled="@isBusy">
+                再次战斗
+            </button>
+        }
+    </div>
+}
+
+@if (currentBattleId != Guid.Empty || summary is not null)
+{
+    <div class="panel">
+        <h4>3. 战斗结果@(battleInProgress ? "（进行中/轮询）" : "")</h4>
+        <p>
+            总伤害: @summary?.TotalDamage |
+            时长: @summary?.DurationSeconds s |
+            DPS: @summary?.Dps |
+            段数: @summary?.SegmentCount
+        </p>
+        <button @onclick="ForceRefresh" disabled="@isBusy || battleInProgress">手动刷新</button>
+        <button @onclick="LoadSegments" disabled="@isBusy || segmentsLoading">加载段详情</button>
+
+        @if (segmentsLoading)
+        {
+            <p>加载段数据中...</p>
+        }
+        @if (segments is null)
+        {
+            <p>（尚未加载段数据）</p>
+        }
+        @if (segments?.Count > 0)
+        {
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Start-End</th>
+                        <th>Events</th>
+                        <th>Damage</th>
+                        <th>Sources</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (int i = 0; i < segments.Count; i++)
+                    {
+                        var s = segments[i];
+                        <tr>
+                            <td>@i</td>
+                            <td>@s.StartTime - @s.EndTime</td>
+                            <td>@s.EventCount</td>
+                            <td>@s.TotalDamage</td>
+                            <td>
+                                @foreach (var kv in s.DamageBySource)
+                                {
+                                    <span>@kv.Key:@kv.Value </span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+
+@code {
+    string newName = "TestWarrior";
+    bool isBusy;
+    bool battleInProgress;
+    bool segmentsLoading;
+    CharacterCreated? lastCreated;
+    Guid currentBattleId;
+    double battleSeconds = 10;
+    BattleSummaryDto? summary;
+    List<BattleSegmentDto>? segments;
+    System.Timers.Timer? pollTimer;
+
+    bool CanStartBattle => !isBusy && lastCreated is not null && !battleInProgress;
+
+    async Task CreateCharacter()
+    {
+        try
+        {
+            isBusy = true;
+            lastCreated = await Api.CreateCharacterAsync(newName);
+            ResetBattleState(); // 创建时顺便清空旧战斗状态
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    void ResetBattleState()
+    {
+        battleInProgress = false;
+        currentBattleId = Guid.Empty;
+        summary = null;
+        segments = null;
+        StopPolling();
+        StateHasChanged();
+    }
+
+    async Task StartBattle()
+    {
+        if (!CanStartBattle || lastCreated is null) return;
+        try
+        {
+            isBusy = true;
+            battleInProgress = true;
+            summary = null;
+            segments = null;
+
+            var resp = await Api.StartBattleAsync(lastCreated.Id, battleSeconds);
+            currentBattleId = resp.BattleId;
+
+            // 你的战斗现在是一次性模拟 → 可以直接刷新一次 summary
+            await RefreshSummary();
+            await LoadSegments(); // 添加
+            // 如果你未来改成“逐步推进”，保留轮询；当前一次性模拟不需要持续轮询
+            // StartPolling();
+
+            // 一次性模拟完成后立即标记不在进行中
+            battleInProgress = false;
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    async Task StartAnotherBattle()
+    {
+        // 允许直接复用当前角色再次战斗
+        ResetBattleState();
+        await StartBattle();
+    }
+
+    void StartPolling()
+    {
+        StopPolling();
+        pollTimer = new System.Timers.Timer(1500);
+        pollTimer.Elapsed += async (_, _) =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await RefreshSummary();
+                StateHasChanged();
+            });
+        };
+        pollTimer.AutoReset = true;
+        pollTimer.Start();
+    }
+
+    void StopPolling()
+    {
+        pollTimer?.Stop();
+        pollTimer?.Dispose();
+        pollTimer = null;
+    }
+
+    async Task RefreshSummary()
+    {
+        if (currentBattleId == Guid.Empty) return;
+        summary = await Api.GetBattleSummaryAsync(currentBattleId);
+    }
+
+    async Task LoadSegments()
+    {
+        if (currentBattleId == Guid.Empty) return;
+        try
+        {
+            segmentsLoading = true;
+            segments = await Api.GetBattleSegmentsAsync(currentBattleId);
+        }
+        finally
+        {
+            segmentsLoading = false;
+        }
+    }
+
+    async Task ForceRefresh()
+    {
+        if (battleInProgress) return;
+        try
+        {
+            isBusy = true;
+            await RefreshSummary();
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        StopPolling();
+    }
+}

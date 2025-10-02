@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using BlazorIdle.Server.Data;
 using BlazorIdle.Shared.Models;
+using BlazorIdle.Server.Infrastructure.Persistence;
 
-namespace BlazorIdle.Server.Controllers;
+namespace BlazorIdle.Server.Api;
 
 [ApiController]
 [Route("api/[controller]")]

@@ -1,0 +1,17 @@
+﻿.panel {
+    border: 1px solid #444;
+    padding: 12px;
+    margin: 10px 0;
+    border-radius: 4px;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+    .table th, .table td {
+        border: 1px solid #555;
+        padding: 4px 6px;
+        font-size: 14px;
+    }
