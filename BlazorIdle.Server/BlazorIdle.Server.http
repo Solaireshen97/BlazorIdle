@@ -1,0 +1,6 @@
+@BlazorIdle.Server_HostAddress = http://localhost:5018
+
+GET {{BlazorIdle.Server_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
