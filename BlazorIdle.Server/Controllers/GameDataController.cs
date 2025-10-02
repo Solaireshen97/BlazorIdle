@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using BlazorIdle.Server.Data;
-using BlazorIdle.Server.Models;
+using BlazorIdle.Shared.Models;
 
 namespace BlazorIdle.Server.Controllers;
 

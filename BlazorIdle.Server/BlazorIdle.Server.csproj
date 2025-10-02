@@ -15,4 +15,8 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.9" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\BlazorIdle.Shared\BlazorIdle.Shared.csproj" />
+  </ItemGroup>
+
 </Project>

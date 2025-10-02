@@ -1,4 +1,4 @@
-namespace BlazorIdle.Server.Models;
+namespace BlazorIdle.Shared.Models;
 
 public class GameData
 {
