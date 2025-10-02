@@ -1,0 +1,153 @@
+@page "/gamemanager"
+@inject HttpClient Http
+@using BlazorIdle.Models
+
+<PageTitle>Game Manager</PageTitle>
+
+<h1>Game Manager</h1>
+
+<p>This page demonstrates client-server communication with SQLite database.</p>
+
+@if (isLoading)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="mb-3">
+        <h3>Create New Game Data</h3>
+        <div class="form-group">
+            <label>Player Name:</label>
+            <input type="text" class="form-control" @bind="newGameData.PlayerName" />
+        </div>
+        <div class="form-group">
+            <label>Score:</label>
+            <input type="number" class="form-control" @bind="newGameData.Score" />
+        </div>
+        <div class="form-group">
+            <label>Level:</label>
+            <input type="number" class="form-control" @bind="newGameData.Level" />
+        </div>
+        <button class="btn btn-primary mt-2" @onclick="CreateGameData">Create</button>
+        @if (!string.IsNullOrEmpty(message))
+        {
+            <div class="alert alert-info mt-2">@message</div>
+        }
+    </div>
+
+    <h3>Game Data List</h3>
+    @if (gameDataList == null || !gameDataList.Any())
+    {
+        <p><em>No game data found.</em></p>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Player Name</th>
+                    <th>Score</th>
+                    <th>Level</th>
+                    <th>Last Updated</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var data in gameDataList)
+                {
+                    <tr>
+                        <td>@data.Id</td>
+                        <td>@data.PlayerName</td>
+                        <td>@data.Score</td>
+                        <td>@data.Level</td>
+                        <td>@data.LastUpdated.ToLocalTime()</td>
+                        <td>
+                            <button class="btn btn-sm btn-danger" @onclick="() => DeleteGameData(data.Id)">Delete</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    
+    <button class="btn btn-secondary" @onclick="LoadGameData">Refresh</button>
+}
+
+@code {
+    private List<GameData>? gameDataList;
+    private GameData newGameData = new GameData();
+    private bool isLoading = true;
+    private string message = string.Empty;
+    private string apiBaseUrl = "http://localhost:5056/api"; // Server API URL (use HTTP for development)
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadGameData();
+    }
+
+    private async Task LoadGameData()
+    {
+        try
+        {
+            isLoading = true;
+            message = string.Empty;
+            gameDataList = await Http.GetFromJsonAsync<List<GameData>>($"{apiBaseUrl}/GameData");
+        }
+        catch (Exception ex)
+        {
+            message = $"Error loading data: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task CreateGameData()
+    {
+        try
+        {
+            message = string.Empty;
+            var response = await Http.PostAsJsonAsync($"{apiBaseUrl}/GameData", newGameData);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                message = "Game data created successfully!";
+                newGameData = new GameData();
+                await LoadGameData();
+            }
+            else
+            {
+                message = $"Error: {response.StatusCode}";
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"Error creating data: {ex.Message}";
+        }
+    }
+
+    private async Task DeleteGameData(int id)
+    {
+        try
+        {
+            message = string.Empty;
+            var response = await Http.DeleteAsync($"{apiBaseUrl}/GameData/{id}");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                message = "Game data deleted successfully!";
+                await LoadGameData();
+            }
+            else
+            {
+                message = $"Error: {response.StatusCode}";
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"Error deleting data: {ex.Message}";
+        }
+    }
+}
