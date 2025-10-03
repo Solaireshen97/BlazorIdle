@@ -48,8 +48,9 @@
             @if (summary is not null)
             {
             <p>Attack间隔: @summary.AttackIntervalSeconds | Special间隔: @summary.SpecialIntervalSeconds</p>
-        }
+        }   
         </p>
+
         <p>DEBUG isBusy=@isBusy battleInProgress=@battleInProgress segmentsLoading=@segmentsLoading</p>
         <button @onclick="ForceRefresh" disabled="@(isBusy || battleInProgress)">手动刷新</button>
         <button @onclick="LoadSegments" disabled="@(isBusy || segmentsLoading)">加载段详情</button>
@@ -87,6 +88,14 @@
                                 @foreach (var kv in s.DamageBySource)
                                 {
                                     <span>@kv.Key:@kv.Value </span>
+                                }
+                            </td>
+                            <th>Resources</th>
+                            ...
+                            <td>
+                                @foreach (var kv in s.ResourceFlow)
+                                {
+                                    <span>@kv.Key:+@kv.Value </span>
                                 }
                             </td>
                         </tr>

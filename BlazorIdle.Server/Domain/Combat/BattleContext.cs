@@ -1,4 +1,5 @@
 ﻿using BlazorIdle.Server.Domain.Combat;
+using BlazorIdle.Server.Domain.Combat.Resources;
 
 namespace BlazorWebGame.Domain.Combat;
 
@@ -42,6 +43,8 @@ public class BattleContext
 
 
     public List<TrackState> Tracks { get; } = new(); // 新增
+
+    public ResourceSet Resources { get; } = new(); // 新增
     /// <summary>
     /// 构造：将运行时协作者聚合。
     /// 所有参数都应为非空（当前未加校验，依赖调用方保证）。

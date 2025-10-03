@@ -89,7 +89,8 @@ public class BattlesController : ControllerBase
                 s.EndTime,
                 s.EventCount,
                 s.TotalDamage,
-                DamageBySource = JsonSerializer.Deserialize<Dictionary<string, int>>(s.DamageBySourceJson) ?? new()
+                DamageBySource = JsonSerializer.Deserialize<Dictionary<string, int>>(s.DamageBySourceJson) ?? new(),
+                ResourceFlow = JsonSerializer.Deserialize<Dictionary<string, int>>(s.ResourceFlowJson) ?? new()
             });
 
         return Ok(result);

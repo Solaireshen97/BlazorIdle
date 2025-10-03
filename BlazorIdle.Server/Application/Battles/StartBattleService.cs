@@ -2,6 +2,7 @@
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat;
 using BlazorIdle.Server.Domain.Records;
+using System.Text.Json;
 
 namespace BlazorIdle.Server.Application.Battles;
 
@@ -74,11 +75,13 @@ public class StartBattleService
             {
                 Id = Guid.NewGuid(),
                 BattleId = battleDomain.Id,
-                StartTime = s.StartTime,        // 逻辑时间片段起止（double）
+                StartTime = s.StartTime,
                 EndTime = s.EndTime,
                 EventCount = s.EventCount,
                 TotalDamage = s.TotalDamage,
-                DamageBySourceJson = System.Text.Json.JsonSerializer.Serialize(s.DamageBySource)
+                DamageBySourceJson = JsonSerializer.Serialize(s.DamageBySource),
+                TagCountersJson = JsonSerializer.Serialize(s.TagCounters),
+                ResourceFlowJson = JsonSerializer.Serialize(s.ResourceFlow)
             }).ToList()
         };
 

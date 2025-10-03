@@ -90,4 +90,7 @@ public class BattleSegmentRecord
     /// 可后续改为：单独子表或 JSON 列（不同数据库支持差异）
     /// </summary>
     public string DamageBySourceJson { get; set; } = "{}";
+
+    public string TagCountersJson { get; set; } = "{}";        // 新增（若之前没有）
+    public string ResourceFlowJson { get; set; } = "{}";       // 新增
 }

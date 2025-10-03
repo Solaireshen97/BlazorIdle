@@ -19,7 +19,8 @@ namespace BlazorIdle.Shared.Models
         double Dps,
         int SegmentCount,
         double AttackIntervalSeconds,
-        double SpecialIntervalSeconds
+        double SpecialIntervalSeconds,
+        string ResourceFlow
     );
 
     public record BattleSegmentDto(
@@ -27,6 +28,7 @@ namespace BlazorIdle.Shared.Models
         double EndTime,
         int EventCount,
         int TotalDamage,
-        Dictionary<string, int> DamageBySource
+        Dictionary<string, int> DamageBySource,
+        Dictionary<string, int> ResourceFlow
     );
 }

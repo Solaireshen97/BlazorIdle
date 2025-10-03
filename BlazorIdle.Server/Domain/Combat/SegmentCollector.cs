@@ -5,7 +5,8 @@ namespace BlazorIdle.Server.Domain.Combat;
 public class SegmentCollector
 {
     private readonly List<(string source, int dmg)> _damageEvents = new();
-    private readonly Dictionary<string, int> _tagCounters = new(); // 新增
+    private readonly Dictionary<string, int> _tagCounters = new();
+    private readonly Dictionary<string, int> _resourceFlow = new(); // 新增
     public int EventCount { get; private set; }
     public double SegmentStart { get; private set; }
     public double LastEventTime { get; private set; }
@@ -25,12 +26,19 @@ public class SegmentCollector
         EventCount++;
     }
 
-    // 新增：用于统计脉冲次数等
     public void OnTag(string tag, int count)
     {
         if (!_tagCounters.ContainsKey(tag)) _tagCounters[tag] = 0;
         _tagCounters[tag] += count;
         EventCount++;
+    }
+
+    // 新增：记录资源增量（净变化）
+    public void OnResourceChange(string resourceId, int delta)
+    {
+        if (delta == 0) return;
+        if (!_resourceFlow.ContainsKey(resourceId)) _resourceFlow[resourceId] = 0;
+        _resourceFlow[resourceId] += delta;
     }
 
     public void Tick(double currentTime)
@@ -58,10 +66,12 @@ public class SegmentCollector
             EventCount = EventCount,
             TotalDamage = total,
             DamageBySource = bySource,
-            TagCounters = new Dictionary<string, int>(_tagCounters)
+            TagCounters = new Dictionary<string, int>(_tagCounters),
+            ResourceFlow = new Dictionary<string, int>(_resourceFlow)
         };
         _damageEvents.Clear();
         _tagCounters.Clear();
+        _resourceFlow.Clear();
         EventCount = 0;
         SegmentStart = currentTime;
         return seg;
@@ -75,5 +85,6 @@ public class CombatSegment
     public int EventCount { get; set; }
     public int TotalDamage { get; set; }
     public Dictionary<string, int> DamageBySource { get; set; } = new();
-    public Dictionary<string, int> TagCounters { get; set; } = new(); // 新增（special_pulse 等）
+    public Dictionary<string, int> TagCounters { get; set; } = new();
+    public Dictionary<string, int> ResourceFlow { get; set; } = new(); // 新增
 }
