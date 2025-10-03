@@ -11,6 +11,10 @@ public class SkillDefinition
     public int BaseDamage { get; }        // 简化：固定伤害
     public bool SpendCostOnCast { get; } = true;
 
+    // 新增：可选的技能级暴击覆盖（不设置时用 context.Crit）
+    public double? CritChance { get; }
+    public double? CritMultiplier { get; }
+
     public SkillDefinition(
         string id,
         string name,
@@ -18,7 +22,9 @@ public class SkillDefinition
         int costAmount,
         double cooldownSeconds,
         int priority,
-        int baseDamage)
+        int baseDamage,
+        double? critChance = null,
+        double? critMultiplier = null)
     {
         Id = id;
         Name = name;
@@ -27,5 +33,7 @@ public class SkillDefinition
         CooldownSeconds = cooldownSeconds;
         Priority = priority;
         BaseDamage = baseDamage;
+        CritChance = critChance;
+        CritMultiplier = critMultiplier;
     }
 }

@@ -45,7 +45,20 @@ public class AutoCastEngine
 
             // 造成伤害
             var dmgSource = "skill:" + def.Id;
-            context.SegmentCollector.OnDamage(dmgSource, def.BaseDamage);
+
+            int dmg = def.BaseDamage;
+
+            double chance = def.CritChance ?? context.Crit.Chance;
+            double mult = def.CritMultiplier ?? context.Crit.Multiplier;
+
+            bool isCrit = context.Rng.NextBool(chance);
+            if (isCrit)
+            {
+                dmg = (int)Math.Round(dmg * mult);
+                context.SegmentCollector.OnTag("crit:" + dmgSource, 1);
+            }
+
+            context.SegmentCollector.OnDamage(dmgSource, dmg);
             context.SegmentCollector.OnTag("skill_cast:" + def.Id, 1);
 
             // 职业钩子（可做额外效果）

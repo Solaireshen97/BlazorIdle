@@ -1,5 +1,6 @@
 ﻿using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Buffs;
+using BlazorIdle.Server.Domain.Combat.Damage;
 using BlazorIdle.Server.Domain.Combat.Professions;
 using BlazorIdle.Server.Domain.Combat.Resources;
 using BlazorIdle.Server.Domain.Combat.Rng;
@@ -23,6 +24,7 @@ public class BattleContext
     public AutoCastEngine AutoCaster { get; } = new(); // 新增
     public BuffManager Buffs { get; }  // 新增
     public RngContext Rng { get; } // 新增：可重放 RNG
+    public CritSettings Crit { get; } = new(); // 新增：全局暴击配置（可被职业/Buff调整）
 
     public BattleContext(
         Battle battle,
