@@ -33,11 +33,10 @@ public class BattlesController : ControllerBase
     /// 说明：战斗模拟时间是“模拟时钟”而非真实等待；服务端内部立即完成计算。
     /// </summary>
     [HttpPost("start")]
-    public async Task<ActionResult<object>> Start([FromQuery] Guid characterId, [FromQuery] double seconds = 15)
+    public async Task<IActionResult> Start([FromQuery] Guid characterId, [FromQuery] double seconds = 15, [FromQuery] ulong? seed = null)
     {
-        // 此处缺少：参数校验（例如 seconds > 0 且 <= 上限），可在后续增强
-        var id = await _startSvc.StartAsync(characterId, seconds);
-        return Ok(new { battleId = id });
+        var id = await _startSvc.StartAsync(characterId, seconds, seed);
+        return Ok(new { battleId = id, seed = seed });
     }
 
     /// <summary>

@@ -2,6 +2,7 @@
 using BlazorIdle.Server.Domain.Combat.Buffs;
 using BlazorIdle.Server.Domain.Combat.Professions;
 using BlazorIdle.Server.Domain.Combat.Resources;
+using BlazorIdle.Server.Domain.Combat.Rng;
 using BlazorIdle.Server.Domain.Combat.Skills;
 using BlazorIdle.Shared.Models;
 using BlazorWebGame.Domain.Combat;
@@ -21,6 +22,7 @@ public class BattleContext
     public Profession Profession { get; }
     public AutoCastEngine AutoCaster { get; } = new(); // 新增
     public BuffManager Buffs { get; }  // 新增
+    public RngContext Rng { get; } // 新增：可重放 RNG
 
     public BattleContext(
         Battle battle,
@@ -28,7 +30,8 @@ public class BattleContext
         IEventScheduler scheduler,
         SegmentCollector collector,
         IProfessionModule professionModule,
-        Profession profession)
+        Profession profession,
+        RngContext rng)
     {
         Battle = battle;
         Clock = clock;
@@ -36,6 +39,7 @@ public class BattleContext
         SegmentCollector = collector;
         ProfessionModule = professionModule;
         Profession = profession;
+        Rng = rng;
         Buffs = new BuffManager(
     tagRecorder: (tag, count) => SegmentCollector.OnTag(tag, count),
     resourceRecorder: (res, delta) => SegmentCollector.OnResourceChange(res, delta),
