@@ -20,6 +20,7 @@ public class BattleRunner
         var context = new BattleContext(battle, clock, scheduler, collector, professionModule, profession);
 
         professionModule.OnBattleStart(context);
+        professionModule.BuildSkills(context, context.AutoCaster);
 
         var attackTrack = new TrackState(TrackType.Attack, battle.AttackIntervalSeconds, 0);
         var specialTrack = new TrackState(TrackType.Special, battle.SpecialIntervalSeconds, battle.SpecialIntervalSeconds);

@@ -13,6 +13,9 @@ public record AttackTickEvent(double ExecuteAt, TrackState Track) : IGameEvent
         context.SegmentCollector.OnDamage("basic_attack", dmg);
         // 职业钩子
         context.ProfessionModule.OnAttackTick(context, this);
+        // 技能自动施放（放在资源生成之后，让刚刚获得的资源可用于技能）
+        context.AutoCaster.TryAutoCast(context, ExecuteAt);
+
         // 调度下一次
         Track.NextTriggerAt = ExecuteAt + Track.CurrentInterval;
         context.Scheduler.Schedule(new AttackTickEvent(Track.NextTriggerAt, Track));

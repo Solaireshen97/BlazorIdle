@@ -13,6 +13,7 @@ public record SpecialPulseEvent(double ExecuteAt, TrackState Track) : IGameEvent
 
         // 职业钩子
         context.ProfessionModule.OnSpecialPulse(context, this);
+        context.AutoCaster.TryAutoCast(context, ExecuteAt);
 
         Track.NextTriggerAt = ExecuteAt + Track.CurrentInterval;
         context.Scheduler.Schedule(new SpecialPulseEvent(Track.NextTriggerAt, Track));
