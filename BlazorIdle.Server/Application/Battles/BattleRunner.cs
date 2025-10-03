@@ -18,10 +18,13 @@ public class BattleRunner
         var professionModule = module ?? ProfessionRegistry.Resolve(profession);
 
         var context = new BattleContext(battle, clock, scheduler, collector, professionModule, profession);
-
+        // 1. 先注册本职业会用到的 Buff 定义
+        professionModule.RegisterBuffDefinitions(context);
+        // 2. 资源 / 初始状态
         professionModule.OnBattleStart(context);
+        // 3. 技能
         professionModule.BuildSkills(context, context.AutoCaster);
-
+        // 4. 初始化 Track
         var attackTrack = new TrackState(TrackType.Attack, battle.AttackIntervalSeconds, 0);
         var specialTrack = new TrackState(TrackType.Special, battle.SpecialIntervalSeconds, battle.SpecialIntervalSeconds);
 
@@ -35,12 +38,13 @@ public class BattleRunner
         var endTarget = durationSeconds;
         int safetyCounter = 0;
         const int safetyLimit = 100000;
-
+        // 5. 主循环（示意）
         while (scheduler.Count > 0)
         {
             if (safetyCounter++ > safetyLimit)
                 throw new System.Exception("Safety limit exceeded in BattleRunner loop");
-
+            context.Buffs.Tick(clock.CurrentTime);
+            SyncTrackHaste(context);                // 再调整加速
             var ev = scheduler.PopNext();
             if (ev == null) break;
             if (ev.ExecuteAt > endTarget)
@@ -61,5 +65,19 @@ public class BattleRunner
             segments.Add(collector.Flush(clock.CurrentTime));
 
         return segments;
+    }
+
+    private void SyncTrackHaste(BattleContext context)
+    {
+        var agg = context.Buffs.Aggregate;
+        foreach (var t in context.Tracks)
+        {
+            if (t.TrackType == TrackType.Attack)
+            {
+                t.SetHaste(agg.ApplyToBaseHaste(1.0)); // 原始=1.0
+            }
+            // SpecialTrack 初版不受 haste，可按需加:
+            // else if (t.TrackType == TrackType.Special) ...
+        }
     }
 }

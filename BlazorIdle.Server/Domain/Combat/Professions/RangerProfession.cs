@@ -1,4 +1,5 @@
-﻿using BlazorIdle.Server.Domain.Combat.Resources;
+﻿using BlazorIdle.Server.Domain.Combat.Buffs;
+using BlazorIdle.Server.Domain.Combat.Resources;
 using BlazorIdle.Server.Domain.Combat.Skills;
 
 namespace BlazorIdle.Server.Domain.Combat.Professions;
@@ -41,6 +42,8 @@ public class RangerProfession : IProfessionModule
             context.SegmentCollector.OnTag("focus_overflow_proc", result.ConversionCount);
         if (focus.Current == focus.Max)
             context.SegmentCollector.OnTag("focus_cap_hit", 1);
+
+        context.Buffs.Apply("focus_flow", context.Clock.CurrentTime);
     }
 
     public void BuildSkills(BattleContext context, AutoCastEngine engine)
@@ -69,6 +72,13 @@ public class RangerProfession : IProfessionModule
 
     public void OnSkillCast(BattleContext context, SkillDefinition def)
     {
-        // 预留：例如施放 power_shot 时给一个层数
+        if (def.Id == "power_shot")
+            context.Buffs.Apply("ranger_bleed", context.Clock.CurrentTime);
+    }
+
+    public void RegisterBuffDefinitions(BattleContext ctx)
+    {
+        ctx.Buffs.RegisterDefinition(BuffDefinitionsRegistry.RangerBleed);
+        ctx.Buffs.RegisterDefinition(BuffDefinitionsRegistry.FocusFlow);
     }
 }

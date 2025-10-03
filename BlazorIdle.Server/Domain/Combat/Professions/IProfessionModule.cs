@@ -18,4 +18,7 @@ public interface IProfessionModule
 
     // 新增：技能施放后额外处理（如 Buff、额外资源等）
     void OnSkillCast(BattleContext context, Skills.SkillDefinition def);
+
+    void RegisterBuffDefinitions(BattleContext context);          // 新增：每个职业注册自己需要的 BuffDefinition
+
 }

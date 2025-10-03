@@ -1,4 +1,5 @@
-﻿using BlazorIdle.Server.Domain.Combat.Resources;
+﻿using BlazorIdle.Server.Domain.Combat.Buffs;
+using BlazorIdle.Server.Domain.Combat.Resources;
 using BlazorIdle.Server.Domain.Combat.Skills;
 
 namespace BlazorIdle.Server.Domain.Combat.Professions;
@@ -56,6 +57,14 @@ public class WarriorProfession : IProfessionModule
 
     public void OnSkillCast(BattleContext context, SkillDefinition def)
     {
-        // 预留：例如施放 HeroicStrike 时加一个短 Buff
+        if (def.Id == "heroic_strike")
+        {
+            context.Buffs.Apply("berserk", context.Clock.CurrentTime);
+        }
+    }
+
+    public void RegisterBuffDefinitions(BattleContext context)
+    {
+        context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.WarriorBerserk);
     }
 }

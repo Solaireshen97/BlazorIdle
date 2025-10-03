@@ -1,4 +1,5 @@
 ﻿using BlazorIdle.Server.Domain.Characters;
+using BlazorIdle.Server.Domain.Combat.Buffs;
 using BlazorIdle.Server.Domain.Combat.Professions;
 using BlazorIdle.Server.Domain.Combat.Resources;
 using BlazorIdle.Server.Domain.Combat.Skills;
@@ -19,6 +20,7 @@ public class BattleContext
     public IProfessionModule ProfessionModule { get; }
     public Profession Profession { get; }
     public AutoCastEngine AutoCaster { get; } = new(); // 新增
+    public BuffManager Buffs { get; }  // 新增
 
     public BattleContext(
         Battle battle,
@@ -34,5 +36,10 @@ public class BattleContext
         SegmentCollector = collector;
         ProfessionModule = professionModule;
         Profession = profession;
+        Buffs = new BuffManager(
+    tagRecorder: (tag, count) => SegmentCollector.OnTag(tag, count),
+    resourceRecorder: (res, delta) => SegmentCollector.OnResourceChange(res, delta),
+    damageRecorder: (src, dmg) => SegmentCollector.OnDamage(src, dmg)
+);
     }
 }
