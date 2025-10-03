@@ -1,4 +1,6 @@
-﻿namespace BlazorWebGame.Domain.Combat;
+﻿using BlazorIdle.Server.Domain.Combat;
+
+namespace BlazorWebGame.Domain.Combat;
 
 /// <summary>
 /// 战斗事件抽象：

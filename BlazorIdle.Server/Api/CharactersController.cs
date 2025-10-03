@@ -1,5 +1,6 @@
 ﻿using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Infrastructure.Persistence;
+using BlazorIdle.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -25,6 +26,7 @@ public class CharactersController : ControllerBase
         {
             Id = Guid.NewGuid(),
             Name = dto.Name,
+            Profession = dto.Profession,
             Level = 1          // 默认初始等级
         };
 
@@ -51,4 +53,4 @@ public class CharactersController : ControllerBase
 /// <summary>
 /// 输入 DTO（防止直接暴露领域实体）
 /// </summary>
-public record CreateCharacterDto(string Name);
+public record CreateCharacterDto(string Name, Profession Profession);

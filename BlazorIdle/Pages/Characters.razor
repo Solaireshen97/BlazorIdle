@@ -8,6 +8,12 @@
 <div class="panel">
     <h4>1. 创建角色</h4>
     <input @bind="newName" placeholder="角色名" />
+    <select @bind="selectedProfession">
+        @foreach (var p in Enum.GetValues<Profession>())
+        {
+            <option value="@p">@p</option>
+        }
+    </select>
     <button @onclick="CreateCharacter" disabled="@isBusy">创建</button>
     @if (lastCreated is not null)
     {
@@ -108,6 +114,7 @@
 
 @code {
     string newName = "TestWarrior";
+    Profession selectedProfession = Profession.Warrior; // 默认值
     bool isBusy;
     bool battleInProgress;
     bool segmentsLoading;
@@ -125,7 +132,7 @@
         try
         {
             isBusy = true;
-            lastCreated = await Api.CreateCharacterAsync(newName);
+            lastCreated = await Api.CreateCharacterAsync(newName, selectedProfession);
             ResetBattleState(); // 创建时顺便清空旧战斗状态
         }
         finally

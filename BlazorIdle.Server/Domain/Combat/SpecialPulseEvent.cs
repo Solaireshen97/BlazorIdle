@@ -8,10 +8,12 @@ public record SpecialPulseEvent(double ExecuteAt, TrackState Track) : IGameEvent
 
     public void Execute(BattleContext context)
     {
-        // 先记录一个 tag，后面可以在这里加资源、Buff、职业特效
+        // 基础 Tag（维持以前统计）
         context.SegmentCollector.OnTag("special_pulse", 1);
 
-        // 调度下一次
+        // 职业钩子
+        context.ProfessionModule.OnSpecialPulse(context, this);
+
         Track.NextTriggerAt = ExecuteAt + Track.CurrentInterval;
         context.Scheduler.Schedule(new SpecialPulseEvent(Track.NextTriggerAt, Track));
     }

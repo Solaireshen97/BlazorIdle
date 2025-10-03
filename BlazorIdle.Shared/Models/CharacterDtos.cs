@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace BlazorIdle.Shared.Models
 {
-    public record CreateCharacterRequest(string Name);
+    public record CreateCharacterRequest(string Name, Profession Profession);
     public record CharacterCreated(Guid Id, string Name);
 
     public record BattleStartResponse(Guid BattleId);

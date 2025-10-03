@@ -8,9 +8,16 @@ public class ApiClient
     private readonly HttpClient _http;
     public ApiClient(HttpClient http) => _http = http;
 
-    public async Task<CharacterCreated> CreateCharacterAsync(string name, CancellationToken ct = default)
+    public async Task<CharacterCreated> CreateCharacterAsync(
+        string name,
+        Profession profession,
+        CancellationToken ct = default)
     {
-        var resp = await _http.PostAsJsonAsync("/api/characters", new CreateCharacterRequest(name), ct);
+        var resp = await _http.PostAsJsonAsync(
+            "/api/characters",
+            new CreateCharacterRequest(name, profession),
+            ct);
+
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<CharacterCreated>(cancellationToken: ct))!;
     }
