@@ -32,28 +32,3 @@ public interface IGameEvent
     /// </summary>
     string EventType { get; }
 }
-
-/// <summary>
-/// 玩家普通攻击 Tick（循环事件）
-/// 行为：
-/// 1. 造成一次固定伤害（当前写死 10）
-/// 2. 调度下一次普通攻击事件（当前 = 当前 ExecuteAt + AttackIntervalSeconds）
-/// 特点：
-/// - 无随机 / 暴击 / 命中判定（可扩展）
-/// - 通过递归调度形成重复攻击节奏
-/// </summary>
-public record AttackTickEvent(double ExecuteAt) : IGameEvent
-{
-    public string EventType => "AttackTick";
-
-    public void Execute(BattleContext context)
-    {
-        // 1. 结算伤害（后续可替换为：读取角色属性→计算 AttackDamage）
-        const int dmg = 10;
-        context.SegmentCollector.OnDamage("basic_attack", dmg);
-
-        // 2. 调度下一次攻击
-        var interval = context.Battle.AttackIntervalSeconds;   // 当前使用 Battle 固定参数
-        context.Scheduler.Schedule(new AttackTickEvent(ExecuteAt + interval));
-    }
-}

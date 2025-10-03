@@ -1,8 +1,7 @@
 ﻿using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Domain.Characters;
+using BlazorIdle.Server.Domain.Combat;
 using BlazorIdle.Server.Domain.Records;
-using BlazorWebGame.Application.Battles;
-using BlazorWebGame.Domain.Combat;
 
 namespace BlazorIdle.Server.Application.Battles;
 
@@ -63,12 +62,14 @@ public class StartBattleService
         // 5. 构造持久化模型（转换逻辑时间 → 墙钟时间；EndedAt=StartedAt 因为一次性完成）
         var record = new BattleRecord
         {
-            Id = battleDomain.Id,               // 复用领域对象的 Id 保持一致
+            Id = battleDomain.Id,
             CharacterId = characterId,
-            StartedAt = DateTime.UtcNow,        // 真实开始时间（模拟发起时刻）
-            EndedAt = DateTime.UtcNow,          // 同步模拟：开始=结束
+            StartedAt = DateTime.UtcNow,
+            EndedAt = DateTime.UtcNow,
             TotalDamage = totalDamage,
-            DurationSeconds = simulateSeconds,  // 逻辑时长（非真实耗时）
+            DurationSeconds = simulateSeconds,
+            AttackIntervalSeconds = battleDomain.AttackIntervalSeconds,
+            SpecialIntervalSeconds = battleDomain.SpecialIntervalSeconds,
             Segments = segments.Select(s => new BattleSegmentRecord
             {
                 Id = Guid.NewGuid(),

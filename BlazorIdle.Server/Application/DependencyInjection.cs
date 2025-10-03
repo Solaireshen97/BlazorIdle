@@ -1,5 +1,4 @@
 ﻿using BlazorIdle.Server.Application.Battles;
-using BlazorWebGame.Application.Battles;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BlazorIdle.Server.Application;

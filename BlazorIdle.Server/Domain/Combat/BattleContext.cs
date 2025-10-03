@@ -1,4 +1,6 @@
-﻿namespace BlazorWebGame.Domain.Combat;
+﻿using BlazorIdle.Server.Domain.Combat;
+
+namespace BlazorWebGame.Domain.Combat;
 
 /// <summary>
 /// 战斗执行上下文（Context）
@@ -38,6 +40,8 @@ public class BattleContext
     /// </summary>
     public SegmentCollector SegmentCollector { get; }
 
+
+    public List<TrackState> Tracks { get; } = new(); // 新增
     /// <summary>
     /// 构造：将运行时协作者聚合。
     /// 所有参数都应为非空（当前未加校验，依赖调用方保证）。

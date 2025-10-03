@@ -40,6 +40,9 @@ public class BattleRecord
     /// </summary>
     public double DurationSeconds { get; set; }
 
+    public double AttackIntervalSeconds { get; set; }  // 新增（如果还没）
+    public double SpecialIntervalSeconds { get; set; } // 新增
+
     /// <summary>
     /// 导航属性：战斗被切片后的段列表
     /// EF Core Include(b => b.Segments) 读取

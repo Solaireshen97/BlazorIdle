@@ -44,10 +44,15 @@
             总伤害: @summary?.TotalDamage |
             时长: @summary?.DurationSeconds s |
             DPS: @summary?.Dps |
-            段数: @summary?.SegmentCount
+            段数: @summary?.SegmentCount|
+            @if (summary is not null)
+            {
+            <p>Attack间隔: @summary.AttackIntervalSeconds | Special间隔: @summary.SpecialIntervalSeconds</p>
+        }
         </p>
-        <button @onclick="ForceRefresh" disabled="@isBusy || battleInProgress">手动刷新</button>
-        <button @onclick="LoadSegments" disabled="@isBusy || segmentsLoading">加载段详情</button>
+        <p>DEBUG isBusy=@isBusy battleInProgress=@battleInProgress segmentsLoading=@segmentsLoading</p>
+        <button @onclick="ForceRefresh" disabled="@(isBusy || battleInProgress)">手动刷新</button>
+        <button @onclick="LoadSegments" disabled="@(isBusy || segmentsLoading)">加载段详情</button>
 
         @if (segmentsLoading)
         {
@@ -155,6 +160,7 @@
         finally
         {
             isBusy = false;
+            StateHasChanged();
         }
     }
 

@@ -63,7 +63,9 @@ public class BattlesController : ControllerBase
             battle.TotalDamage,
             battle.DurationSeconds,
             Dps = Math.Round(dps, 2),
-            SegmentCount = battle.Segments.Count
+            SegmentCount = battle.Segments.Count,
+            battle.AttackIntervalSeconds,
+            battle.SpecialIntervalSeconds
         });
     }
 
