@@ -9,9 +9,9 @@ public class BuffManager
     private readonly List<BuffDefinition> _definitions = new();
     public BuffAggregate Aggregate { get; private set; } = new();
 
-    private readonly Action<string, int>? _tag;       // tagCounters
-    private readonly Action<string, int>? _resource;  // ResourceFlow
-    private readonly Action<string, int>? _damage;    // Damage
+    private readonly Action<string, int>? _tag;
+    private readonly Action<string, int>? _resource;
+    private readonly Action<string, int>? _damage;
 
     public BuffManager(
         Action<string, int>? tagRecorder,
@@ -25,7 +25,6 @@ public class BuffManager
 
     public void RegisterDefinition(BuffDefinition def)
     {
-        // 幂等：避免重复注册
         if (_definitions.Exists(d => d.Id == def.Id)) return;
         _definitions.Add(def);
     }
@@ -34,9 +33,7 @@ public class BuffManager
         => _definitions.Find(d => d.Id == id) ?? throw new InvalidOperationException($"BuffDefinition {id} not found");
 
     public bool Has(string id) => _active.ContainsKey(id);
-
-    public BuffInstance? TryGet(string id)
-        => _active.TryGetValue(id, out var inst) ? inst : null;
+    public BuffInstance? TryGet(string id) => _active.TryGetValue(id, out var inst) ? inst : null;
 
     public BuffInstance Apply(string id, double now)
     {
@@ -45,18 +42,9 @@ public class BuffManager
         {
             switch (def.StackPolicy)
             {
-                case BuffStackPolicy.Refresh:
-                    existing.Refresh(now);
-                    _tag?.Invoke($"buff_refresh:{id}", 1);
-                    break;
-                case BuffStackPolicy.Stack:
-                    existing.Stack(now);
-                    _tag?.Invoke($"buff_stack:{id}", 1);
-                    break;
-                case BuffStackPolicy.Extend:
-                    existing.Extend(now);
-                    _tag?.Invoke($"buff_extend:{id}", 1);
-                    break;
+                case BuffStackPolicy.Refresh: existing.Refresh(now); _tag?.Invoke($"buff_refresh:{id}", 1); break;
+                case BuffStackPolicy.Stack: existing.Stack(now); _tag?.Invoke($"buff_stack:{id}", 1); break;
+                case BuffStackPolicy.Extend: existing.Extend(now); _tag?.Invoke($"buff_extend:{id}", 1); break;
             }
             RecalcAggregate();
             return existing;
@@ -137,7 +125,7 @@ public class BuffManager
             if (def.MultiplicativeHaste > 0)
                 aggr.MultiplicativeHasteFactor *= (1 + def.MultiplicativeHaste * stacks);
 
-            // 伤害乘区
+            // 最终伤害乘区
             aggr.DamageMultiplierPhysical += def.DamageMultiplierPhysical * stacks;
             aggr.DamageMultiplierMagic += def.DamageMultiplierMagic * stacks;
             aggr.DamageMultiplierTrue += def.DamageMultiplierTrue * stacks;
@@ -147,9 +135,12 @@ public class BuffManager
             aggr.ArmorPenPct += def.ArmorPenPct * stacks;
             aggr.MagicPenFlat += def.MagicPenFlat * stacks;
             aggr.MagicPenPct += def.MagicPenPct * stacks;
+
+            // 暴击
+            aggr.CritChanceBonus += def.CritChanceBonus * stacks;
+            aggr.CritMultiplierBonus += def.CritMultiplierBonus * stacks;
         }
 
-        // 百分比型穿透做一次 clamp（0..1）
         aggr.ArmorPenPct = Clamp01(aggr.ArmorPenPct);
         aggr.MagicPenPct = Clamp01(aggr.MagicPenPct);
 

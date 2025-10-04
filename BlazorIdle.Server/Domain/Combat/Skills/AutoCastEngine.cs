@@ -25,6 +25,7 @@ public class AutoCastEngine
             if (!slot.Runtime.IsReady(now))
                 continue;
 
+            // 资源判定与扣除
             if (def.CostResourceId is not null && def.CostAmount > 0)
             {
                 if (!context.Resources.TryGet(def.CostResourceId, out var bucket))
@@ -37,27 +38,19 @@ public class AutoCastEngine
                     context.SegmentCollector.OnResourceChange(def.CostResourceId, result.AppliedDelta);
             }
 
-            var dmgSource = "skill:" + def.Id;
-            int dmg = def.BaseDamage;
-            double chance = def.CritChance ?? context.Crit.Chance;
-            double mult = def.CritMultiplier ?? context.Crit.Multiplier;
-
+            // 解析暴击参数（允许技能覆盖）
+            var (chance, mult) = context.Crit.ResolveWith(context.Buffs.Aggregate, def.CritChance, def.CritMultiplier);
             bool isCrit = context.Rng.NextBool(chance);
-            if (isCrit)
-            {
-                dmg = (int)Math.Round(dmg * mult);
-                context.SegmentCollector.OnTag("crit:" + dmgSource, 1);
-            }
+            int dmg = isCrit ? (int)Math.Round(def.BaseDamage * mult) : def.BaseDamage;
+            if (isCrit) context.SegmentCollector.OnTag("crit:skill:" + def.Id, 1);
 
-            // 使用 DamageCalculator，技能默认按物理，可将来在定义中扩展 DamageType
             var type = DamageType.Physical;
             if (def is SkillDefinitionExt ext) type = ext.DamageType;
 
-            DamageCalculator.ApplyDamage(context, dmgSource, dmg, type);
+            DamageCalculator.ApplyDamage(context, "skill:" + def.Id, dmg, type);
             context.SegmentCollector.OnTag("skill_cast:" + def.Id, 1);
 
             context.ProfessionModule.OnSkillCast(context, def);
-
             slot.Runtime.MarkCast(now);
             return true;
         }

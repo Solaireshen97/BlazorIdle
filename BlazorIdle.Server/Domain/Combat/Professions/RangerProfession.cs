@@ -15,6 +15,7 @@ public class RangerProfession : IProfessionModule
         context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.RangerBleed);
         context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.FocusFlow);
         context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.RangerHuntersMark);
+        context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.RangerSharpsight); // 新
     }
 
     public void OnBattleStart(BattleContext context)
@@ -23,7 +24,7 @@ public class RangerProfession : IProfessionModule
             id: "focus",
             max: 100,
             initial: 0,
-            policy: OverflowPolicy.Convert,
+            policy: Resources.OverflowPolicy.Convert,
             convertUnit: 25,
             conversionTag: "focus_overflow_proc"
         );
@@ -50,7 +51,6 @@ public class RangerProfession : IProfessionModule
         if (focus.Current == focus.Max)
             context.SegmentCollector.OnTag("focus_cap_hit", 1);
 
-        // 同时维持专注回复
         context.Buffs.Apply("focus_flow", context.Clock.CurrentTime);
     }
 
@@ -80,8 +80,8 @@ public class RangerProfession : IProfessionModule
     {
         if (def.Id == "power_shot")
         {
-            // 命中后给目标一个物理易伤
-            context.Buffs.Apply("ranger_hunters_mark", context.Clock.CurrentTime);
+            context.Buffs.Apply("ranger_hunters_mark", context.Clock.CurrentTime); // 物理易伤
+            context.Buffs.Apply("ranger_sharpsight", context.Clock.CurrentTime);   // 暴击倍数+
         }
     }
 }

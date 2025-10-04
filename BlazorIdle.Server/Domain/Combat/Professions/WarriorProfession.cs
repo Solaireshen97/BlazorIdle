@@ -14,6 +14,7 @@ public class WarriorProfession : IProfessionModule
     {
         context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.WarriorBerserk);
         context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.WarriorExposeArmor);
+        context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.WarriorPrecision); // 新
     }
 
     public void OnBattleStart(BattleContext context)
@@ -22,7 +23,7 @@ public class WarriorProfession : IProfessionModule
             id: "rage",
             max: 100,
             initial: 0,
-            policy: OverflowPolicy.Convert,
+            policy: Resources.OverflowPolicy.Convert,
             convertUnit: 20,
             conversionTag: "rage_overflow_proc"
         );
@@ -62,8 +63,9 @@ public class WarriorProfession : IProfessionModule
     {
         if (def.Id == "heroic_strike")
         {
-            // 施加爆发加速 or 护甲破甲，这里示范破甲
+            // 命中后：上破甲 + 精准（暴击率）
             context.Buffs.Apply("warrior_expose_armor", context.Clock.CurrentTime);
+            context.Buffs.Apply("warrior_precision", context.Clock.CurrentTime);
         }
     }
 }
