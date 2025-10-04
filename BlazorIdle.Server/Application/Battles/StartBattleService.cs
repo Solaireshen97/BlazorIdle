@@ -22,6 +22,7 @@ public class StartBattleService
         _runner = runner;
     }
 
+    // 新增 enemyCount 参数（默认 1），用于创建多目标遭遇组；不改数据库
     public async Task<Guid> StartAsync(Guid characterId, double simulateSeconds = 15, ulong? seed = null, string? enemyId = null, int enemyCount = 1, CancellationToken ct = default)
     {
         var c = await _characters.GetAsync(characterId, ct);
@@ -42,9 +43,8 @@ public class StartBattleService
             StartedAt = 0
         };
 
-        // 构建主属性 -> Stats（Phase 1：线性映射）
-        var attrs = new PrimaryAttributes(c.Strength, c.Agility, c.Intellect, c.Stamina);
-        var stats = StatsBuilder.Build(c.Profession, attrs);
+        // 职业基础 Stats：不含主属性/装备转换（Haste=0，急速仅由 Buff/专门属性影响）
+        var stats = ProfessionBaseStatsRegistry.Resolve(c.Profession);
 
         ulong finalSeed = seed ?? DeriveSeed(characterId);
         var rng = new RngContext(finalSeed);
@@ -54,9 +54,9 @@ public class StartBattleService
             battleDomain, simulateSeconds, c.Profession, rng,
             out var killed, out var killTime, out var overkill,
             module: module,
-            encounter: null,
-            encounterGroup: encounterGroup,
-            stats: stats   // 注入面板
+            encounter: null,               // 主目标由组内的 PrimaryAlive 决定
+            encounterGroup: encounterGroup, // 多目标组
+            stats: stats                    // 注入职业基础面板
         );
 
         long seedIndexEnd = rng.Index;
@@ -75,6 +75,8 @@ public class StartBattleService
             Seed = finalSeed.ToString(),
             SeedIndexStart = seedIndexStart,
             SeedIndexEnd = seedIndexEnd,
+
+            // 敌人与击杀信息：沿用单目标（主目标）信息，不做 DB 变更
             EnemyId = enemyDef.Id,
             EnemyName = enemyDef.Name,
             EnemyLevel = enemyDef.Level,
@@ -84,6 +86,7 @@ public class StartBattleService
             Killed = killed,
             KillTimeSeconds = killTime,
             OverkillDamage = overkill,
+
             Segments = segments.Select(s => new BattleSegmentRecord
             {
                 Id = Guid.NewGuid(),
