@@ -11,7 +11,7 @@ public class AutoCastEngine
 
     public IReadOnlyList<SkillSlot> Slots => _slots;
 
-    // 新增：全局冷却 & 施法状态
+    // 全局冷却 & 施法状态
     public double GlobalCooldownUntil { get; private set; } = 0;
     public bool IsCasting { get; private set; }
     public double CastingUntil { get; private set; }
@@ -59,19 +59,13 @@ public class AutoCastEngine
 
             if (def.CastTimeSeconds > 0)
             {
-                // 开始施法
-                if (!def.OffGcd)
-                    GlobalCooldownUntil = now + def.GcdSeconds;
-
+                // 施法技能：开始施法，GCD/Cast 受 Haste 缩放
                 StartCasting(slot, context, now);
                 return true;
             }
             else
             {
-                // 即时技能：直接结算
-                if (!def.OffGcd)
-                    GlobalCooldownUntil = now + def.GcdSeconds;
-
+                // 即时技能：GCD 受 Haste 缩放
                 CastInstant(slot, context, now);
                 return true;
             }
@@ -83,9 +77,18 @@ public class AutoCastEngine
     private void StartCasting(SkillSlot slot, BattleContext context, double now)
     {
         var def = slot.Runtime.Definition;
+
+        // 读取当前 Haste 因子并缩放 GCD/Cast
+        var haste = ResolveHasteFactor(context);
+        var effCast = Math.Max(0.01, def.CastTimeSeconds / haste);
+        var effGcd = def.OffGcd ? 0.0 : Math.Max(0.01, def.GcdSeconds / haste);
+
+        if (!def.OffGcd)
+            GlobalCooldownUntil = now + effGcd;
+
         IsCasting = true;
         _castingSlot = slot;
-        CastingUntil = now + def.CastTimeSeconds;
+        CastingUntil = now + effCast;
         CastingSkillLocksAttack = def.LockAttackDuringCast;
 
         // 调度施法完成事件
@@ -105,6 +108,14 @@ public class AutoCastEngine
     private void CastInstant(SkillSlot slot, BattleContext context, double now)
     {
         var def = slot.Runtime.Definition;
+
+        // 即时技能的 GCD 受 Haste 缩放
+        if (!def.OffGcd)
+        {
+            var haste = ResolveHasteFactor(context);
+            var effGcd = Math.Max(0.01, def.GcdSeconds / haste);
+            GlobalCooldownUntil = now + effGcd;
+        }
 
         // 如未在开始扣资源，则在完成时扣
         if (!def.SpendCostOnCast && def.CostResourceId is not null && def.CostAmount > 0)
@@ -139,6 +150,13 @@ public class AutoCastEngine
 
         // 进入冷却
         slot.Runtime.MarkCast(now);
+    }
+
+    private static double ResolveHasteFactor(BattleContext context)
+    {
+        // 复用 BuffAggregate 的 Haste 聚合，1.0 为无加速
+        // ApplyToBaseHaste 已含下限保护（>=0.1）
+        return context.Buffs.Aggregate.ApplyToBaseHaste(1.0);
     }
 }
 
