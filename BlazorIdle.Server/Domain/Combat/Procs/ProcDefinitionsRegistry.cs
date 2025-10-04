@@ -1,11 +1,12 @@
 ﻿using BlazorIdle.Server.Domain.Combat.Buffs;
 using BlazorIdle.Server.Domain.Combat.Damage;
+using BlazorIdle.Server.Domain.Combat.Skills;
 
 namespace BlazorIdle.Server.Domain.Combat.Procs;
 
 public static class ProcDefinitionsRegistry
 {
-    // 示例1：游侠“爆裂箭”——暴击时 100% 触发，额外造成 20 物理伤害（单体）
+    // 旧示例：OnCrit → 单体额外伤害
     public static ProcDefinition RangerExplosiveArrow => new(
         id: "ranger_explosive_arrow",
         name: "Explosive Arrow",
@@ -21,21 +22,21 @@ public static class ProcDefinitionsRegistry
         actionDamageType: DamageType.Physical
     );
 
-    // 示例2：战士“破甲打击”——OnHit 20% 几率上 Expose Armor，ICD 3s
+    // 旧示例：OnHit → 上破甲
     public static ProcDefinition WarriorShredOnHit => new(
         id: "warrior_shred_on_hit",
         name: "Shred Armor",
         trigger: ProcTriggerType.OnHit,
         chance: 0.20,
         icdSeconds: 3.0,
-        sourceFilter: ProcSourceFilter.BasicAttackOnly, // 仅普攻
+        sourceFilter: ProcSourceFilter.BasicAttackOnly,
         allowFromDot: false,
         damageTypeFilter: DamageType.Physical,
         action: ProcActionType.ApplyBuff,
         actionBuffId: BuffDefinitionsRegistry.WarriorExposeArmor.Id
     );
 
-    // 示例3：RPPM——每分钟 1 次，触发时造成 15 点魔法伤害
+    // 旧示例：RPPM → 单体奥术伤害
     public static ProcDefinition ArcanePulseRppm => new(
         id: "arcane_pulse_rppm",
         name: "Arcane Pulse",
@@ -49,5 +50,25 @@ public static class ProcDefinitionsRegistry
         actionBuffId: null,
         actionDamageValue: 15,
         actionDamageType: DamageType.Magic
+    );
+
+    // 新增示例：OnCrit → AoE（CleaveFull）3 目标
+    public static ProcDefinition RangerExplosiveBurst => new(
+        id: "ranger_explosive_burst",
+        name: "Explosive Burst",
+        trigger: ProcTriggerType.OnCrit,
+        chance: 1.0,
+        icdSeconds: 0.0,
+        sourceFilter: ProcSourceFilter.SkillOnly,
+        allowFromDot: false,
+        damageTypeFilter: null,
+        action: ProcActionType.DealDamage,
+        actionBuffId: null,
+        actionDamageValue: 18,
+        actionDamageType: DamageType.Magic,
+        maxTargets: 3,
+        aoeMode: AoEMode.CleaveFull,
+        includePrimaryTarget: true,
+        splitRemainderToPrimary: true
     );
 }

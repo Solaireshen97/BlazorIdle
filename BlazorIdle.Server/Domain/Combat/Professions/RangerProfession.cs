@@ -11,7 +11,7 @@ public class RangerProfession : IProfessionModule
     public double BaseAttackInterval => 1.4;
     public double BaseSpecialInterval => 4.0;
 
-    public void RegisterBuffDefinitions(BattleContext context)
+    public virtual void RegisterBuffDefinitions(BattleContext context)
     {
         context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.RangerBleed);
         context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.FocusFlow);
@@ -21,10 +21,9 @@ public class RangerProfession : IProfessionModule
 
     public virtual void OnBattleStart(BattleContext context)
     {
-        // 注册游侠示例 Proc
-        context.Procs.RegisterDefinition(ProcDefinitionsRegistry.RangerExplosiveArrow);
-        // 可选 RPPM 示例（演示稳定脉冲触发）
-        // context.Procs.RegisterDefinition(ProcDefinitionsRegistry.ArcanePulseRppm);
+        // 可选注册：Proc 示例（按需启用）
+        // context.Procs.RegisterDefinition(ProcDefinitionsRegistry.RangerExplosiveArrow);
+        // context.Procs.RegisterDefinition(ProcDefinitionsRegistry.RangerExplosiveBurst);
 
         context.Resources.Ensure(
             id: "focus",
@@ -36,7 +35,7 @@ public class RangerProfession : IProfessionModule
         );
     }
 
-    public void OnAttackTick(BattleContext context, AttackTickEvent evt)
+    public virtual void OnAttackTick(BattleContext context, AttackTickEvent evt)
     {
         var focus = context.Resources.Get("focus");
         var result = focus.Add(1);
@@ -46,7 +45,7 @@ public class RangerProfession : IProfessionModule
             context.SegmentCollector.OnTag("focus_overflow_proc", result.ConversionCount);
     }
 
-    public void OnSpecialPulse(BattleContext context, SpecialPulseEvent evt)
+    public virtual void OnSpecialPulse(BattleContext context, SpecialPulseEvent evt)
     {
         var focus = context.Resources.Get("focus");
         var result = focus.Add(5);
@@ -96,21 +95,6 @@ public class RangerProfession : IProfessionModule
             baseDamage: 25,
             critChance: 0.05,
             critMultiplier: 1.8
-        ));
-
-        engine.AddSkill(new SkillDefinition(
-            id: "volley",
-            name: "Volley",
-            costResourceId: "focus",
-            costAmount: 35,
-            cooldownSeconds: 8.0,
-            priority: 8,
-            baseDamage: 40,
-            critChance: 0.10,
-            critMultiplier: 2.0,
-            maxTargets: 3,
-            aoeMode: AoEMode.CleaveFull,
-            includePrimaryTarget: true
         ));
     }
 

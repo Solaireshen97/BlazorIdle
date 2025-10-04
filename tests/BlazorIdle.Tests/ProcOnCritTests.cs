@@ -44,8 +44,8 @@ public class ProcOnCritTests
         var encA = new Encounter(EnemyRegistry.Resolve("dummy"));
         var encB = new Encounter(EnemyRegistry.Resolve("dummy"));
 
-        var segA = runner.RunForDuration(battleA, 60, Profession.Ranger, rngA, out _, out _, out _, new RangerNoProc(), encA);
-        var segB = runner.RunForDuration(battleB, 60, Profession.Ranger, rngB, out _, out _, out _, new RangerWithProc(), encB);
+        var segA = runner.RunForDuration(battleA, 12, Profession.Ranger, rngA, out _, out _, out _, new RangerNoProc(), encA);
+        var segB = runner.RunForDuration(battleB, 12, Profession.Ranger, rngB, out _, out _, out _, new RangerWithProc(), encB);
 
         int dmgA = segA.Sum(s => s.TotalDamage);
         int dmgB = segB.Sum(s => s.TotalDamage);

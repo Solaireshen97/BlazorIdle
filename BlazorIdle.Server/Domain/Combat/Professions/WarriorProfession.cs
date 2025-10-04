@@ -11,17 +11,17 @@ public class WarriorProfession : IProfessionModule
     public double BaseAttackInterval => 1.5;
     public double BaseSpecialInterval => 5.0;
 
-    public void RegisterBuffDefinitions(BattleContext context)
+    public virtual void RegisterBuffDefinitions(BattleContext context)
     {
         context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.WarriorBerserk);
         context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.WarriorExposeArmor);
         context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.WarriorPrecision);
     }
 
-    public void OnBattleStart(BattleContext context)
+    public virtual void OnBattleStart(BattleContext context)
     {
-        // 注册战士示例 Proc
-        context.Procs.RegisterDefinition(ProcDefinitionsRegistry.WarriorShredOnHit);
+        // 可选注册：战士 Proc
+        // context.Procs.RegisterDefinition(ProcDefinitionsRegistry.WarriorShredOnHit);
 
         context.Resources.Ensure(
             id: "rage",
@@ -33,7 +33,7 @@ public class WarriorProfession : IProfessionModule
         );
     }
 
-    public void OnAttackTick(BattleContext context, AttackTickEvent evt)
+    public virtual void OnAttackTick(BattleContext context, AttackTickEvent evt)
     {
         var rage = context.Resources.Get("rage");
         var result = rage.Add(1);
@@ -45,7 +45,7 @@ public class WarriorProfession : IProfessionModule
             context.SegmentCollector.OnTag("rage_cap_hit", 1);
     }
 
-    public void OnSpecialPulse(BattleContext context, SpecialPulseEvent evt)
+    public virtual void OnSpecialPulse(BattleContext context, SpecialPulseEvent evt)
     {
         // 预留
     }
@@ -63,19 +63,6 @@ public class WarriorProfession : IProfessionModule
             critChance: 0.15,
             critMultiplier: 2.2
         ));
-
-        // OffGCD 示例供参考（如之前已加入）
-        engine.AddSkill(new SkillDefinition(
-            id: "battle_shout",
-            name: "Battle Shout",
-            costResourceId: null,
-            costAmount: 0,
-            cooldownSeconds: 20.0,
-            priority: 3,
-            baseDamage: 0,
-            offGcd: true,
-            allowDuringCastingForOffGcd: true
-        ));
     }
 
     public virtual void OnSkillCast(BattleContext context, SkillDefinition def)
@@ -84,11 +71,6 @@ public class WarriorProfession : IProfessionModule
         {
             context.Buffs.Apply("warrior_expose_armor", context.Clock.CurrentTime);
             context.Buffs.Apply("warrior_precision", context.Clock.CurrentTime);
-        }
-        else if (def.Id == "battle_shout")
-        {
-            context.Buffs.Apply("warrior_precision", context.Clock.CurrentTime);
-            context.SegmentCollector.OnTag("shout_buff_applied", 1);
         }
     }
 }
