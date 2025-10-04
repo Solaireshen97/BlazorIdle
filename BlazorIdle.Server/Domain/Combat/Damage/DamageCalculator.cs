@@ -7,16 +7,13 @@ namespace BlazorIdle.Server.Domain.Combat;
 
 public static class DamageCalculator
 {
-    // 护甲减伤公式参数（可后续配置化）
     private const double K = 50.0;
     private const double C = 400.0;
 
-    // 兼容旧 API：按 context.Encounter 结算单体
     public static int ApplyDamage(BattleContext context, string sourceId, int baseDamage, DamageType type)
     {
         if (context.Encounter is null)
         {
-            // 无目标：仅统计
             int dealtStat = Math.Max(0, (int)baseDamage);
             context.SegmentCollector.OnDamage(sourceId, dealtStat, type);
             return dealtStat;
@@ -25,17 +22,15 @@ public static class DamageCalculator
         return ApplyDamageToTarget(context, context.Encounter, sourceId, baseDamage, type);
     }
 
-    // 新：对指定目标结算（用于 AoE 逐个目标）
     public static int ApplyDamageToTarget(BattleContext context, Encounter target, string sourceId, int baseDamage, DamageType type)
     {
         var agg = context.Buffs.Aggregate;
-        int dealt = ComputeDealt(baseDamage, type, target.Enemy, agg);
+        int dealt = ComputeDealt(baseDamage, type, target.Enemy, agg, context);
         var applied = target.ApplyDamage(dealt, context.Clock.CurrentTime);
         context.SegmentCollector.OnDamage(sourceId, applied, type);
         return applied;
     }
 
-    // 新：对多个目标结算（返回总实际伤害）
     public static int ApplyDamageToTargets(BattleContext context, IEnumerable<(Encounter target, int damage)> plan, string sourceId, DamageType type)
     {
         int total = 0;
@@ -44,7 +39,7 @@ public static class DamageCalculator
         return total;
     }
 
-    private static int ComputeDealt(int baseDamage, DamageType type, EnemyDefinition enemy, Buffs.BuffAggregate agg)
+    private static int ComputeDealt(int baseDamage, DamageType type, EnemyDefinition enemy, Buffs.BuffAggregate agg, BattleContext ctx)
     {
         double factor = 1.0;
 
@@ -52,8 +47,12 @@ public static class DamageCalculator
         {
             case DamageType.Physical:
                 {
-                    var armorEff = Math.Max(0, enemy.Armor - Math.Max(0, agg.ArmorPenFlat));
-                    armorEff *= (1 - Clamp01(agg.ArmorPenPct));
+                    // 合并 Stats 与 Buff 穿透
+                    var armorPenFlat = Math.Max(0.0, agg.ArmorPenFlat + ctx.Stats.ArmorPenFlat);
+                    var armorPenPct = Clamp01(agg.ArmorPenPct + ctx.Stats.ArmorPenPct);
+
+                    var armorEff = Math.Max(0.0, enemy.Armor - armorPenFlat);
+                    armorEff *= (1 - armorPenPct);
 
                     var denom = armorEff + (K * enemy.Level + C);
                     var reduction = denom <= 0 ? 0 : armorEff / denom; // 0..1
@@ -64,8 +63,11 @@ public static class DamageCalculator
                 }
             case DamageType.Magic:
                 {
-                    var mrEff = Math.Max(0.0, enemy.MagicResist - Math.Max(0, agg.MagicPenFlat));
-                    mrEff *= (1 - Clamp01(agg.MagicPenPct));
+                    var mrPenFlat = Math.Max(0.0, agg.MagicPenFlat + ctx.Stats.MagicPenFlat);
+                    var mrPenPct = Clamp01(agg.MagicPenPct + ctx.Stats.MagicPenPct);
+
+                    var mrEff = Math.Max(0.0, enemy.MagicResist - mrPenFlat);
+                    mrEff *= (1 - mrPenPct);
                     mrEff = Clamp01(mrEff);
 
                     factor *= 1.0 - mrEff;

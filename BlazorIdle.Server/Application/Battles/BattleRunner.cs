@@ -22,20 +22,19 @@ public class BattleRunner
         out int overkill,
         IProfessionModule? module = null,
         Encounter? encounter = null,
-        EncounterGroup? encounterGroup = null)
+        EncounterGroup? encounterGroup = null,
+        CharacterStats? stats = null)
     {
         var clock = new GameClock();
         var scheduler = new EventScheduler();
         var collector = new SegmentCollector();
 
         var professionModule = module ?? ProfessionRegistry.Resolve(profession);
-        var context = new BattleContext(battle, clock, scheduler, collector, professionModule, profession, rng, encounter, encounterGroup);
+        var context = new BattleContext(battle, clock, scheduler, collector, professionModule, profession, rng, encounter, encounterGroup, stats);
 
         professionModule.RegisterBuffDefinitions(context);
-        // 职业在 OnBattleStart/BuildSkills 之前可选择注册其特定 Proc
         professionModule.OnBattleStart(context);
         professionModule.BuildSkills(context, context.AutoCaster);
-
         // 启动 RPPM 脉冲（每 1s）
         scheduler.Schedule(new ProcPulseEvent(clock.CurrentTime + 1.0, 1.0));
 
@@ -98,7 +97,7 @@ public class BattleRunner
         foreach (var t in context.Tracks)
         {
             if (t.TrackType == TrackType.Attack)
-                t.SetHaste(agg.ApplyToBaseHaste(1.0));
+                t.SetHaste(agg.ApplyToBaseHaste(1.0 + context.Stats.HastePercent));
         }
     }
 }

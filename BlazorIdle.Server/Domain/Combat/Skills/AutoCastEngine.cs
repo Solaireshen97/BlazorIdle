@@ -13,17 +13,14 @@ public class AutoCastEngine
 
     public IReadOnlyList<SkillSlot> Slots => _slots;
 
-    // 全局冷却 & 施法状态
     public double GlobalCooldownUntil { get; private set; } = 0;
     public bool IsCasting { get; private set; }
     public double CastingUntil { get; private set; }
     public bool CastingSkillLocksAttack { get; private set; }
     public long? CurrentCastId => _currentCastId;
 
-    // 单槽队列
     private SkillSlot? _queuedSlot;
 
-    // 施法跟踪
     private SkillSlot? _castingSlot;
     private long _castSeq = 0;
     private long? _currentCastId;
@@ -37,23 +34,19 @@ public class AutoCastEngine
 
     public bool TryAutoCast(BattleContext context, double now)
     {
-        // 推进充能
         foreach (var s in _slots)
             s.Runtime.TickRecharge(now);
 
-        // 先尝试消费队列（若可）
         if (TryConsumeQueued(context, now))
             return true;
 
-        // 施法期间：允许“OffGCD 且允许编织且瞬发”的技能穿插释放
         if (IsCasting)
         {
-            var hasteDuring = ResolveHasteFactor(context); // 用于充能/冷却的时长缩放
+            var hasteDuring = ResolveHasteFactor(context);
             foreach (var slot in _slots)
             {
                 var def = slot.Runtime.Definition;
 
-                // 仅允许：OffGCD + 允许编织 + 瞬发（CastTime=0）
                 if (!(def.OffGcd && def.AllowDuringCastingForOffGcd && def.CastTimeSeconds <= 0))
                     continue;
 
@@ -63,19 +56,16 @@ public class AutoCastEngine
                 if (!HasSufficientResourceForStart(context, def))
                     continue;
 
-                // 直接使用瞬发路径；不改变施法状态，不影响“暂停普攻”规则
                 CastInstant(slot, context, now, hasteDuring, deductCostNow: def.SpendCostOnCast);
                 return true;
             }
 
-            // 未能编织，记录队列候选（含 OffGCD）以便施法完成后抢占
             ConsiderQueueCandidates(context, now, castingBlocked: true);
             return false;
         }
 
         var haste = ResolveHasteFactor(context);
 
-        // 常规扫描：可立即施放就施放；被 GCD 阻塞则入队
         foreach (var slot in _slots)
         {
             var def = slot.Runtime.Definition;
@@ -159,7 +149,6 @@ public class AutoCastEngine
     {
         var def = slot.Runtime.Definition;
 
-        // OffGCD 不进入 GCD；OnGCD 则按 Haste 缩放 GCD
         if (!def.OffGcd)
         {
             var effGcd = Math.Max(0.01, def.GcdSeconds / haste);
@@ -173,7 +162,6 @@ public class AutoCastEngine
                 return;
         }
 
-        // 充能/冷却
         if (def.MaxCharges > 1)
         {
             var effRecharge = def.RechargeAffectedByHaste ? Math.Max(0.01, def.RechargeSeconds / haste) : def.RechargeSeconds;
@@ -184,17 +172,26 @@ public class AutoCastEngine
             slot.Runtime.MarkCast(now);
         }
 
-        // 伤害 + AoE
         DoSkillDamage(slot, context, def, now);
 
         if (_queuedSlot == slot) _queuedSlot = null;
     }
 
-    private void DoSkillDamage(SkillSlot slot, BattleContext context, SkillDefinition def,double now)
+    private void DoSkillDamage(SkillSlot slot, BattleContext context, SkillDefinition def, double now)
     {
-        var (chance, mult) = context.Crit.ResolveWith(context.Buffs.Aggregate, def.CritChance, def.CritMultiplier);
+        // AP/SP 注入
+        double preCrit = def.BaseDamage
+            + context.Stats.AttackPower * def.AttackPowerCoef
+            + context.Stats.SpellPower * def.SpellPowerCoef;
+
+        // 暴击（用技能覆盖或用面板基础）
+        var (chance, mult) = context.Crit.ResolveWith(
+            context.Buffs.Aggregate,
+            def.CritChance ?? context.Stats.CritChance,
+            def.CritMultiplier ?? context.Stats.CritMultiplier
+        );
         bool isCrit = context.Rng.NextBool(chance);
-        int baseDmg = isCrit ? (int)Math.Round(def.BaseDamage * mult) : def.BaseDamage;
+        int baseDmg = isCrit ? (int)Math.Round(preCrit * mult) : (int)Math.Round(preCrit);
         if (isCrit) context.SegmentCollector.OnTag("crit:skill:" + def.Id, 1);
 
         var type = DamageType.Physical;
@@ -242,12 +239,12 @@ public class AutoCastEngine
         context.SegmentCollector.OnTag("skill_cast:" + def.Id, 1);
         context.ProfessionModule.OnSkillCast(context, def);
 
-        // Proc：OnHit/OnCrit（非 DoT），来源为技能
+        // Proc 来源为技能命中
         context.Procs.OnDirectHit(context, "skill:" + def.Id, type, isCrit, isDot: false, DirectSourceKind.Skill, now);
     }
 
     private static double ResolveHasteFactor(BattleContext context)
-        => context.Buffs.Aggregate.ApplyToBaseHaste(1.0);
+        => context.Buffs.Aggregate.ApplyToBaseHaste(1.0 + context.Stats.HastePercent);
 
     private void ConsiderQueueCandidates(BattleContext context, double now, bool castingBlocked)
     {
@@ -397,8 +394,9 @@ public class SkillDefinitionExt : SkillDefinition
         string? costResourceId, int costAmount,
         double cooldownSeconds, int priority, int baseDamage,
         DamageType damageType,
-        double? critChance = null, double? critMultiplier = null)
-        : base(id, name, costResourceId, costAmount, cooldownSeconds, priority, baseDamage, critChance, critMultiplier)
+        double? critChance = null, double? critMultiplier = null,
+        double apCoef = 0.0, double spCoef = 0.0)
+        : base(id, name, costResourceId, costAmount, cooldownSeconds, priority, baseDamage, critChance, critMultiplier, apCoef: apCoef, spCoef: spCoef)
     {
         DamageType = damageType;
     }

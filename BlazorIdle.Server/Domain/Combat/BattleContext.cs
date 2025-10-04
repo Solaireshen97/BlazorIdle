@@ -32,6 +32,8 @@ public class BattleContext
     public Encounter? Encounter { get; }
     public EncounterGroup? EncounterGroup { get; }
 
+    public CharacterStats Stats { get; }
+
     public BattleContext(
         Battle battle,
         IGameClock clock,
@@ -41,7 +43,8 @@ public class BattleContext
         Profession profession,
         RngContext rng,
         Encounter? encounter = null,
-        EncounterGroup? encounterGroup = null)
+        EncounterGroup? encounterGroup = null,
+        CharacterStats? stats = null)
     {
         Battle = battle;
         Clock = clock;
@@ -50,6 +53,7 @@ public class BattleContext
         ProfessionModule = professionModule;
         Profession = profession;
         Rng = rng;
+        Stats = stats ?? new CharacterStats();
 
         EncounterGroup = encounterGroup ?? (encounter != null ? EncounterGroup.FromSingle(encounter) : null);
         Encounter = EncounterGroup?.PrimaryAlive() ?? encounter;

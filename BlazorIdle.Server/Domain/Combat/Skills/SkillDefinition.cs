@@ -10,39 +10,36 @@ public class SkillDefinition
     public int Priority { get; }
     public int BaseDamage { get; }
 
-    // 技能级暴击覆盖（可选）
     public double? CritChance { get; }
     public double? CritMultiplier { get; }
 
-    // 施法/GCD
-    public double CastTimeSeconds { get; } = 0.0;   // 0 表示即时
-    public double GcdSeconds { get; } = 1.0;        // OffGcd=false 时生效
+    public double CastTimeSeconds { get; } = 0.0;
+    public double GcdSeconds { get; } = 1.0;
     public bool OffGcd { get; } = false;
     public bool LockAttackDuringCast { get; } = true;
 
-    // 资源扣除时机
     public bool SpendCostOnCast { get; } = true;
 
-    // 打断
     public bool Interruptible { get; } = true;
     public bool RefundCostOnInterrupt { get; } = true;
     public double RefundRatioOnInterrupt { get; } = 1.0;
 
-    // 充能/恢复
     public int MaxCharges { get; } = 1;
     public double RechargeSeconds { get; } = 0;
     public bool ConsumeChargeOnCast { get; } = true;
     public bool RefundChargeOnInterrupt { get; } = true;
     public bool RechargeAffectedByHaste { get; } = false;
 
-    // AoE
     public int MaxTargets { get; } = 1;
     public AoEMode AoEMode { get; } = AoEMode.None;
     public bool IncludePrimaryTarget { get; } = true;
     public bool SplitRemainderToPrimary { get; } = true;
 
-    // 新增：OffGCD 编织许可（仅对 OffGcd 且 CastTime=0 的技能生效）
     public bool AllowDuringCastingForOffGcd { get; } = false;
+
+    // 新增：AP/SP 系数
+    public double AttackPowerCoef { get; } = 0.0;
+    public double SpellPowerCoef { get; } = 0.0;
 
     public SkillDefinition(
         string id,
@@ -71,8 +68,9 @@ public class SkillDefinition
         AoEMode aoeMode = AoEMode.None,
         bool includePrimaryTarget = true,
         bool splitRemainderToPrimary = true,
-        // 新增参数（保持向后兼容，默认不允许编织）
-        bool allowDuringCastingForOffGcd = false
+        bool allowDuringCastingForOffGcd = false,
+        double apCoef = 0.0,
+        double spCoef = 0.0
     )
     {
         Id = id;
@@ -108,5 +106,8 @@ public class SkillDefinition
         SplitRemainderToPrimary = splitRemainderToPrimary;
 
         AllowDuringCastingForOffGcd = allowDuringCastingForOffGcd;
+
+        AttackPowerCoef = apCoef;
+        SpellPowerCoef = spCoef;
     }
 }

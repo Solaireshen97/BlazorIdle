@@ -1,4 +1,5 @@
 ﻿using BlazorIdle.Server.Domain.Combat.Damage;
+using BlazorIdle.Server.Domain.Combat.Procs;
 using BlazorWebGame.Domain.Combat;
 using System;
 
@@ -30,10 +31,9 @@ public record SkillCastCompleteEvent(double ExecuteAt, SkillSlot Slot, long Cast
             }
         }
 
-        // 充能/冷却：完成时消耗（或单充能进入冷却）
         if (def.MaxCharges > 1 && !def.ConsumeChargeOnCast)
         {
-            var haste = context.Buffs.Aggregate.ApplyToBaseHaste(1.0);
+            var haste = context.Buffs.Aggregate.ApplyToBaseHaste(1.0 + context.Stats.HastePercent);
             var effRecharge = def.RechargeAffectedByHaste ? Math.Max(0.01, def.RechargeSeconds / haste) : def.RechargeSeconds;
             Slot.Runtime.ConsumeAtComplete(ExecuteAt, effRecharge);
         }
@@ -42,13 +42,18 @@ public record SkillCastCompleteEvent(double ExecuteAt, SkillSlot Slot, long Cast
             Slot.Runtime.MarkCast(ExecuteAt);
         }
 
-        // 伤害 + AoE
-        var engine = context.AutoCaster;
-        // 复用引擎的伤害逻辑以保持一致标签/暴击处理
-        // 简化：复制与引擎一致的计算（避免交叉依赖）
-        var (chance, mult) = context.Crit.ResolveWith(context.Buffs.Aggregate, def.CritChance, def.CritMultiplier);
+        // AP/SP 注入 + 暴击
+        double preCrit = def.BaseDamage
+            + context.Stats.AttackPower * def.AttackPowerCoef
+            + context.Stats.SpellPower * def.SpellPowerCoef;
+
+        var (chance, mult) = context.Crit.ResolveWith(
+            context.Buffs.Aggregate,
+            def.CritChance ?? context.Stats.CritChance,
+            def.CritMultiplier ?? context.Stats.CritMultiplier
+        );
         bool isCrit = context.Rng.NextBool(chance);
-        int baseDmg = isCrit ? (int)Math.Round(def.BaseDamage * mult) : def.BaseDamage;
+        int baseDmg = isCrit ? (int)Math.Round(preCrit * mult) : (int)Math.Round(preCrit);
         if (isCrit) context.SegmentCollector.OnTag("crit:skill:" + def.Id, 1);
 
         var type = Damage.DamageType.Physical;
@@ -95,6 +100,8 @@ public record SkillCastCompleteEvent(double ExecuteAt, SkillSlot Slot, long Cast
 
         context.SegmentCollector.OnTag("skill_cast:" + def.Id, 1);
         context.ProfessionModule.OnSkillCast(context, def);
+        context.Procs.OnDirectHit(context, "skill:" + def.Id, type, isCrit, isDot: false, DirectSourceKind.Skill, ExecuteAt);
+
 
         context.AutoCaster.ClearCasting();
         context.AutoCaster.TryAutoCast(context, ExecuteAt);
