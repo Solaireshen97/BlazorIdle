@@ -2,17 +2,16 @@
 
 public static class BuffDefinitionsRegistry
 {
-    // 示例：战士技能加速 Buff（持续 6 秒，刷新型）
+    // 既有示例
     public static BuffDefinition WarriorBerserk => new(
         id: "berserk",
         name: "Berserk",
         durationSeconds: 6,
         maxStacks: 1,
         stackPolicy: BuffStackPolicy.Refresh,
-        additiveHaste: 0.3 // +0.3 hasteFactor
+        additiveHaste: 0.3
     );
 
-    // 示例：游侠持续 DoT（叠加伤害）
     public static BuffDefinition RangerBleed => new(
         id: "ranger_bleed",
         name: "Ranger Bleed",
@@ -24,7 +23,6 @@ public static class BuffDefinitionsRegistry
         periodicValue: 15
     );
 
-    // 示例：专注回复（周期性回资源，Extend 策略）
     public static BuffDefinition FocusFlow => new(
         id: "focus_flow",
         name: "Focus Flow",
@@ -35,5 +33,25 @@ public static class BuffDefinitionsRegistry
         periodicInterval: 1,
         periodicValue: 3,
         periodicResourceId: "focus"
+    );
+
+    // 新增：战士护甲破甲
+    public static BuffDefinition WarriorExposeArmor => new(
+        id: "warrior_expose_armor",
+        name: "Expose Armor",
+        durationSeconds: 8,
+        maxStacks: 1,
+        stackPolicy: BuffStackPolicy.Refresh,
+        armorPenFlat: 150 // 减 150 护甲
+    );
+
+    // 新增：游侠物理易伤（最终乘区 +10%）
+    public static BuffDefinition RangerHuntersMark => new(
+        id: "ranger_hunters_mark",
+        name: "Hunter's Mark",
+        durationSeconds: 10,
+        maxStacks: 1,
+        stackPolicy: BuffStackPolicy.Refresh,
+        damageMultiplierPhysical: 0.10
     );
 }

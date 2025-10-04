@@ -10,6 +10,13 @@ public class RangerProfession : IProfessionModule
     public double BaseAttackInterval => 1.4;
     public double BaseSpecialInterval => 4.0;
 
+    public void RegisterBuffDefinitions(BattleContext context)
+    {
+        context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.RangerBleed);
+        context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.FocusFlow);
+        context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.RangerHuntersMark);
+    }
+
     public void OnBattleStart(BattleContext context)
     {
         context.Resources.Ensure(
@@ -43,12 +50,12 @@ public class RangerProfession : IProfessionModule
         if (focus.Current == focus.Max)
             context.SegmentCollector.OnTag("focus_cap_hit", 1);
 
+        // 同时维持专注回复
         context.Buffs.Apply("focus_flow", context.Clock.CurrentTime);
     }
 
     public void BuildSkills(BattleContext context, AutoCastEngine engine)
     {
-        // 高优先技能：PowerShot
         engine.AddSkill(new SkillDefinition(
             id: "power_shot",
             name: "Power Shot",
@@ -58,7 +65,6 @@ public class RangerProfession : IProfessionModule
             priority: 5,
             baseDamage: 70
         ));
-        // 次级频繁技能：QuickShot
         engine.AddSkill(new SkillDefinition(
             id: "quick_shot",
             name: "Quick Shot",
@@ -73,12 +79,9 @@ public class RangerProfession : IProfessionModule
     public void OnSkillCast(BattleContext context, SkillDefinition def)
     {
         if (def.Id == "power_shot")
-            context.Buffs.Apply("ranger_bleed", context.Clock.CurrentTime);
-    }
-
-    public void RegisterBuffDefinitions(BattleContext ctx)
-    {
-        ctx.Buffs.RegisterDefinition(BuffDefinitionsRegistry.RangerBleed);
-        ctx.Buffs.RegisterDefinition(BuffDefinitionsRegistry.FocusFlow);
+        {
+            // 命中后给目标一个物理易伤
+            context.Buffs.Apply("ranger_hunters_mark", context.Clock.CurrentTime);
+        }
     }
 }

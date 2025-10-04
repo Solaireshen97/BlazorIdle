@@ -6,12 +6,12 @@ namespace BlazorIdle.Server.Domain.Combat.Buffs;
 public class BuffManager
 {
     private readonly Dictionary<string, BuffInstance> _active = new();
-    private readonly List<BuffDefinition> _definitions = new(); // 可替换为外部数据源
+    private readonly List<BuffDefinition> _definitions = new();
     public BuffAggregate Aggregate { get; private set; } = new();
 
-    private readonly Action<string, int>? _tag;       // 用于记录 tagCounters
-    private readonly Action<string, int>? _resource;  // ResourceFlow（periodic resource）
-    private readonly Action<string, int>? _damage;    // Damage source
+    private readonly Action<string, int>? _tag;       // tagCounters
+    private readonly Action<string, int>? _resource;  // ResourceFlow
+    private readonly Action<string, int>? _damage;    // Damage
 
     public BuffManager(
         Action<string, int>? tagRecorder,
@@ -25,6 +25,8 @@ public class BuffManager
 
     public void RegisterDefinition(BuffDefinition def)
     {
+        // 幂等：避免重复注册
+        if (_definitions.Exists(d => d.Id == def.Id)) return;
         _definitions.Add(def);
     }
 
@@ -80,11 +82,9 @@ public class BuffManager
 
     public void Tick(double now)
     {
-        // 周期 Tick & 过期检测
         var toRemove = new List<string>();
         foreach (var (id, inst) in _active)
         {
-            // Periodic
             if (inst.NextTickAt.HasValue && now >= inst.NextTickAt.Value)
             {
                 var def = inst.Definition;
@@ -107,11 +107,8 @@ public class BuffManager
                     inst.NextTickAt = inst.NextTickAt.Value + def.PeriodicInterval.Value;
             }
 
-            // Expire
             if (inst.IsExpired(now))
-            {
                 toRemove.Add(id);
-            }
         }
 
         foreach (var rid in toRemove)
@@ -124,18 +121,38 @@ public class BuffManager
             RecalcAggregate();
     }
 
+    private static double Clamp01(double v) => v < 0 ? 0 : (v > 1 ? 1 : v);
+
     private void RecalcAggregate()
     {
         var aggr = new BuffAggregate();
+
         foreach (var inst in _active.Values)
         {
             var def = inst.Definition;
-            // Additive haste 累积 *层数*
-            aggr.AdditiveHaste += def.AdditiveHaste * inst.Stacks;
-            // Multiplicative haste 乘积
+            var stacks = inst.Stacks;
+
+            // Haste
+            aggr.AdditiveHaste += def.AdditiveHaste * stacks;
             if (def.MultiplicativeHaste > 0)
-                aggr.MultiplicativeHasteFactor *= (1 + def.MultiplicativeHaste * inst.Stacks);
+                aggr.MultiplicativeHasteFactor *= (1 + def.MultiplicativeHaste * stacks);
+
+            // 伤害乘区
+            aggr.DamageMultiplierPhysical += def.DamageMultiplierPhysical * stacks;
+            aggr.DamageMultiplierMagic += def.DamageMultiplierMagic * stacks;
+            aggr.DamageMultiplierTrue += def.DamageMultiplierTrue * stacks;
+
+            // 穿透
+            aggr.ArmorPenFlat += def.ArmorPenFlat * stacks;
+            aggr.ArmorPenPct += def.ArmorPenPct * stacks;
+            aggr.MagicPenFlat += def.MagicPenFlat * stacks;
+            aggr.MagicPenPct += def.MagicPenPct * stacks;
         }
+
+        // 百分比型穿透做一次 clamp（0..1）
+        aggr.ArmorPenPct = Clamp01(aggr.ArmorPenPct);
+        aggr.MagicPenPct = Clamp01(aggr.MagicPenPct);
+
         Aggregate = aggr;
     }
 

@@ -10,6 +10,12 @@ public class WarriorProfession : IProfessionModule
     public double BaseAttackInterval => 1.5;
     public double BaseSpecialInterval => 5.0;
 
+    public void RegisterBuffDefinitions(BattleContext context)
+    {
+        context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.WarriorBerserk);
+        context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.WarriorExposeArmor);
+    }
+
     public void OnBattleStart(BattleContext context)
     {
         context.Resources.Ensure(
@@ -25,7 +31,7 @@ public class WarriorProfession : IProfessionModule
     public void OnAttackTick(BattleContext context, AttackTickEvent evt)
     {
         var rage = context.Resources.Get("rage");
-        var result = rage.Add(10);
+        var result = rage.Add(1);
         if (result.AppliedDelta != 0)
             context.SegmentCollector.OnResourceChange("rage", result.AppliedDelta);
         if (result.ConversionCount > 0)
@@ -36,13 +42,11 @@ public class WarriorProfession : IProfessionModule
 
     public void OnSpecialPulse(BattleContext context, SpecialPulseEvent evt)
     {
-        // 预留：可在这里添加脉冲增益
+        // 预留
     }
 
     public void BuildSkills(BattleContext context, AutoCastEngine engine)
     {
-        // 优先级：数值越小越先尝试
-        // HeroicStrike（高伤耗资源）
         engine.AddSkill(new SkillDefinition(
             id: "heroic_strike",
             name: "Heroic Strike",
@@ -52,19 +56,14 @@ public class WarriorProfession : IProfessionModule
             priority: 10,
             baseDamage: 50
         ));
-        // 未来可以追加更多战士技能
     }
 
     public void OnSkillCast(BattleContext context, SkillDefinition def)
     {
         if (def.Id == "heroic_strike")
         {
-            context.Buffs.Apply("berserk", context.Clock.CurrentTime);
+            // 施加爆发加速 or 护甲破甲，这里示范破甲
+            context.Buffs.Apply("warrior_expose_armor", context.Clock.CurrentTime);
         }
-    }
-
-    public void RegisterBuffDefinitions(BattleContext context)
-    {
-        context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.WarriorBerserk);
     }
 }
