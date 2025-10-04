@@ -28,6 +28,16 @@
         <h4>2. 发起战斗</h4>
         时长(s):
         <input type="number" min="1" max="120" @bind="battleSeconds" style="width:80px" />
+
+        <!-- 新增：选择敌人 -->
+        敌人:
+        <select @bind="selectedEnemyId" style="width:200px">
+            @foreach (var e in enemyOptions)
+            {
+                <option value="@e.Id">@e.Name (@e.Id)</option>
+            }
+        </select>
+
         <button @onclick="StartBattle" disabled="@(!CanStartBattle)">开始战斗</button>
         @if (currentBattleId != Guid.Empty)
         {
@@ -54,7 +64,7 @@
             @if (summary is not null)
             {
             <p>Attack间隔: @summary.AttackIntervalSeconds | Special间隔: @summary.SpecialIntervalSeconds</p>
-        }   
+        }
         </p>
 
         <p>DEBUG isBusy=@isBusy battleInProgress=@battleInProgress segmentsLoading=@segmentsLoading</p>
@@ -115,6 +125,18 @@
 @code {
     string newName = "TestWarrior";
     Profession selectedProfession = Profession.Warrior; // 默认值
+
+    // 新增：敌人选项和当前选择（为快速测试，先用前端静态列表；后续可改为从后端拉取）
+    private record EnemyOption(string Id, string Name);
+    readonly EnemyOption[] enemyOptions = new[]
+    {
+        new EnemyOption("dummy", "Training Dummy"),
+        new EnemyOption("tank", "Armored Golem"),
+        new EnemyOption("magebane", "Magebane Warden"),
+        new EnemyOption("paper", "Paper Slime"),
+    };
+    string selectedEnemyId = "dummy";
+
     bool isBusy;
     bool battleInProgress;
     bool segmentsLoading;
@@ -161,16 +183,12 @@
             summary = null;
             segments = null;
 
-            var resp = await Api.StartBattleAsync(lastCreated.Id, battleSeconds);
+            // 传入所选敌人
+            var resp = await Api.StartBattleAsync(lastCreated.Id, battleSeconds, enemyId: selectedEnemyId);
             currentBattleId = resp.BattleId;
 
-            // 你的战斗现在是一次性模拟 → 可以直接刷新一次 summary
             await RefreshSummary();
-            await LoadSegments(); // 添加
-            // 如果你未来改成“逐步推进”，保留轮询；当前一次性模拟不需要持续轮询
-            // StartPolling();
-
-            // 一次性模拟完成后立即标记不在进行中
+            await LoadSegments();
             battleInProgress = false;
         }
         finally
@@ -182,7 +200,6 @@
 
     async Task StartAnotherBattle()
     {
-        // 允许直接复用当前角色再次战斗
         ResetBattleState();
         await StartBattle();
     }

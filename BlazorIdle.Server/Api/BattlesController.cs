@@ -32,11 +32,12 @@ public class BattlesController : ControllerBase
     /// 返回：创建好的 battleId（前端据此再查询 summary / segments）
     /// 说明：战斗模拟时间是“模拟时钟”而非真实等待；服务端内部立即完成计算。
     /// </summary>
+    // POST /api/battles/start?characterId=...&seconds=...&seed=...&enemyId=...
     [HttpPost("start")]
-    public async Task<IActionResult> Start([FromQuery] Guid characterId, [FromQuery] double seconds = 15, [FromQuery] ulong? seed = null)
+    public async Task<IActionResult> Start([FromQuery] Guid characterId, [FromQuery] double seconds = 15, [FromQuery] ulong? seed = null, [FromQuery] string? enemyId = null)
     {
-        var id = await _startSvc.StartAsync(characterId, seconds, seed);
-        return Ok(new { battleId = id, seed = seed });
+        var id = await _startSvc.StartAsync(characterId, seconds, seed, enemyId);
+        return Ok(new { battleId = id, seed, enemyId });
     }
 
     /// <summary>

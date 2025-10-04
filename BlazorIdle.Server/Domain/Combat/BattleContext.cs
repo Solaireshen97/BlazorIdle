@@ -25,6 +25,7 @@ public class BattleContext
     public BuffManager Buffs { get; }  // 新增
     public RngContext Rng { get; } // 新增：可重放 RNG
     public CritSettings Crit { get; } = new(); // 新增：全局暴击配置（可被职业/Buff调整）
+    public Encounter? Encounter { get; } // 新增：遭遇目标
 
     public BattleContext(
         Battle battle,
@@ -33,7 +34,8 @@ public class BattleContext
         SegmentCollector collector,
         IProfessionModule professionModule,
         Profession profession,
-        RngContext rng)
+        RngContext rng,
+        Encounter? encounter = null)
     {
         Battle = battle;
         Clock = clock;
@@ -42,6 +44,8 @@ public class BattleContext
         ProfessionModule = professionModule;
         Profession = profession;
         Rng = rng;
+        Encounter = encounter;
+
         Buffs = new BuffManager(
     tagRecorder: (tag, count) => SegmentCollector.OnTag(tag, count),
     resourceRecorder: (res, delta) => SegmentCollector.OnResourceChange(res, delta),

@@ -15,25 +15,28 @@ public class BattleRunner
         double durationSeconds,
         Profession profession,
         RngContext rng,
-        IProfessionModule? module = null)
+        out bool killed,
+        out double? killTime,
+        out int overkill,
+        IProfessionModule? module = null,
+        Encounter? encounter = null)
     {
         var clock = new GameClock();
         var scheduler = new EventScheduler();
         var collector = new SegmentCollector();
 
         var professionModule = module ?? ProfessionRegistry.Resolve(profession);
-        var context = new BattleContext(battle, clock, scheduler, collector, professionModule, profession, rng);
+        var context = new BattleContext(battle, clock, scheduler, collector, professionModule, profession, rng, encounter);
 
-        // 注册 Buff 定义 → 初始资源 → 构建技能
         professionModule.RegisterBuffDefinitions(context);
         professionModule.OnBattleStart(context);
         professionModule.BuildSkills(context, context.AutoCaster);
 
-        // 初始化 Track
         var attackTrack = new TrackState(TrackType.Attack, battle.AttackIntervalSeconds, 0);
         var specialTrack = new TrackState(TrackType.Special, battle.SpecialIntervalSeconds, battle.SpecialIntervalSeconds);
         context.Tracks.Add(attackTrack);
         context.Tracks.Add(specialTrack);
+
         scheduler.Schedule(new AttackTickEvent(attackTrack.NextTriggerAt, attackTrack));
         scheduler.Schedule(new SpecialPulseEvent(specialTrack.NextTriggerAt, specialTrack));
 
@@ -47,7 +50,6 @@ public class BattleRunner
             if (safetyCounter++ > safetyLimit)
                 throw new System.Exception("Safety limit exceeded in BattleRunner loop");
 
-            // Buff 周期/过期 + 更新 Haste
             context.Buffs.Tick(clock.CurrentTime);
             SyncTrackHaste(context);
 
@@ -65,10 +67,21 @@ public class BattleRunner
 
             if (collector.ShouldFlush(clock.CurrentTime))
                 segments.Add(collector.Flush(clock.CurrentTime));
+
+            if (context.Encounter?.IsDead == true)
+            {
+                // 目标死亡，立刻结束。
+                battle.Finish(clock.CurrentTime);
+                break;
+            }
         }
 
         if (collector.EventCount > 0)
             segments.Add(collector.Flush(clock.CurrentTime));
+
+        killed = context.Encounter?.IsDead ?? false;
+        killTime = context.Encounter?.KillTime;
+        overkill = context.Encounter?.Overkill ?? 0;
 
         return segments;
     }

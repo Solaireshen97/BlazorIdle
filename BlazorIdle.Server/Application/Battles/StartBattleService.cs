@@ -1,6 +1,7 @@
 ﻿using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat;
+using BlazorIdle.Server.Domain.Combat.Enemies;
 using BlazorIdle.Server.Domain.Combat.Professions;
 using BlazorIdle.Server.Domain.Combat.Rng;
 using BlazorIdle.Server.Domain.Records;
@@ -21,14 +22,16 @@ public class StartBattleService
         _runner = runner;
     }
 
-    public async Task<Guid> StartAsync(Guid characterId, double simulateSeconds = 15, ulong? seed = null, CancellationToken ct = default)
+    public async Task<Guid> StartAsync(Guid characterId, double simulateSeconds = 15, ulong? seed = null, string? enemyId = null, CancellationToken ct = default)
     {
         var c = await _characters.GetAsync(characterId, ct);
         if (c is null) throw new InvalidOperationException("Character not found");
 
         var module = ProfessionRegistry.Resolve(c.Profession);
 
-        // 构建 Battle（由职业提供基础间隔）
+        var enemyDef = EnemyRegistry.Resolve(enemyId);
+        var encounter = new Encounter(enemyDef);
+
         var battleDomain = new Battle
         {
             CharacterId = characterId,
@@ -37,17 +40,15 @@ public class StartBattleService
             StartedAt = 0
         };
 
-        // 准备 RNG
         ulong finalSeed = seed ?? DeriveSeed(characterId);
         var rng = new RngContext(finalSeed);
         long seedIndexStart = rng.Index;
 
-        // 执行
-        var segments = _runner.RunForDuration(battleDomain, simulateSeconds, c.Profession, rng, module);
+        var segments = _runner.RunForDuration(battleDomain, simulateSeconds, c.Profession, rng, out var killed, out var killTime, out var overkill, module, encounter);
+
         long seedIndexEnd = rng.Index;
         var totalDamage = segments.Sum(s => s.TotalDamage);
 
-        // 映射持久化
         var record = new BattleRecord
         {
             Id = battleDomain.Id,
@@ -55,12 +56,24 @@ public class StartBattleService
             StartedAt = DateTime.UtcNow,
             EndedAt = DateTime.UtcNow,
             TotalDamage = totalDamage,
-            DurationSeconds = simulateSeconds,
+            DurationSeconds = (killTime.HasValue ? killTime.Value : simulateSeconds),
             AttackIntervalSeconds = battleDomain.AttackIntervalSeconds,
             SpecialIntervalSeconds = battleDomain.SpecialIntervalSeconds,
-            Seed = finalSeed.ToString(),              // 新增
-            SeedIndexStart = seedIndexStart,          // 新增
-            SeedIndexEnd = seedIndexEnd,              // 新增
+            Seed = finalSeed.ToString(),
+            SeedIndexStart = seedIndexStart,
+            SeedIndexEnd = seedIndexEnd,
+
+            // 敌人与击杀信息（新增）
+            EnemyId = enemyDef.Id,
+            EnemyName = enemyDef.Name,
+            EnemyLevel = enemyDef.Level,
+            EnemyMaxHp = enemyDef.MaxHp,
+            EnemyArmor = enemyDef.Armor,
+            EnemyMagicResist = enemyDef.MagicResist,
+            Killed = killed,
+            KillTimeSeconds = killTime,
+            OverkillDamage = overkill,
+
             Segments = segments.Select(s => new BattleSegmentRecord
             {
                 Id = Guid.NewGuid(),
@@ -71,7 +84,8 @@ public class StartBattleService
                 TotalDamage = s.TotalDamage,
                 DamageBySourceJson = JsonSerializer.Serialize(s.DamageBySource),
                 TagCountersJson = JsonSerializer.Serialize(s.TagCounters),
-                ResourceFlowJson = JsonSerializer.Serialize(s.ResourceFlow)
+                ResourceFlowJson = JsonSerializer.Serialize(s.ResourceFlow),
+                DamageByTypeJson = JsonSerializer.Serialize(s.DamageByType)
             }).ToList()
         };
 
@@ -81,9 +95,8 @@ public class StartBattleService
 
     private static ulong DeriveSeed(Guid characterId)
     {
-        // 由角色 Id 与当前时间混合
         var baseRng = RngContext.FromGuid(characterId);
-        baseRng.Skip(4); // 打散几步
+        baseRng.Skip(4);
         ulong salt = (ulong)DateTime.UtcNow.Ticks;
         return RngContext.Hash64(baseRng.NextUInt64() ^ salt);
     }

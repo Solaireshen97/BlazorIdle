@@ -22,9 +22,18 @@ public class ApiClient
         return (await resp.Content.ReadFromJsonAsync<CharacterCreated>(cancellationToken: ct))!;
     }
 
-    public async Task<BattleStartResponse> StartBattleAsync(Guid characterId, double seconds = 10, CancellationToken ct = default)
+    // 修改：增加 enemyId 参数并拼到查询串
+    public async Task<BattleStartResponse> StartBattleAsync(
+        Guid characterId,
+        double seconds = 10,
+        string? enemyId = null,
+        CancellationToken ct = default)
     {
-        var resp = await _http.PostAsync($"/api/battles/start?characterId={characterId}&seconds={seconds}", null, ct);
+        var url = $"/api/battles/start?characterId={characterId}&seconds={seconds}";
+        if (!string.IsNullOrWhiteSpace(enemyId))
+            url += $"&enemyId={Uri.EscapeDataString(enemyId)}";
+
+        var resp = await _http.PostAsync(url, null, ct);
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<BattleStartResponse>(cancellationToken: ct))!;
     }

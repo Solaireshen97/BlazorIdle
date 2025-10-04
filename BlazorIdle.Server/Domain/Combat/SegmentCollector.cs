@@ -1,12 +1,14 @@
 ﻿using System.Collections.Generic;
+using BlazorIdle.Server.Domain.Combat.Damage;
 
 namespace BlazorIdle.Server.Domain.Combat;
 
 public class SegmentCollector
 {
-    private readonly List<(string source, int dmg)> _damageEvents = new();
+    private readonly List<(string source, int dmg, DamageType type)> _damageEvents = new();
     private readonly Dictionary<string, int> _tagCounters = new();
-    private readonly Dictionary<string, int> _resourceFlow = new(); // 新增
+    private readonly Dictionary<string, int> _resourceFlow = new();
+
     public int EventCount { get; private set; }
     public double SegmentStart { get; private set; }
     public double LastEventTime { get; private set; }
@@ -20,9 +22,12 @@ public class SegmentCollector
         SegmentStart = 0;
     }
 
-    public void OnDamage(string src, int dmg)
+    // 兼容旧签名（默认物理伤害）
+    public void OnDamage(string src, int dmg) => OnDamage(src, dmg, DamageType.Physical);
+
+    public void OnDamage(string src, int dmg, DamageType type)
     {
-        _damageEvents.Add((src, dmg));
+        _damageEvents.Add((src, dmg, type));
         EventCount++;
     }
 
@@ -33,7 +38,6 @@ public class SegmentCollector
         EventCount++;
     }
 
-    // 新增：记录资源增量（净变化）
     public void OnResourceChange(string resourceId, int delta)
     {
         if (delta == 0) return;
@@ -41,10 +45,7 @@ public class SegmentCollector
         _resourceFlow[resourceId] += delta;
     }
 
-    public void Tick(double currentTime)
-    {
-        LastEventTime = currentTime;
-    }
+    public void Tick(double currentTime) => LastEventTime = currentTime;
 
     public bool ShouldFlush(double currentTime) =>
         EventCount >= _maxEvents || (currentTime - SegmentStart) >= _maxDuration;
@@ -53,12 +54,19 @@ public class SegmentCollector
     {
         var total = 0;
         var bySource = new Dictionary<string, int>();
-        foreach (var (src, dmg) in _damageEvents)
+        var byType = new Dictionary<string, int>();
+
+        foreach (var (src, dmg, type) in _damageEvents)
         {
             total += dmg;
             if (!bySource.ContainsKey(src)) bySource[src] = 0;
             bySource[src] += dmg;
+
+            var typeKey = type.ToString().ToLowerInvariant();
+            if (!byType.ContainsKey(typeKey)) byType[typeKey] = 0;
+            byType[typeKey] += dmg;
         }
+
         var seg = new CombatSegment
         {
             StartTime = SegmentStart,
@@ -66,9 +74,11 @@ public class SegmentCollector
             EventCount = EventCount,
             TotalDamage = total,
             DamageBySource = bySource,
+            DamageByType = byType,
             TagCounters = new Dictionary<string, int>(_tagCounters),
             ResourceFlow = new Dictionary<string, int>(_resourceFlow)
         };
+
         _damageEvents.Clear();
         _tagCounters.Clear();
         _resourceFlow.Clear();
@@ -85,6 +95,7 @@ public class CombatSegment
     public int EventCount { get; set; }
     public int TotalDamage { get; set; }
     public Dictionary<string, int> DamageBySource { get; set; } = new();
+    public Dictionary<string, int> DamageByType { get; set; } = new(); // 新增：按类型统计
     public Dictionary<string, int> TagCounters { get; set; } = new();
-    public Dictionary<string, int> ResourceFlow { get; set; } = new(); // 新增
+    public Dictionary<string, int> ResourceFlow { get; set; } = new();
 }
