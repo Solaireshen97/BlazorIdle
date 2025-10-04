@@ -13,7 +13,7 @@ public static class BuffDefinitionsRegistry
         additiveHaste: 0.3
     );
 
-    // DoT：游侠流血（物理 DoT，2 秒一跳，每跳 15）
+    // DoT：游侠流血（物理 DoT，2 秒一跳，每跳 15），Haste 加速，Pandemic 30%
     public static BuffDefinition RangerBleed => new(
         id: "ranger_bleed",
         name: "Ranger Bleed",
@@ -24,7 +24,9 @@ public static class BuffDefinitionsRegistry
         periodicInterval: 2,
         periodicValue: 15,
         periodicResourceId: null,
-        periodicDamageType: DamageType.Physical
+        periodicDamageType: DamageType.Physical,
+        periodicHasteAffected: true,
+        pandemicRatio: 0.30
     );
 
     public static BuffDefinition FocusFlow => new(

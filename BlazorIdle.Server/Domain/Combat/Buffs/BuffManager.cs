@@ -12,7 +12,6 @@ public class BuffManager
 
     private readonly Action<string, int>? _tag;
     private readonly Action<string, int>? _resource;
-    // 修改：周期伤害现在通过 DamageCalculator 结算，因此带 DamageType
     private readonly Action<string, int, DamageType>? _dealDamage;
 
     public BuffManager(
@@ -37,23 +36,36 @@ public class BuffManager
     public bool Has(string id) => _active.ContainsKey(id);
     public BuffInstance? TryGet(string id) => _active.TryGetValue(id, out var inst) ? inst : null;
 
+    private double CurrentHasteFactor() => Aggregate.ApplyToBaseHaste(1.0);
+
     public BuffInstance Apply(string id, double now)
     {
         var def = GetDefinition(id);
+        var haste = CurrentHasteFactor();
+
         if (_active.TryGetValue(id, out var existing))
         {
             switch (def.StackPolicy)
             {
-                case BuffStackPolicy.Refresh: existing.Refresh(now); _tag?.Invoke($"buff_refresh:{id}", 1); break;
-                case BuffStackPolicy.Stack: existing.Stack(now); _tag?.Invoke($"buff_stack:{id}", 1); break;
-                case BuffStackPolicy.Extend: existing.Extend(now); _tag?.Invoke($"buff_extend:{id}", 1); break;
+                case BuffStackPolicy.Refresh:
+                    existing.Refresh(now, haste);
+                    _tag?.Invoke($"buff_refresh:{id}", 1);
+                    break;
+                case BuffStackPolicy.Stack:
+                    existing.Stack(now, haste);
+                    _tag?.Invoke($"buff_stack:{id}", 1);
+                    break;
+                case BuffStackPolicy.Extend:
+                    existing.Extend(now);
+                    _tag?.Invoke($"buff_extend:{id}", 1);
+                    break;
             }
             RecalcAggregate();
             return existing;
         }
         else
         {
-            var inst = new BuffInstance(def, 1, now);
+            var inst = new BuffInstance(def, 1, now, haste);
             _active[id] = inst;
             _tag?.Invoke($"buff_apply:{id}", 1);
             RecalcAggregate();
@@ -73,6 +85,7 @@ public class BuffManager
     public void Tick(double now)
     {
         var toRemove = new List<string>();
+
         foreach (var (id, inst) in _active)
         {
             if (inst.NextTickAt.HasValue && now >= inst.NextTickAt.Value)
@@ -81,10 +94,12 @@ public class BuffManager
                 switch (def.PeriodicType)
                 {
                     case BuffPeriodicType.Damage:
-                        // 通过 DamageCalculator 结算到目标
-                        _dealDamage?.Invoke("buff_tick:" + id, def.PeriodicValue, def.PeriodicDamageType);
+                        // DoT：每跳伤害按层数叠加
+                        var dmg = def.PeriodicValue * inst.Stacks;
+                        _dealDamage?.Invoke("buff_tick:" + id, dmg, def.PeriodicDamageType);
                         _tag?.Invoke("buff_tick:" + id, 1);
                         break;
+
                     case BuffPeriodicType.Resource:
                         if (def.PeriodicResourceId != null && def.PeriodicValue != 0)
                         {
@@ -94,8 +109,10 @@ public class BuffManager
                         break;
                 }
 
-                if (def.PeriodicInterval.HasValue)
-                    inst.NextTickAt = inst.NextTickAt.Value + def.PeriodicInterval.Value;
+                if (inst.TickIntervalSeconds > 0)
+                {
+                    inst.NextTickAt = inst.NextTickAt.Value + inst.TickIntervalSeconds;
+                }
             }
 
             if (inst.IsExpired(now))
@@ -123,19 +140,23 @@ public class BuffManager
             var def = inst.Definition;
             var stacks = inst.Stacks;
 
+            // Haste
             aggr.AdditiveHaste += def.AdditiveHaste * stacks;
             if (def.MultiplicativeHaste > 0)
                 aggr.MultiplicativeHasteFactor *= (1 + def.MultiplicativeHaste * stacks);
 
+            // 最终伤害乘区
             aggr.DamageMultiplierPhysical += def.DamageMultiplierPhysical * stacks;
             aggr.DamageMultiplierMagic += def.DamageMultiplierMagic * stacks;
             aggr.DamageMultiplierTrue += def.DamageMultiplierTrue * stacks;
 
+            // 穿透
             aggr.ArmorPenFlat += def.ArmorPenFlat * stacks;
             aggr.ArmorPenPct += def.ArmorPenPct * stacks;
             aggr.MagicPenFlat += def.MagicPenFlat * stacks;
             aggr.MagicPenPct += def.MagicPenPct * stacks;
 
+            // 暴击
             aggr.CritChanceBonus += def.CritChanceBonus * stacks;
             aggr.CritMultiplierBonus += def.CritMultiplierBonus * stacks;
         }

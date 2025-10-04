@@ -13,7 +13,7 @@ public class BuffDefinition
     public double AdditiveHaste { get; }
     public double MultiplicativeHaste { get; }
 
-    // 周期
+    // 周期效果
     public BuffPeriodicType PeriodicType { get; }
     public double? PeriodicInterval { get; }
     public int PeriodicValue { get; }
@@ -21,6 +21,12 @@ public class BuffDefinition
 
     // 新增：周期伤害类型（当 PeriodicType=Damage 时生效）
     public DamageType PeriodicDamageType { get; }
+
+    // 新增：DoT/HoT 强化
+    // - 周期是否受 Haste 影响（true: effInterval = base / hasteSnapshot）
+    // - Pandemic 刷新窗口比率（0.3 表示最多把 30% 基础时长的剩余时间结转）
+    public bool PeriodicHasteAffected { get; }
+    public double PandemicRatio { get; }
 
     // 伤害乘区与穿透
     public double DamageMultiplierPhysical { get; }
@@ -48,8 +54,10 @@ public class BuffDefinition
         double? periodicInterval = null,
         int periodicValue = 0,
         string? periodicResourceId = null,
-        // 新增：周期伤害类型（默认物理）
         DamageType periodicDamageType = DamageType.Physical,
+        // DoT/HoT 强化（新增）
+        bool periodicHasteAffected = true,
+        double pandemicRatio = 0.30,
         // 乘区/穿透
         double damageMultiplierPhysical = 0,
         double damageMultiplierMagic = 0,
@@ -77,6 +85,9 @@ public class BuffDefinition
         PeriodicValue = periodicValue;
         PeriodicResourceId = periodicResourceId;
         PeriodicDamageType = periodicDamageType;
+
+        PeriodicHasteAffected = periodicHasteAffected;
+        PandemicRatio = pandemicRatio;
 
         DamageMultiplierPhysical = damageMultiplierPhysical;
         DamageMultiplierMagic = damageMultiplierMagic;
