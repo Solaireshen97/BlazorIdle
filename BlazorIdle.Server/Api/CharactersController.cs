@@ -6,51 +6,65 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BlazorIdle.Server.Api;
 
-[ApiController]                       // 启用自动模型绑定、验证与 400 响应行为
-[Route("api/[controller]")]           // 路由: /api/characters
+[ApiController]
+[Route("api/[controller]")]
 public class CharactersController : ControllerBase
 {
     private readonly GameDbContext _db;
 
-    // 通过依赖注入获取 EF Core 上下文
     public CharactersController(GameDbContext db) => _db = db;
 
-    /// <summary>
-    /// 创建角色（最小 DTO -> 领域实体）
-    /// </summary>
     [HttpPost]
     public async Task<ActionResult<object>> Create([FromBody] CreateCharacterDto dto)
     {
-        // 领域实体最小化创建（此处没有业务规则校验，仅 Demo）
+        var (str, agi, intel, sta) = DefaultAttributesFor(dto.Profession);
+        // 覆盖默认值（若 DTO 提供）
+        str = dto.Strength ?? str;
+        agi = dto.Agility ?? agi;
+        intel = dto.Intellect ?? intel;
+        sta = dto.Stamina ?? sta;
+
         var c = new Character
         {
             Id = Guid.NewGuid(),
             Name = dto.Name,
             Profession = dto.Profession,
-            Level = 1          // 默认初始等级
+            Level = 1,
+            Strength = str,
+            Agility = agi,
+            Intellect = intel,
+            Stamina = sta
         };
 
-        _db.Characters.Add(c);          // 跟踪实体
-        await _db.SaveChangesAsync();   // 生成 INSERT
-        // 返回最小投影（避免把所有字段暴露给前端）
+        _db.Characters.Add(c);
+        await _db.SaveChangesAsync();
         return Ok(new { c.Id, c.Name });
     }
 
-    /// <summary>
-    /// 查询单个角色（按 Id）
-    /// </summary>
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<object>> Get(Guid id)
     {
-        // 使用 FirstOrDefaultAsync 而非 FindAsync：可附加 Include / 条件
         var c = await _db.Characters.FirstOrDefaultAsync(x => x.Id == id);
         return c is null
             ? NotFound()
-            : Ok(new { c.Id, c.Name, c.Level });
+            : Ok(new { c.Id, c.Name, c.Level, c.Profession, c.Strength, c.Agility, c.Intellect, c.Stamina });
     }
+
+    private static (int str, int agi, int intel, int sta) DefaultAttributesFor(Profession p)
+        => p switch
+        {
+            Profession.Warrior => (20, 10, 5, 15),
+            Profession.Ranger => (10, 20, 8, 12),
+            _ => (10, 10, 10, 10)
+        };
 }
 
-/// <summary>
-/// 输入 DTO（防止直接暴露领域实体）
-/// </summary>
-public record CreateCharacterDto(string Name, Profession Profession);
+// 扩展创建 DTO：支持可选主属性（未传则按职业默认）
+public record CreateCharacterDto(
+    string Name,
+    Profession Profession,
+    int? Strength = null,
+    int? Agility = null,
+    int? Intellect = null,
+    int? Stamina = null
+);
