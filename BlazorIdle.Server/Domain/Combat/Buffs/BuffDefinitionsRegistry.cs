@@ -1,4 +1,6 @@
-﻿namespace BlazorIdle.Server.Domain.Combat.Buffs;
+﻿using BlazorIdle.Server.Domain.Combat.Damage;
+
+namespace BlazorIdle.Server.Domain.Combat.Buffs;
 
 public static class BuffDefinitionsRegistry
 {
@@ -11,6 +13,7 @@ public static class BuffDefinitionsRegistry
         additiveHaste: 0.3
     );
 
+    // DoT：游侠流血（物理 DoT，2 秒一跳，每跳 15）
     public static BuffDefinition RangerBleed => new(
         id: "ranger_bleed",
         name: "Ranger Bleed",
@@ -19,7 +22,9 @@ public static class BuffDefinitionsRegistry
         stackPolicy: BuffStackPolicy.Stack,
         periodicType: BuffPeriodicType.Damage,
         periodicInterval: 2,
-        periodicValue: 15
+        periodicValue: 15,
+        periodicResourceId: null,
+        periodicDamageType: DamageType.Physical
     );
 
     public static BuffDefinition FocusFlow => new(
@@ -52,14 +57,13 @@ public static class BuffDefinitionsRegistry
         damageMultiplierPhysical: 0.10
     );
 
-    // 新增：暴击相关示例
     public static BuffDefinition WarriorPrecision => new(
         id: "warrior_precision",
         name: "Precision",
         durationSeconds: 6,
         maxStacks: 1,
         stackPolicy: BuffStackPolicy.Refresh,
-        critChanceBonus: 0.20  // +20% 暴击几率
+        critChanceBonus: 0.20
     );
 
     public static BuffDefinition RangerSharpsight => new(
@@ -68,6 +72,6 @@ public static class BuffDefinitionsRegistry
         durationSeconds: 8,
         maxStacks: 1,
         stackPolicy: BuffStackPolicy.Refresh,
-        critMultiplierBonus: 0.50 // 暴击倍数 *1.5
+        critMultiplierBonus: 0.50
     );
 }

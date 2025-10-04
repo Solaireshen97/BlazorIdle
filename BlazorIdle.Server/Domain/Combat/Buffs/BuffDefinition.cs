@@ -1,4 +1,5 @@
 ﻿namespace BlazorIdle.Server.Domain.Combat.Buffs;
+using BlazorIdle.Server.Domain.Combat.Damage;
 
 public class BuffDefinition
 {
@@ -8,16 +9,20 @@ public class BuffDefinition
     public int MaxStacks { get; }
     public BuffStackPolicy StackPolicy { get; }
 
-    // 已有
+    // 急速
     public double AdditiveHaste { get; }
     public double MultiplicativeHaste { get; }
 
+    // 周期
     public BuffPeriodicType PeriodicType { get; }
     public double? PeriodicInterval { get; }
     public int PeriodicValue { get; }
     public string? PeriodicResourceId { get; }
 
-    // 伤害加成/穿透（已有于上一阶段）
+    // 新增：周期伤害类型（当 PeriodicType=Damage 时生效）
+    public DamageType PeriodicDamageType { get; }
+
+    // 伤害乘区与穿透
     public double DamageMultiplierPhysical { get; }
     public double DamageMultiplierMagic { get; }
     public double DamageMultiplierTrue { get; }
@@ -27,7 +32,7 @@ public class BuffDefinition
     public double MagicPenFlat { get; }
     public double MagicPenPct { get; }
 
-    // 新增：暴击加成（聚合时叠加）
+    // 暴击加成
     public double CritChanceBonus { get; }
     public double CritMultiplierBonus { get; }
 
@@ -43,6 +48,9 @@ public class BuffDefinition
         double? periodicInterval = null,
         int periodicValue = 0,
         string? periodicResourceId = null,
+        // 新增：周期伤害类型（默认物理）
+        DamageType periodicDamageType = DamageType.Physical,
+        // 乘区/穿透
         double damageMultiplierPhysical = 0,
         double damageMultiplierMagic = 0,
         double damageMultiplierTrue = 0,
@@ -50,8 +58,9 @@ public class BuffDefinition
         double armorPenPct = 0,
         double magicPenFlat = 0,
         double magicPenPct = 0,
-        double critChanceBonus = 0,         // 新增
-        double critMultiplierBonus = 0      // 新增
+        // 暴击加成
+        double critChanceBonus = 0,
+        double critMultiplierBonus = 0
     )
     {
         Id = id;
@@ -67,6 +76,7 @@ public class BuffDefinition
         PeriodicInterval = periodicInterval;
         PeriodicValue = periodicValue;
         PeriodicResourceId = periodicResourceId;
+        PeriodicDamageType = periodicDamageType;
 
         DamageMultiplierPhysical = damageMultiplierPhysical;
         DamageMultiplierMagic = damageMultiplierMagic;

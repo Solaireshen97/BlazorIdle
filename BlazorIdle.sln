@@ -9,6 +9,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BlazorIdle.Server", "Blazor
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BlazorIdle.Shared", "BlazorIdle.Shared\BlazorIdle.Shared.csproj", "{A940F570-9E7A-49F9-AD6D-165B0775B664}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BlazorIdle.Tests", "tests\BlazorIdle.Tests\BlazorIdle.Tests.csproj", "{E4613744-80EB-4B9D-8E8A-5428614A1BF1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -55,9 +59,24 @@ Global
 		{A940F570-9E7A-49F9-AD6D-165B0775B664}.Release|x64.Build.0 = Release|Any CPU
 		{A940F570-9E7A-49F9-AD6D-165B0775B664}.Release|x86.ActiveCfg = Release|Any CPU
 		{A940F570-9E7A-49F9-AD6D-165B0775B664}.Release|x86.Build.0 = Release|Any CPU
+		{E4613744-80EB-4B9D-8E8A-5428614A1BF1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E4613744-80EB-4B9D-8E8A-5428614A1BF1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E4613744-80EB-4B9D-8E8A-5428614A1BF1}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{E4613744-80EB-4B9D-8E8A-5428614A1BF1}.Debug|x64.Build.0 = Debug|Any CPU
+		{E4613744-80EB-4B9D-8E8A-5428614A1BF1}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{E4613744-80EB-4B9D-8E8A-5428614A1BF1}.Debug|x86.Build.0 = Debug|Any CPU
+		{E4613744-80EB-4B9D-8E8A-5428614A1BF1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E4613744-80EB-4B9D-8E8A-5428614A1BF1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E4613744-80EB-4B9D-8E8A-5428614A1BF1}.Release|x64.ActiveCfg = Release|Any CPU
+		{E4613744-80EB-4B9D-8E8A-5428614A1BF1}.Release|x64.Build.0 = Release|Any CPU
+		{E4613744-80EB-4B9D-8E8A-5428614A1BF1}.Release|x86.ActiveCfg = Release|Any CPU
+		{E4613744-80EB-4B9D-8E8A-5428614A1BF1}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{E4613744-80EB-4B9D-8E8A-5428614A1BF1} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {A1E02878-DFD3-4B8B-A6F5-3FB57BDF55F3}

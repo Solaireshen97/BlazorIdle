@@ -1,6 +1,7 @@
 ﻿using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Buffs;
 using BlazorIdle.Server.Domain.Combat.Damage;
+using BlazorIdle.Server.Domain.Combat.Enemies;
 using BlazorIdle.Server.Domain.Combat.Professions;
 using BlazorIdle.Server.Domain.Combat.Resources;
 using BlazorIdle.Server.Domain.Combat.Rng;
@@ -19,13 +20,14 @@ public class BattleContext
     public SegmentCollector SegmentCollector { get; }
     public List<TrackState> Tracks { get; } = new();
     public ResourceSet Resources { get; } = new();
+    public BuffManager Buffs { get; }
     public IProfessionModule ProfessionModule { get; }
     public Profession Profession { get; }
-    public AutoCastEngine AutoCaster { get; } = new(); // 新增
-    public BuffManager Buffs { get; }  // 新增
-    public RngContext Rng { get; } // 新增：可重放 RNG
-    public CritSettings Crit { get; } = new(); // 新增：全局暴击配置（可被职业/Buff调整）
-    public Encounter? Encounter { get; } // 新增：遭遇目标
+    public AutoCastEngine AutoCaster { get; } = new();
+    public RngContext Rng { get; }
+    public Damage.CritSettings Crit { get; } = new();
+
+    public Encounter? Encounter { get; }
 
     public BattleContext(
         Battle battle,
@@ -46,10 +48,11 @@ public class BattleContext
         Rng = rng;
         Encounter = encounter;
 
+        // Buff 的周期伤害通过 DamageCalculator 结算到目标
         Buffs = new BuffManager(
-    tagRecorder: (tag, count) => SegmentCollector.OnTag(tag, count),
-    resourceRecorder: (res, delta) => SegmentCollector.OnResourceChange(res, delta),
-    damageRecorder: (src, dmg) => SegmentCollector.OnDamage(src, dmg)
-);
+            tagRecorder: (tag, count) => SegmentCollector.OnTag(tag, count),
+            resourceRecorder: (res, delta) => SegmentCollector.OnResourceChange(res, delta),
+            damageApplier: (src, amount, type) => DamageCalculator.ApplyDamage(this, src, amount, type)
+        );
     }
 }

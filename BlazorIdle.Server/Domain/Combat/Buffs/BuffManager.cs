@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using BlazorIdle.Server.Domain.Combat.Damage;
 
 namespace BlazorIdle.Server.Domain.Combat.Buffs;
 
@@ -11,16 +12,17 @@ public class BuffManager
 
     private readonly Action<string, int>? _tag;
     private readonly Action<string, int>? _resource;
-    private readonly Action<string, int>? _damage;
+    // 修改：周期伤害现在通过 DamageCalculator 结算，因此带 DamageType
+    private readonly Action<string, int, DamageType>? _dealDamage;
 
     public BuffManager(
         Action<string, int>? tagRecorder,
         Action<string, int>? resourceRecorder,
-        Action<string, int>? damageRecorder)
+        Action<string, int, DamageType>? damageApplier)
     {
         _tag = tagRecorder;
         _resource = resourceRecorder;
-        _damage = damageRecorder;
+        _dealDamage = damageApplier;
     }
 
     public void RegisterDefinition(BuffDefinition def)
@@ -79,7 +81,8 @@ public class BuffManager
                 switch (def.PeriodicType)
                 {
                     case BuffPeriodicType.Damage:
-                        _damage?.Invoke("buff_tick:" + id, def.PeriodicValue);
+                        // 通过 DamageCalculator 结算到目标
+                        _dealDamage?.Invoke("buff_tick:" + id, def.PeriodicValue, def.PeriodicDamageType);
                         _tag?.Invoke("buff_tick:" + id, 1);
                         break;
                     case BuffPeriodicType.Resource:
@@ -120,23 +123,19 @@ public class BuffManager
             var def = inst.Definition;
             var stacks = inst.Stacks;
 
-            // Haste
             aggr.AdditiveHaste += def.AdditiveHaste * stacks;
             if (def.MultiplicativeHaste > 0)
                 aggr.MultiplicativeHasteFactor *= (1 + def.MultiplicativeHaste * stacks);
 
-            // 最终伤害乘区
             aggr.DamageMultiplierPhysical += def.DamageMultiplierPhysical * stacks;
             aggr.DamageMultiplierMagic += def.DamageMultiplierMagic * stacks;
             aggr.DamageMultiplierTrue += def.DamageMultiplierTrue * stacks;
 
-            // 穿透
             aggr.ArmorPenFlat += def.ArmorPenFlat * stacks;
             aggr.ArmorPenPct += def.ArmorPenPct * stacks;
             aggr.MagicPenFlat += def.MagicPenFlat * stacks;
             aggr.MagicPenPct += def.MagicPenPct * stacks;
 
-            // 暴击
             aggr.CritChanceBonus += def.CritChanceBonus * stacks;
             aggr.CritMultiplierBonus += def.CritMultiplierBonus * stacks;
         }

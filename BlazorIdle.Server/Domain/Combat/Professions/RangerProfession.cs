@@ -56,7 +56,7 @@ public class RangerProfession : IProfessionModule
 
     public void BuildSkills(BattleContext context, AutoCastEngine engine)
     {
-        // Power Shot：偏爆发 → 高暴击几率与倍数
+        // 爆发
         engine.AddSkill(new SkillDefinition(
             id: "power_shot",
             name: "Power Shot",
@@ -69,7 +69,20 @@ public class RangerProfession : IProfessionModule
             critMultiplier: 2.4
         ));
 
-        // Quick Shot：偏频率 → 低暴击几率与倍数
+        // 新增：流血射击（施放后上 DoT）
+        engine.AddSkill(new SkillDefinition(
+            id: "bleed_shot",
+            name: "Bleed Shot",
+            costResourceId: "focus",
+            costAmount: 25,
+            cooldownSeconds: 6.0,
+            priority: 12,
+            baseDamage: 30,       // 初始直接伤害（走常规结算）
+            critChance: 0.10,
+            critMultiplier: 2.0
+        ));
+
+        // 频繁小招
         engine.AddSkill(new SkillDefinition(
             id: "quick_shot",
             name: "Quick Shot",
@@ -89,6 +102,11 @@ public class RangerProfession : IProfessionModule
         {
             context.Buffs.Apply("ranger_hunters_mark", context.Clock.CurrentTime);
             context.Buffs.Apply("ranger_sharpsight", context.Clock.CurrentTime);
+        }
+        else if (def.Id == "bleed_shot")
+        {
+            // 施放后给目标叠加/刷新流血（DoT）
+            context.Buffs.Apply("ranger_bleed", context.Clock.CurrentTime);
         }
     }
 }
