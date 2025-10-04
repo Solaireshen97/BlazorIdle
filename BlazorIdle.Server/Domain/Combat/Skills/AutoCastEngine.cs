@@ -16,7 +16,11 @@ public class AutoCastEngine
     public bool IsCasting { get; private set; }
     public double CastingUntil { get; private set; }
     public bool CastingSkillLocksAttack { get; private set; }
+    public long? CurrentCastId => _currentCastId;
+
     private SkillSlot? _castingSlot;
+    private long _castSeq = 0;
+    private long? _currentCastId;
 
     public void AddSkill(SkillDefinition def)
     {
@@ -26,7 +30,7 @@ public class AutoCastEngine
 
     public bool TryAutoCast(BattleContext context, double now)
     {
-        // 施法进行中：首版不支持编织，直接返回
+        // 施法进行中：首版不支持编织
         if (IsCasting) return false;
 
         foreach (var slot in _slots)
@@ -78,7 +82,6 @@ public class AutoCastEngine
     {
         var def = slot.Runtime.Definition;
 
-        // 读取当前 Haste 因子并缩放 GCD/Cast
         var haste = ResolveHasteFactor(context);
         var effCast = Math.Max(0.01, def.CastTimeSeconds / haste);
         var effGcd = def.OffGcd ? 0.0 : Math.Max(0.01, def.GcdSeconds / haste);
@@ -91,9 +94,11 @@ public class AutoCastEngine
         CastingUntil = now + effCast;
         CastingSkillLocksAttack = def.LockAttackDuringCast;
 
+        // 分配 CastId（用于安全打断）
+        _currentCastId = ++_castSeq;
+
         // 调度施法完成事件
-        context.Scheduler.Schedule(new SkillCastCompleteEvent(CastingUntil, slot));
-        // 可选：记录开始施法标签
+        context.Scheduler.Schedule(new SkillCastCompleteEvent(CastingUntil, slot, _currentCastId.Value));
         context.SegmentCollector.OnTag("skill_cast_start:" + def.Id, 1);
     }
 
@@ -103,13 +108,13 @@ public class AutoCastEngine
         CastingUntil = 0;
         CastingSkillLocksAttack = false;
         _castingSlot = null;
+        _currentCastId = null;
     }
 
     private void CastInstant(SkillSlot slot, BattleContext context, double now)
     {
         var def = slot.Runtime.Definition;
 
-        // 即时技能的 GCD 受 Haste 缩放
         if (!def.OffGcd)
         {
             var haste = ResolveHasteFactor(context);
@@ -128,7 +133,6 @@ public class AutoCastEngine
             }
             else
             {
-                // 资源不足则取消施放
                 return;
             }
         }
@@ -145,18 +149,57 @@ public class AutoCastEngine
         DamageCalculator.ApplyDamage(context, "skill:" + def.Id, dmg, type);
         context.SegmentCollector.OnTag("skill_cast:" + def.Id, 1);
 
-        // 职业钩子
         context.ProfessionModule.OnSkillCast(context, def);
 
-        // 进入冷却
         slot.Runtime.MarkCast(now);
     }
 
     private static double ResolveHasteFactor(BattleContext context)
     {
-        // 复用 BuffAggregate 的 Haste 聚合，1.0 为无加速
-        // ApplyToBaseHaste 已含下限保护（>=0.1）
         return context.Buffs.Aggregate.ApplyToBaseHaste(1.0);
+    }
+
+    // 对外：请求在某时刻发起“打断当前施法”的事件（立即或未来）
+    public bool RequestInterrupt(BattleContext context, double atTime, InterruptReason reason = InterruptReason.Other)
+    {
+        if (!IsCasting || _currentCastId is null) return false;
+        context.Scheduler.Schedule(new SkillCastInterruptEvent(atTime, _currentCastId.Value, reason));
+        return true;
+    }
+
+    // 由事件调用：执行打断逻辑（不造成伤害、不进入冷却；可按配置返还资源）
+    internal void InterruptCasting(BattleContext context, double now, InterruptReason reason)
+    {
+        if (!IsCasting || _castingSlot is null || _currentCastId is null)
+            return;
+
+        var def = _castingSlot.Runtime.Definition;
+
+        // 不可打断则忽略
+        if (!def.Interruptible)
+            return;
+
+        // 资源返还（如果开始时扣了且允许返还）
+        if (def.SpendCostOnCast && def.RefundCostOnInterrupt && def.CostResourceId is not null && def.CostAmount > 0)
+        {
+            if (context.Resources.TryGet(def.CostResourceId, out var bucket))
+            {
+                var refund = (int)Math.Round(def.CostAmount * Math.Clamp(def.RefundRatioOnInterrupt, 0, 1));
+                if (refund > 0)
+                {
+                    var result = bucket.Add(refund);
+                    if (result.AppliedDelta != 0)
+                        context.SegmentCollector.OnResourceChange(def.CostResourceId, result.AppliedDelta);
+                }
+            }
+        }
+
+        // 打标签
+        context.SegmentCollector.OnTag("skill_cast_interrupt:" + def.Id, 1);
+        context.SegmentCollector.OnTag("interrupt_reason:" + reason.ToString().ToLowerInvariant(), 1);
+
+        // 清空施法状态（不进入冷却）
+        ClearCasting();
     }
 }
 

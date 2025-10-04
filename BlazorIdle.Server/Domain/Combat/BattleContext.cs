@@ -48,11 +48,17 @@ public class BattleContext
         Rng = rng;
         Encounter = encounter;
 
-        // Buff 的周期伤害通过 DamageCalculator 结算到目标
         Buffs = new BuffManager(
             tagRecorder: (tag, count) => SegmentCollector.OnTag(tag, count),
             resourceRecorder: (res, delta) => SegmentCollector.OnResourceChange(res, delta),
             damageApplier: (src, amount, type) => DamageCalculator.ApplyDamage(this, src, amount, type)
         );
+    }
+
+    // 快捷：在当前时间发起“立即打断施法”的事件（如果正在施法）
+    public bool TryInterruptCasting(InterruptReason reason = InterruptReason.Other)
+    {
+        var now = Clock.CurrentTime;
+        return AutoCaster.RequestInterrupt(this, now, reason);
     }
 }

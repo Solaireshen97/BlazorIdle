@@ -4,12 +4,16 @@ using System;
 
 namespace BlazorIdle.Server.Domain.Combat.Skills;
 
-public record SkillCastCompleteEvent(double ExecuteAt, SkillSlot Slot) : IGameEvent
+public record SkillCastCompleteEvent(double ExecuteAt, SkillSlot Slot, long CastId) : IGameEvent
 {
     public string EventType => "SkillCastComplete";
 
     public void Execute(BattleContext context)
     {
+        // 若期间已被打断或换了施法，忽略（幂等保护）
+        if (!context.AutoCaster.IsCasting || context.AutoCaster.CurrentCastId is null || context.AutoCaster.CurrentCastId != CastId)
+            return;
+
         var def = Slot.Runtime.Definition;
 
         // 如未在开始扣资源，则在完成时扣
@@ -29,13 +33,13 @@ public record SkillCastCompleteEvent(double ExecuteAt, SkillSlot Slot) : IGameEv
             }
         }
 
-        // 结算伤害（暴击在完成时判定，允许期间 Buff 影响结果）
+        // 结算伤害
         var (chance, mult) = context.Crit.ResolveWith(context.Buffs.Aggregate, def.CritChance, def.CritMultiplier);
         bool isCrit = context.Rng.NextBool(chance);
         int dmg = isCrit ? (int)Math.Round(def.BaseDamage * mult) : def.BaseDamage;
         if (isCrit) context.SegmentCollector.OnTag("crit:skill:" + def.Id, 1);
 
-        var type = DamageType.Physical;
+        var type = Damage.DamageType.Physical;
         if (def is SkillDefinitionExt ext) type = ext.DamageType;
 
         DamageCalculator.ApplyDamage(context, "skill:" + def.Id, dmg, type);
@@ -44,13 +48,13 @@ public record SkillCastCompleteEvent(double ExecuteAt, SkillSlot Slot) : IGameEv
         // 职业钩子
         context.ProfessionModule.OnSkillCast(context, def);
 
-        // 进入冷却（在完成时）
+        // 完成时进入冷却
         Slot.Runtime.MarkCast(ExecuteAt);
 
         // 清除施法状态
         context.AutoCaster.ClearCasting();
 
-        // 施法完成后立即尝试继续自动施放（若 GCD 已结束且有可用技能）
+        // 完成后尝试继续自动施放
         context.AutoCaster.TryAutoCast(context, ExecuteAt);
     }
 }
