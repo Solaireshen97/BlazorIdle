@@ -14,14 +14,31 @@ public class BuffManager
     private readonly Action<string, int>? _resource;
     private readonly Action<string, int, DamageType>? _dealDamage;
 
+    // 新增：由上层注入的解析委托
+    private readonly Func<double> _resolveHasteFactor;
+    private readonly Func<(double ap, double sp)> _resolveAPSP;
+
+    // 向后兼容构造（不吃面板急速与 AP/SP）
     public BuffManager(
         Action<string, int>? tagRecorder,
         Action<string, int>? resourceRecorder,
         Action<string, int, DamageType>? damageApplier)
+        : this(tagRecorder, resourceRecorder, damageApplier, () => 1.0, () => (0.0, 0.0))
+    { }
+
+    // 新构造：吃面板急速与 AP/SP（推荐）
+    public BuffManager(
+        Action<string, int>? tagRecorder,
+        Action<string, int>? resourceRecorder,
+        Action<string, int, DamageType>? damageApplier,
+        Func<double> resolveHasteFactor,
+        Func<(double ap, double sp)> resolveApsp)
     {
         _tag = tagRecorder;
         _resource = resourceRecorder;
         _dealDamage = damageApplier;
+        _resolveHasteFactor = resolveHasteFactor;
+        _resolveAPSP = resolveApsp;
     }
 
     public void RegisterDefinition(BuffDefinition def)
@@ -36,23 +53,24 @@ public class BuffManager
     public bool Has(string id) => _active.ContainsKey(id);
     public BuffInstance? TryGet(string id) => _active.TryGetValue(id, out var inst) ? inst : null;
 
-    private double CurrentHasteFactor() => Aggregate.ApplyToBaseHaste(1.0);
+    private double CurrentHasteFactor() => _resolveHasteFactor();
 
     public BuffInstance Apply(string id, double now)
     {
         var def = GetDefinition(id);
         var haste = CurrentHasteFactor();
+        var (ap, sp) = _resolveAPSP();
 
         if (_active.TryGetValue(id, out var existing))
         {
             switch (def.StackPolicy)
             {
                 case BuffStackPolicy.Refresh:
-                    existing.Refresh(now, haste);
+                    existing.Refresh(now, haste, ap, sp);
                     _tag?.Invoke($"buff_refresh:{id}", 1);
                     break;
                 case BuffStackPolicy.Stack:
-                    existing.Stack(now, haste);
+                    existing.Stack(now, haste, ap, sp);
                     _tag?.Invoke($"buff_stack:{id}", 1);
                     break;
                 case BuffStackPolicy.Extend:
@@ -65,7 +83,7 @@ public class BuffManager
         }
         else
         {
-            var inst = new BuffInstance(def, 1, now, haste);
+            var inst = new BuffInstance(def, 1, now, haste, ap, sp);
             _active[id] = inst;
             _tag?.Invoke($"buff_apply:{id}", 1);
             RecalcAggregate();
@@ -94,10 +112,13 @@ public class BuffManager
                 switch (def.PeriodicType)
                 {
                     case BuffPeriodicType.Damage:
-                        // DoT：每跳伤害按层数叠加
-                        var dmg = def.PeriodicValue * inst.Stacks;
-                        _dealDamage?.Invoke("buff_tick:" + id, dmg, def.PeriodicDamageType);
-                        _tag?.Invoke("buff_tick:" + id, 1);
+                        // DoT：每跳伤害 = 快照 per-stack × 当前层数
+                        var dmg = (int)Math.Round(inst.TickBasePerStack * inst.Stacks);
+                        if (dmg > 0)
+                        {
+                            _dealDamage?.Invoke("buff_tick:" + id, dmg, def.PeriodicDamageType);
+                            _tag?.Invoke("buff_tick:" + id, 1);
+                        }
                         break;
 
                     case BuffPeriodicType.Resource:

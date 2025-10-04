@@ -58,10 +58,13 @@ public class BattleContext
         EncounterGroup = encounterGroup ?? (encounter != null ? EncounterGroup.FromSingle(encounter) : null);
         Encounter = EncounterGroup?.PrimaryAlive() ?? encounter;
 
+        // DoT：Haste 快照 + AP/SP 快照，均由委托提供
         Buffs = new BuffManager(
             tagRecorder: (tag, count) => SegmentCollector.OnTag(tag, count),
             resourceRecorder: (res, delta) => SegmentCollector.OnResourceChange(res, delta),
-            damageApplier: (src, amount, type) => DamageCalculator.ApplyDamage(this, src, amount, type)
+            damageApplier: (src, amount, type) => DamageCalculator.ApplyDamage(this, src, amount, type),
+            resolveHasteFactor: () => Buffs.Aggregate.ApplyToBaseHaste(1.0 + Stats.HastePercent),
+            resolveApsp: () => (Stats.AttackPower, Stats.SpellPower)
         );
     }
 }

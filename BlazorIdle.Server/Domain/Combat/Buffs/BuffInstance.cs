@@ -11,8 +11,9 @@ public sealed class BuffInstance
     // DoT/HoT 强化：周期相关快照
     public double TickIntervalSeconds { get; private set; } // 0 表示无周期
     public double HasteSnapshot { get; private set; }       // 仅用于记录/调试
+    public double TickBasePerStack { get; private set; }    // 每层每跳的基础伤害（已注入 AP/SP）
 
-    public BuffInstance(BuffDefinition def, int stacks, double now, double hasteFactor)
+    public BuffInstance(BuffDefinition def, int stacks, double now, double hasteFactor, double ap, double sp)
     {
         Definition = def;
         Stacks = System.Math.Max(1, stacks);
@@ -27,20 +28,26 @@ public sealed class BuffInstance
                 ? System.Math.Max(0.01, def.PeriodicInterval.Value / HasteSnapshot)
                 : def.PeriodicInterval.Value;
 
+            TickBasePerStack = System.Math.Max(0.0,
+                def.PeriodicValue
+                + ap * def.PeriodicAttackPowerCoef
+                + sp * def.PeriodicSpellPowerCoef);
+
             NextTickAt = now + TickIntervalSeconds;
         }
         else
         {
             HasteSnapshot = 1.0;
             TickIntervalSeconds = 0;
+            TickBasePerStack = 0;
             NextTickAt = null;
         }
     }
 
     public bool IsExpired(double now) => now >= ExpiresAt;
 
-    // 刷新：Pandemic 规则 + 重置 tick 计时（按当前 haste 重新快照）
-    public void Refresh(double now, double hasteFactor)
+    // 刷新：Pandemic 规则 + 重置 tick 计时（按当前 haste/AP/SP 重新快照）
+    public void Refresh(double now, double hasteFactor, double ap, double sp)
     {
         var baseDur = Definition.DurationSeconds;
         var remaining = System.Math.Max(0, ExpiresAt - now);
@@ -48,7 +55,6 @@ public sealed class BuffInstance
         var newExpire = now + System.Math.Min(baseDur + remaining, baseDur + carryCap);
         ExpiresAt = newExpire;
 
-        // 重新快照周期（若有）
         if (Definition.PeriodicType != BuffPeriodicType.None && Definition.PeriodicInterval.HasValue && Definition.PeriodicInterval.Value > 0)
         {
             HasteSnapshot = hasteFactor <= 0 ? 1.0 : hasteFactor;
@@ -56,15 +62,20 @@ public sealed class BuffInstance
                 ? System.Math.Max(0.01, Definition.PeriodicInterval.Value / HasteSnapshot)
                 : Definition.PeriodicInterval.Value;
 
+            TickBasePerStack = System.Math.Max(0.0,
+                Definition.PeriodicValue
+                + ap * Definition.PeriodicAttackPowerCoef
+                + sp * Definition.PeriodicSpellPowerCoef);
+
             NextTickAt = now + TickIntervalSeconds;
         }
     }
 
     // 叠层：上限内 +1，并按刷新规则处理持续时间与 tick 重置
-    public void Stack(double now, double hasteFactor)
+    public void Stack(double now, double hasteFactor, double ap, double sp)
     {
         Stacks = System.Math.Min(Definition.MaxStacks, Stacks + 1);
-        Refresh(now, hasteFactor);
+        Refresh(now, hasteFactor, ap, sp);
     }
 
     // 延长：直接延长持续时间（不变更 tick 间隔与下一跳时间）
