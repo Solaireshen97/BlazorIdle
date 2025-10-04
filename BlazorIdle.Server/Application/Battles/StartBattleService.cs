@@ -43,8 +43,11 @@ public class StartBattleService
             StartedAt = 0
         };
 
-        // 职业基础 Stats：不含主属性/装备转换（Haste=0，急速仅由 Buff/专门属性影响）
-        var stats = ProfessionBaseStatsRegistry.Resolve(c.Profession);
+        // 职业基础 + 主属性转换（不影响急速）
+        var baseStats = ProfessionBaseStatsRegistry.Resolve(c.Profession);
+        var attrs = new PrimaryAttributes(c.Strength, c.Agility, c.Intellect, c.Stamina);
+        var derived = StatsBuilder.BuildDerived(c.Profession, attrs);
+        var stats = StatsBuilder.Combine(baseStats, derived);
 
         ulong finalSeed = seed ?? DeriveSeed(characterId);
         var rng = new RngContext(finalSeed);
@@ -56,7 +59,7 @@ public class StartBattleService
             module: module,
             encounter: null,               // 主目标由组内的 PrimaryAlive 决定
             encounterGroup: encounterGroup, // 多目标组
-            stats: stats                    // 注入职业基础面板
+            stats: stats                    // 注入合并后的面板
         );
 
         long seedIndexEnd = rng.Index;
