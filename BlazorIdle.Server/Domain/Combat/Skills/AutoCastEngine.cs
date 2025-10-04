@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using BlazorIdle.Server.Domain.Combat.Damage;
+using BlazorIdle.Server.Domain.Combat.Enemies;
 using BlazorIdle.Server.Domain.Combat.Resources;
 
 namespace BlazorIdle.Server.Domain.Combat.Skills;
@@ -11,21 +12,21 @@ public class AutoCastEngine
 
     public IReadOnlyList<SkillSlot> Slots => _slots;
 
-    // 全局冷却 & 施法状态
+    // 全局冷却 & 施法状态（已存在）
     public double GlobalCooldownUntil { get; private set; } = 0;
     public bool IsCasting { get; private set; }
     public double CastingUntil { get; private set; }
     public bool CastingSkillLocksAttack { get; private set; }
     public long? CurrentCastId => _currentCastId;
 
-    // 技能队列（仅 1 格，保存优先级最高候选）
+    // 技能队列（已存在）
     private SkillSlot? _queuedSlot;
 
     // 内部施法跟踪
     private SkillSlot? _castingSlot;
     private long _castSeq = 0;
     private long? _currentCastId;
-    private bool _consumedChargeForCurrentCast; // 本次施法是否在开始时消耗了充能
+    private bool _consumedChargeForCurrentCast;
 
     public void AddSkill(SkillDefinition def)
     {
@@ -35,15 +36,14 @@ public class AutoCastEngine
 
     public bool TryAutoCast(BattleContext context, double now)
     {
-        // 先推进所有技能的充能恢复
+        // 推进充能
         foreach (var s in _slots)
             s.Runtime.TickRecharge(now);
 
-        // 若有排队技能，先尝试消费（可避免空转）
+        // 先尝试释放队列
         if (TryConsumeQueued(context, now))
             return true;
 
-        // 施法进行中：首版不支持编织，但仍可评估并记录队列候选，随后返回
         if (IsCasting)
         {
             ConsiderQueueCandidates(context, now, castingBlocked: true);
@@ -52,16 +52,13 @@ public class AutoCastEngine
 
         var haste = ResolveHasteFactor(context);
 
-        // 扫描技能：可立即施放的直接施放；被 GCD 阻塞但其他条件满足的，进入队列
         foreach (var slot in _slots)
         {
             var def = slot.Runtime.Definition;
 
-            // 可用性（冷却/充能）
             if (!slot.Runtime.IsReady(now))
                 continue;
 
-            // 资源检查（不扣除，仅校验；扣除在开始施法或瞬发时机）
             if (!HasSufficientResourceForStart(context, def))
                 continue;
 
@@ -72,7 +69,6 @@ public class AutoCastEngine
                 continue;
             }
 
-            // 可立即施放
             if (def.CastTimeSeconds > 0)
             {
                 StartCasting(slot, context, now, haste, deductCostNow: def.SpendCostOnCast);
@@ -85,37 +81,29 @@ public class AutoCastEngine
             }
         }
 
-        // 没有可施放技能；若因为 GCD 或施法阻塞，队列里可能已有候选
         return false;
     }
 
-    // 施法开始
     private void StartCasting(SkillSlot slot, BattleContext context, double now, double haste, bool deductCostNow)
     {
         var def = slot.Runtime.Definition;
 
-        // GCD/Cast 受 Haste 缩放
         var effCast = Math.Max(0.01, def.CastTimeSeconds / haste);
         var effGcd = def.OffGcd ? 0.0 : Math.Max(0.01, def.GcdSeconds / haste);
 
         if (!def.OffGcd)
         {
             GlobalCooldownUntil = now + effGcd;
-            // 调度 GCD 结束事件以及时尝试释放队列
             context.Scheduler.Schedule(new GcdReadyEvent(GlobalCooldownUntil));
         }
 
-        // 资源扣除（如果配置在开始扣）
         if (deductCostNow && def.CostResourceId is not null && def.CostAmount > 0)
         {
             if (!TryDeductResource(context, def.CostResourceId, def.CostAmount))
-            {
-                // 扣除失败则取消施法
                 return;
-            }
         }
 
-        // 充能：如配置为开始时消耗
+        // 充能：开始施法时消耗
         _consumedChargeForCurrentCast = false;
         if (def.MaxCharges > 1 && def.ConsumeChargeOnCast)
         {
@@ -124,16 +112,12 @@ public class AutoCastEngine
             _consumedChargeForCurrentCast = true;
         }
 
-        // 设置施法状态
         IsCasting = true;
         _castingSlot = slot;
         CastingUntil = now + effCast;
         CastingSkillLocksAttack = def.LockAttackDuringCast;
-
-        // 分配 CastId（用于安全打断）
         _currentCastId = ++_castSeq;
 
-        // 调度施法完成事件
         context.Scheduler.Schedule(new SkillCastCompleteEvent(CastingUntil, slot, _currentCastId.Value));
         context.SegmentCollector.OnTag("skill_cast_start:" + def.Id, 1);
     }
@@ -148,28 +132,24 @@ public class AutoCastEngine
         _consumedChargeForCurrentCast = false;
     }
 
-    // 瞬发施放
     private void CastInstant(SkillSlot slot, BattleContext context, double now, double haste, bool deductCostNow)
     {
         var def = slot.Runtime.Definition;
 
-        // GCD 缩放
         if (!def.OffGcd)
         {
             var effGcd = Math.Max(0.01, def.GcdSeconds / haste);
             GlobalCooldownUntil = now + effGcd;
-            // 调度 GCD 结束事件
             context.Scheduler.Schedule(new GcdReadyEvent(GlobalCooldownUntil));
         }
 
-        // 资源扣除（如果配置在开始扣）
         if (deductCostNow && def.CostResourceId is not null && def.CostAmount > 0)
         {
             if (!TryDeductResource(context, def.CostResourceId, def.CostAmount))
                 return;
         }
 
-        // 充能/冷却处理
+        // 充能/冷却
         if (def.MaxCharges > 1)
         {
             var effRecharge = def.RechargeAffectedByHaste ? Math.Max(0.01, def.RechargeSeconds / haste) : def.RechargeSeconds;
@@ -177,34 +157,75 @@ public class AutoCastEngine
         }
         else
         {
-            // 单充能：即时释放后立即进入冷却
             slot.Runtime.MarkCast(now);
         }
 
         // 伤害 + 暴击
+        DoSkillDamage(slot, context, def);
+
+        if (_queuedSlot == slot) _queuedSlot = null;
+    }
+
+    private void DoSkillDamage(SkillSlot slot, BattleContext context, SkillDefinition def)
+    {
         var (chance, mult) = context.Crit.ResolveWith(context.Buffs.Aggregate, def.CritChance, def.CritMultiplier);
         bool isCrit = context.Rng.NextBool(chance);
-        int dmg = isCrit ? (int)Math.Round(def.BaseDamage * mult) : def.BaseDamage;
+        int baseDmg = isCrit ? (int)Math.Round(def.BaseDamage * mult) : def.BaseDamage;
         if (isCrit) context.SegmentCollector.OnTag("crit:skill:" + def.Id, 1);
 
         var type = DamageType.Physical;
         if (def is SkillDefinitionExt ext) type = ext.DamageType;
 
-        DamageCalculator.ApplyDamage(context, "skill:" + def.Id, dmg, type);
+        // AoE：选择目标并结算
+        if (def.AoEMode != AoEMode.None && def.MaxTargets > 1 && context.EncounterGroup is not null)
+        {
+            var targets = context.EncounterGroup.SelectAlive(def.MaxTargets, includePrimary: def.IncludePrimaryTarget);
+            if (targets.Count == 0 && context.Encounter != null)
+                targets.Add(context.Encounter);
+
+            if (targets.Count <= 1)
+            {
+                DamageCalculator.ApplyDamage(context, "skill:" + def.Id, baseDmg, type);
+            }
+            else
+            {
+                switch (def.AoEMode)
+                {
+                    case AoEMode.CleaveFull:
+                        {
+                            foreach (var t in targets)
+                                DamageCalculator.ApplyDamageToTarget(context, t, "skill:" + def.Id, baseDmg, type);
+                            break;
+                        }
+                    case AoEMode.SplitEven:
+                        {
+                            int n = targets.Count;
+                            int share = Math.Max(1, baseDmg / n);
+                            int remainder = Math.Max(0, baseDmg - share * n);
+                            for (int i = 0; i < n; i++)
+                            {
+                                int dmg = share;
+                                if (remainder > 0 && ((def.SplitRemainderToPrimary && i == 0) || (!def.SplitRemainderToPrimary && i < remainder)))
+                                    dmg += 1;
+                                DamageCalculator.ApplyDamageToTarget(context, targets[i], "skill:" + def.Id, dmg, type);
+                            }
+                            break;
+                        }
+                }
+            }
+        }
+        else
+        {
+            DamageCalculator.ApplyDamage(context, "skill:" + def.Id, baseDmg, type);
+        }
+
         context.SegmentCollector.OnTag("skill_cast:" + def.Id, 1);
-
         context.ProfessionModule.OnSkillCast(context, def);
-
-        // 若本次施放命中了队列项，则清空队列
-        if (_queuedSlot == slot) _queuedSlot = null;
     }
 
     private static double ResolveHasteFactor(BattleContext context)
-    {
-        return context.Buffs.Aggregate.ApplyToBaseHaste(1.0);
-    }
+        => context.Buffs.Aggregate.ApplyToBaseHaste(1.0);
 
-    // 队列：在 GCD 或施法阻塞时，收集优先级最高的候选
     private void ConsiderQueueCandidates(BattleContext context, double now, bool castingBlocked)
     {
         foreach (var slot in _slots)
@@ -217,14 +238,12 @@ public class AutoCastEngine
             if (!HasSufficientResourceForStart(context, def))
                 continue;
 
-            // 施法阻塞时，任何技能都不能立即施放（含 OffGcd），可进入队列
             if (castingBlocked)
             {
                 ConsiderQueue(slot, context);
                 continue;
             }
 
-            // 非施法阻塞但 GCD 阻塞的情况
             bool gcdBlocked = (!def.OffGcd && now < GlobalCooldownUntil);
             if (gcdBlocked)
             {
@@ -243,7 +262,6 @@ public class AutoCastEngine
         }
     }
 
-    // 在合适时机尝试释放队列（GCD 结束、施法完成、任意事件触发时机）
     private bool TryConsumeQueued(BattleContext context, double now)
     {
         if (_queuedSlot == null || IsCasting)
@@ -252,10 +270,9 @@ public class AutoCastEngine
         var slot = _queuedSlot;
         var def = slot.Runtime.Definition;
 
-        // 再次校验 GCD、冷却/充能、资源
         if (!slot.Runtime.IsReady(now))
         {
-            _queuedSlot = null; // 队列项已失效
+            _queuedSlot = null;
             return false;
         }
 
@@ -265,7 +282,7 @@ public class AutoCastEngine
 
         if (!HasSufficientResourceForStart(context, def))
         {
-            _queuedSlot = null; // 资源不足，清队列
+            _queuedSlot = null;
             return false;
         }
 
@@ -285,7 +302,6 @@ public class AutoCastEngine
         }
     }
 
-    // 尝试在某时刻发起“打断当前施法”的事件（保持既有接口）
     public bool RequestInterrupt(BattleContext context, double atTime, InterruptReason reason = InterruptReason.Other)
     {
         if (!IsCasting || _currentCastId is null) return false;
@@ -293,7 +309,6 @@ public class AutoCastEngine
         return true;
     }
 
-    // 事件执行：打断当前施法
     internal void InterruptCasting(BattleContext context, double now, InterruptReason reason)
     {
         if (!IsCasting || _castingSlot is null || _currentCastId is null)
@@ -301,11 +316,9 @@ public class AutoCastEngine
 
         var def = _castingSlot.Runtime.Definition;
 
-        // 不可打断则忽略
         if (!def.Interruptible)
             return;
 
-        // 资源返还
         if (def.SpendCostOnCast && def.RefundCostOnInterrupt && def.CostResourceId is not null && def.CostAmount > 0)
         {
             if (context.Resources.TryGet(def.CostResourceId, out var bucket))
@@ -320,7 +333,6 @@ public class AutoCastEngine
             }
         }
 
-        // 充能返还（仅当本次施法在开始时消耗过充能且允许返还）
         if (_consumedChargeForCurrentCast && def.MaxCharges > 1 && def.RefundChargeOnInterrupt)
         {
             var haste = ResolveHasteFactor(context);
@@ -328,11 +340,9 @@ public class AutoCastEngine
             _castingSlot.Runtime.RefundOnInterrupt(now, effRecharge);
         }
 
-        // 标签
         context.SegmentCollector.OnTag("skill_cast_interrupt:" + def.Id, 1);
         context.SegmentCollector.OnTag("interrupt_reason:" + reason.ToString().ToLowerInvariant(), 1);
 
-        // 清空施法状态
         ClearCasting();
     }
 

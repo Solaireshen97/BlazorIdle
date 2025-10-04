@@ -34,11 +34,12 @@ public class BattlesController : ControllerBase
     /// </summary>
     // POST /api/battles/start?characterId=...&seconds=...&seed=...&enemyId=...
     [HttpPost("start")]
-    public async Task<IActionResult> Start([FromQuery] Guid characterId, [FromQuery] double seconds = 15, [FromQuery] ulong? seed = null, [FromQuery] string? enemyId = null)
+    public async Task<IActionResult> Start([FromQuery] Guid characterId, [FromQuery] double seconds = 15, [FromQuery] ulong? seed = null, [FromQuery] string? enemyId = null, [FromQuery] int enemyCount = 1)
     {
-        var id = await _startSvc.StartAsync(characterId, seconds, seed, enemyId);
-        return Ok(new { battleId = id, seed, enemyId });
+        var id = await _startSvc.StartAsync(characterId, seconds, seed, enemyId, enemyCount);
+        return Ok(new { battleId = id, seed, enemyId, enemyCount });
     }
+
 
     /// <summary>
     /// 获取战斗摘要：

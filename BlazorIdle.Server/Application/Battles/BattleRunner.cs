@@ -1,5 +1,6 @@
 ﻿using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat;
+using BlazorIdle.Server.Domain.Combat.Enemies;
 using BlazorIdle.Server.Domain.Combat.Professions;
 using BlazorIdle.Server.Domain.Combat.Rng;
 using BlazorIdle.Shared.Models;
@@ -19,14 +20,16 @@ public class BattleRunner
         out double? killTime,
         out int overkill,
         IProfessionModule? module = null,
-        Encounter? encounter = null)
+        Encounter? encounter = null,
+        EncounterGroup? encounterGroup = null)
     {
         var clock = new GameClock();
         var scheduler = new EventScheduler();
         var collector = new SegmentCollector();
 
         var professionModule = module ?? ProfessionRegistry.Resolve(profession);
-        var context = new BattleContext(battle, clock, scheduler, collector, professionModule, profession, rng, encounter);
+        // 将 encounterGroup 传入；如为空且提供了 encounter，则由 BattleContext 内部构造单元素组
+        var context = new BattleContext(battle, clock, scheduler, collector, professionModule, profession, rng, encounter, encounterGroup);
 
         professionModule.RegisterBuffDefinitions(context);
         professionModule.OnBattleStart(context);
@@ -68,9 +71,9 @@ public class BattleRunner
             if (collector.ShouldFlush(clock.CurrentTime))
                 segments.Add(collector.Flush(clock.CurrentTime));
 
+            // 结束条件：维持旧语义——主目标死亡即结束
             if (context.Encounter?.IsDead == true)
             {
-                // 目标死亡，立刻结束。
                 battle.Finish(clock.CurrentTime);
                 break;
             }

@@ -10,30 +10,33 @@ public class SkillDefinition
     public int Priority { get; }
     public int BaseDamage { get; }
 
-    // 技能级暴击覆盖（可选）
     public double? CritChance { get; }
     public double? CritMultiplier { get; }
 
-    // 施法/GCD
-    public double CastTimeSeconds { get; } = 0.0;   // 0 表示即时
-    public double GcdSeconds { get; } = 1.0;        // OffGcd=false 时生效
+    // 施法/GCD（已存在）
+    public double CastTimeSeconds { get; } = 0.0;
+    public double GcdSeconds { get; } = 1.0;
     public bool OffGcd { get; } = false;
     public bool LockAttackDuringCast { get; } = true;
-
-    // 资源扣除时机
     public bool SpendCostOnCast { get; } = true;
 
-    // 打断配置
+    // 打断（已存在）
     public bool Interruptible { get; } = true;
     public bool RefundCostOnInterrupt { get; } = true;
     public double RefundRatioOnInterrupt { get; } = 1.0;
 
-    // 充能/恢复（新增）
-    public int MaxCharges { get; } = 1;                 // 1 = 无充能，走传统冷却
-    public double RechargeSeconds { get; } = 0;         // >0 才有意义（MaxCharges>1 时使用）
-    public bool ConsumeChargeOnCast { get; } = true;    // true=开始施法即消耗；false=完成时消耗
-    public bool RefundChargeOnInterrupt { get; } = true;// 若已在开始消耗，打断时是否返还
-    public bool RechargeAffectedByHaste { get; } = false;// 充能恢复是否受 Haste 影响（按开始时快照）
+    // 充能/恢复（已存在）
+    public int MaxCharges { get; } = 1;
+    public double RechargeSeconds { get; } = 0;
+    public bool ConsumeChargeOnCast { get; } = true;
+    public bool RefundChargeOnInterrupt { get; } = true;
+    public bool RechargeAffectedByHaste { get; } = false;
+
+    // 新：AoE 配置
+    public int MaxTargets { get; } = 1;            // 1 表示单体
+    public AoEMode AoEMode { get; } = AoEMode.None;
+    public bool IncludePrimaryTarget { get; } = true; // 选择目标时是否包含主目标
+    public bool SplitRemainderToPrimary { get; } = true; // SplitEven 时的余数分配策略
 
     public SkillDefinition(
         string id,
@@ -53,12 +56,16 @@ public class SkillDefinition
         bool interruptible = true,
         bool refundCostOnInterrupt = true,
         double refundRatioOnInterrupt = 1.0,
-        // 充能相关
         int maxCharges = 1,
         double rechargeSeconds = 0,
         bool consumeChargeOnCast = true,
         bool refundChargeOnInterrupt = true,
-        bool rechargeAffectedByHaste = false
+        bool rechargeAffectedByHaste = false,
+        // AoE
+        int maxTargets = 1,
+        AoEMode aoeMode = AoEMode.None,
+        bool includePrimaryTarget = true,
+        bool splitRemainderToPrimary = true
     )
     {
         Id = id;
@@ -87,5 +94,10 @@ public class SkillDefinition
         ConsumeChargeOnCast = consumeChargeOnCast;
         RefundChargeOnInterrupt = refundChargeOnInterrupt;
         RechargeAffectedByHaste = rechargeAffectedByHaste;
+
+        MaxTargets = maxTargets <= 0 ? 1 : maxTargets;
+        AoEMode = aoeMode;
+        IncludePrimaryTarget = includePrimaryTarget;
+        SplitRemainderToPrimary = splitRemainderToPrimary;
     }
 }

@@ -54,9 +54,8 @@ public class RangerProfession : IProfessionModule
         context.Buffs.Apply("focus_flow", context.Clock.CurrentTime);
     }
 
-    public void BuildSkills(BattleContext context, AutoCastEngine engine)
+    public virtual void BuildSkills(BattleContext context, AutoCastEngine engine)
     {
-        // 爆发
         engine.AddSkill(new SkillDefinition(
             id: "power_shot",
             name: "Power Shot",
@@ -69,7 +68,6 @@ public class RangerProfession : IProfessionModule
             critMultiplier: 2.4
         ));
 
-        // 新增：流血射击（施放后上 DoT）
         engine.AddSkill(new SkillDefinition(
             id: "bleed_shot",
             name: "Bleed Shot",
@@ -77,12 +75,11 @@ public class RangerProfession : IProfessionModule
             costAmount: 25,
             cooldownSeconds: 6.0,
             priority: 12,
-            baseDamage: 30,       // 初始直接伤害（走常规结算）
+            baseDamage: 30,
             critChance: 0.10,
             critMultiplier: 2.0
         ));
 
-        // 频繁小招
         engine.AddSkill(new SkillDefinition(
             id: "quick_shot",
             name: "Quick Shot",
@@ -94,6 +91,40 @@ public class RangerProfession : IProfessionModule
             critChance: 0.05,
             critMultiplier: 1.8
         ));
+
+        // 新增：箭雨（CleaveFull，最多 3 目标）
+        engine.AddSkill(new SkillDefinition(
+            id: "volley",
+            name: "Volley",
+            costResourceId: "focus",
+            costAmount: 35,
+            cooldownSeconds: 8.0,
+            priority: 8,
+            baseDamage: 40,
+            critChance: 0.10,
+            critMultiplier: 2.0,
+            // AoE
+            maxTargets: 3,
+            aoeMode: AoEMode.CleaveFull,
+            includePrimaryTarget: true
+        ));
+
+        // 可选：分摊伤害的穿刺箭（SplitEven，最多 5 目标）
+        // engine.AddSkill(new SkillDefinition(
+        //     id: "piercing_volley",
+        //     name: "Piercing Volley",
+        //     costResourceId: "focus",
+        //     costAmount: 30,
+        //     cooldownSeconds: 10.0,
+        //     priority: 9,
+        //     baseDamage: 100,
+        //     critChance: 0.10,
+        //     critMultiplier: 2.0,
+        //     maxTargets: 5,
+        //     aoeMode: AoEMode.SplitEven,
+        //     includePrimaryTarget: true,
+        //     splitRemainderToPrimary: true
+        // ));
     }
 
     public void OnSkillCast(BattleContext context, SkillDefinition def)
@@ -105,7 +136,6 @@ public class RangerProfession : IProfessionModule
         }
         else if (def.Id == "bleed_shot")
         {
-            // 施放后给目标叠加/刷新流血（DoT）
             context.Buffs.Apply("ranger_bleed", context.Clock.CurrentTime);
         }
     }

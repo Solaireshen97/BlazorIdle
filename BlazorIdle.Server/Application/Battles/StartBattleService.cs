@@ -22,7 +22,8 @@ public class StartBattleService
         _runner = runner;
     }
 
-    public async Task<Guid> StartAsync(Guid characterId, double simulateSeconds = 15, ulong? seed = null, string? enemyId = null, CancellationToken ct = default)
+    // 新增 enemyCount 参数（默认 1），用于创建多目标遭遇组；不改数据库
+    public async Task<Guid> StartAsync(Guid characterId, double simulateSeconds = 15, ulong? seed = null, string? enemyId = null, int enemyCount = 1, CancellationToken ct = default)
     {
         var c = await _characters.GetAsync(characterId, ct);
         if (c is null) throw new InvalidOperationException("Character not found");
@@ -30,7 +31,9 @@ public class StartBattleService
         var module = ProfessionRegistry.Resolve(c.Profession);
 
         var enemyDef = EnemyRegistry.Resolve(enemyId);
-        var encounter = new Encounter(enemyDef);
+        enemyCount = Math.Max(1, enemyCount);
+        var groupDefs = Enumerable.Range(0, enemyCount).Select(_ => enemyDef).ToList();
+        var encounterGroup = new EncounterGroup(groupDefs);
 
         var battleDomain = new Battle
         {
@@ -44,7 +47,13 @@ public class StartBattleService
         var rng = new RngContext(finalSeed);
         long seedIndexStart = rng.Index;
 
-        var segments = _runner.RunForDuration(battleDomain, simulateSeconds, c.Profession, rng, out var killed, out var killTime, out var overkill, module, encounter);
+        var segments = _runner.RunForDuration(
+            battleDomain, simulateSeconds, c.Profession, rng,
+            out var killed, out var killTime, out var overkill,
+            module: module,
+            encounter: null,               // 主目标由组内的 PrimaryAlive 决定
+            encounterGroup: encounterGroup // 多目标组
+        );
 
         long seedIndexEnd = rng.Index;
         var totalDamage = segments.Sum(s => s.TotalDamage);
@@ -63,7 +72,7 @@ public class StartBattleService
             SeedIndexStart = seedIndexStart,
             SeedIndexEnd = seedIndexEnd,
 
-            // 敌人与击杀信息（新增）
+            // 敌人与击杀信息：沿用单目标（主目标）信息，不做 DB 变更
             EnemyId = enemyDef.Id,
             EnemyName = enemyDef.Name,
             EnemyLevel = enemyDef.Level,

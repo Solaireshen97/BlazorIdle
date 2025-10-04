@@ -27,7 +27,9 @@ public class BattleContext
     public RngContext Rng { get; }
     public Damage.CritSettings Crit { get; } = new();
 
-    public Encounter? Encounter { get; }
+    // 遭遇：单体主目标 + 目标组
+    public Encounter? Encounter { get; }            // 兼容旧逻辑
+    public EncounterGroup? EncounterGroup { get; }  // 新增
 
     public BattleContext(
         Battle battle,
@@ -37,7 +39,8 @@ public class BattleContext
         IProfessionModule professionModule,
         Profession profession,
         RngContext rng,
-        Encounter? encounter = null)
+        Encounter? encounter = null,
+        EncounterGroup? encounterGroup = null)
     {
         Battle = battle;
         Clock = clock;
@@ -46,19 +49,15 @@ public class BattleContext
         ProfessionModule = professionModule;
         Profession = profession;
         Rng = rng;
-        Encounter = encounter;
+
+        // 优先采用传入的组；否则用单体构建单元素组
+        EncounterGroup = encounterGroup ?? (encounter != null ? EncounterGroup.FromSingle(encounter) : null);
+        Encounter = EncounterGroup?.PrimaryAlive() ?? encounter;
 
         Buffs = new BuffManager(
             tagRecorder: (tag, count) => SegmentCollector.OnTag(tag, count),
             resourceRecorder: (res, delta) => SegmentCollector.OnResourceChange(res, delta),
             damageApplier: (src, amount, type) => DamageCalculator.ApplyDamage(this, src, amount, type)
         );
-    }
-
-    // 快捷：在当前时间发起“立即打断施法”的事件（如果正在施法）
-    public bool TryInterruptCasting(InterruptReason reason = InterruptReason.Other)
-    {
-        var now = Clock.CurrentTime;
-        return AutoCaster.RequestInterrupt(this, now, reason);
     }
 }
