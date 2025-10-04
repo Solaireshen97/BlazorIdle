@@ -12,17 +12,17 @@ public class AutoCastEngine
 
     public IReadOnlyList<SkillSlot> Slots => _slots;
 
-    // 全局冷却 & 施法状态（已存在）
+    // 全局冷却 & 施法状态
     public double GlobalCooldownUntil { get; private set; } = 0;
     public bool IsCasting { get; private set; }
     public double CastingUntil { get; private set; }
     public bool CastingSkillLocksAttack { get; private set; }
     public long? CurrentCastId => _currentCastId;
 
-    // 技能队列（已存在）
+    // 单槽队列
     private SkillSlot? _queuedSlot;
 
-    // 内部施法跟踪
+    // 施法跟踪
     private SkillSlot? _castingSlot;
     private long _castSeq = 0;
     private long? _currentCastId;
@@ -40,18 +40,41 @@ public class AutoCastEngine
         foreach (var s in _slots)
             s.Runtime.TickRecharge(now);
 
-        // 先尝试释放队列
+        // 先尝试消费队列（若可）
         if (TryConsumeQueued(context, now))
             return true;
 
+        // 施法期间：允许“OffGCD 且允许编织且瞬发”的技能穿插释放
         if (IsCasting)
         {
+            var hasteDuring = ResolveHasteFactor(context); // 用于充能/冷却的时长缩放
+            foreach (var slot in _slots)
+            {
+                var def = slot.Runtime.Definition;
+
+                // 仅允许：OffGCD + 允许编织 + 瞬发（CastTime=0）
+                if (!(def.OffGcd && def.AllowDuringCastingForOffGcd && def.CastTimeSeconds <= 0))
+                    continue;
+
+                if (!slot.Runtime.IsReady(now))
+                    continue;
+
+                if (!HasSufficientResourceForStart(context, def))
+                    continue;
+
+                // 直接使用瞬发路径；不改变施法状态，不影响“暂停普攻”规则
+                CastInstant(slot, context, now, hasteDuring, deductCostNow: def.SpendCostOnCast);
+                return true;
+            }
+
+            // 未能编织，记录队列候选（含 OffGCD）以便施法完成后抢占
             ConsiderQueueCandidates(context, now, castingBlocked: true);
             return false;
         }
 
         var haste = ResolveHasteFactor(context);
 
+        // 常规扫描：可立即施放就施放；被 GCD 阻塞则入队
         foreach (var slot in _slots)
         {
             var def = slot.Runtime.Definition;
@@ -103,7 +126,6 @@ public class AutoCastEngine
                 return;
         }
 
-        // 充能：开始施法时消耗
         _consumedChargeForCurrentCast = false;
         if (def.MaxCharges > 1 && def.ConsumeChargeOnCast)
         {
@@ -136,6 +158,7 @@ public class AutoCastEngine
     {
         var def = slot.Runtime.Definition;
 
+        // OffGCD 不进入 GCD；OnGCD 则按 Haste 缩放 GCD
         if (!def.OffGcd)
         {
             var effGcd = Math.Max(0.01, def.GcdSeconds / haste);
@@ -160,7 +183,7 @@ public class AutoCastEngine
             slot.Runtime.MarkCast(now);
         }
 
-        // 伤害 + 暴击
+        // 伤害 + AoE
         DoSkillDamage(slot, context, def);
 
         if (_queuedSlot == slot) _queuedSlot = null;
@@ -176,7 +199,6 @@ public class AutoCastEngine
         var type = DamageType.Physical;
         if (def is SkillDefinitionExt ext) type = ext.DamageType;
 
-        // AoE：选择目标并结算
         if (def.AoEMode != AoEMode.None && def.MaxTargets > 1 && context.EncounterGroup is not null)
         {
             var targets = context.EncounterGroup.SelectAlive(def.MaxTargets, includePrimary: def.IncludePrimaryTarget);
@@ -192,25 +214,22 @@ public class AutoCastEngine
                 switch (def.AoEMode)
                 {
                     case AoEMode.CleaveFull:
-                        {
-                            foreach (var t in targets)
-                                DamageCalculator.ApplyDamageToTarget(context, t, "skill:" + def.Id, baseDmg, type);
-                            break;
-                        }
+                        foreach (var t in targets)
+                            DamageCalculator.ApplyDamageToTarget(context, t, "skill:" + def.Id, baseDmg, type);
+                        break;
+
                     case AoEMode.SplitEven:
+                        int n = targets.Count;
+                        int share = Math.Max(1, baseDmg / n);
+                        int remainder = Math.Max(0, baseDmg - share * n);
+                        for (int i = 0; i < n; i++)
                         {
-                            int n = targets.Count;
-                            int share = Math.Max(1, baseDmg / n);
-                            int remainder = Math.Max(0, baseDmg - share * n);
-                            for (int i = 0; i < n; i++)
-                            {
-                                int dmg = share;
-                                if (remainder > 0 && ((def.SplitRemainderToPrimary && i == 0) || (!def.SplitRemainderToPrimary && i < remainder)))
-                                    dmg += 1;
-                                DamageCalculator.ApplyDamageToTarget(context, targets[i], "skill:" + def.Id, dmg, type);
-                            }
-                            break;
+                            int dmg = share;
+                            if (remainder > 0 && ((def.SplitRemainderToPrimary && i == 0) || (!def.SplitRemainderToPrimary && i < remainder)))
+                                dmg += 1;
+                            DamageCalculator.ApplyDamageToTarget(context, targets[i], "skill:" + def.Id, dmg, type);
                         }
+                        break;
                 }
             }
         }

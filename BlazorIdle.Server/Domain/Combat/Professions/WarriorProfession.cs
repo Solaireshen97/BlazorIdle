@@ -46,9 +46,9 @@ public class WarriorProfession : IProfessionModule
         // 预留
     }
 
-    public void BuildSkills(BattleContext context, AutoCastEngine engine)
+    public virtual void BuildSkills(BattleContext context, AutoCastEngine engine)
     {
-        // 为 Heroic Strike 设置专属暴击：15% 几率，2.2 倍系数
+        // 主要伤害技能（示例）
         engine.AddSkill(new SkillDefinition(
             id: "heroic_strike",
             name: "Heroic Strike",
@@ -60,14 +60,33 @@ public class WarriorProfession : IProfessionModule
             critChance: 0.15,
             critMultiplier: 2.2
         ));
+
+        // OffGCD 编织技能：Battle Shout（瞬发、可在施法中释放，提供 Precision）
+        engine.AddSkill(new SkillDefinition(
+            id: "battle_shout",
+            name: "Battle Shout",
+            costResourceId: null,
+            costAmount: 0,
+            cooldownSeconds: 20.0,  // 自身冷却
+            priority: 3,            // 比伤害技能更高的优先级，便于及时编织
+            baseDamage: 0,          // 无直接伤害
+            offGcd: true,           // 不受 GCD 限制
+            allowDuringCastingForOffGcd: true // 允许在施法期间释放
+        ));
     }
 
-    public void OnSkillCast(BattleContext context, SkillDefinition def)
+    public virtual void OnSkillCast(BattleContext context, SkillDefinition def)
     {
         if (def.Id == "heroic_strike")
         {
             context.Buffs.Apply("warrior_expose_armor", context.Clock.CurrentTime);
             context.Buffs.Apply("warrior_precision", context.Clock.CurrentTime);
+        }
+        else if (def.Id == "battle_shout")
+        {
+            // 释放即获得暴击率增益（演示 OffGCD 编织的实效玩法）
+            context.Buffs.Apply("warrior_precision", context.Clock.CurrentTime);
+            context.SegmentCollector.OnTag("shout_buff_applied", 1);
         }
     }
 }
