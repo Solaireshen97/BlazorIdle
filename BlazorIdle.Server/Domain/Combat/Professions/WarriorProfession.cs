@@ -14,7 +14,7 @@ public class WarriorProfession : IProfessionModule
     {
         context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.WarriorBerserk);
         context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.WarriorExposeArmor);
-        context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.WarriorPrecision); // 新
+        context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.WarriorPrecision);
     }
 
     public void OnBattleStart(BattleContext context)
@@ -48,6 +48,7 @@ public class WarriorProfession : IProfessionModule
 
     public void BuildSkills(BattleContext context, AutoCastEngine engine)
     {
+        // 为 Heroic Strike 设置专属暴击：15% 几率，2.2 倍系数
         engine.AddSkill(new SkillDefinition(
             id: "heroic_strike",
             name: "Heroic Strike",
@@ -55,7 +56,9 @@ public class WarriorProfession : IProfessionModule
             costAmount: 30,
             cooldownSeconds: 3.0,
             priority: 10,
-            baseDamage: 50
+            baseDamage: 50,
+            critChance: 0.15,
+            critMultiplier: 2.2
         ));
     }
 
@@ -63,7 +66,6 @@ public class WarriorProfession : IProfessionModule
     {
         if (def.Id == "heroic_strike")
         {
-            // 命中后：上破甲 + 精准（暴击率）
             context.Buffs.Apply("warrior_expose_armor", context.Clock.CurrentTime);
             context.Buffs.Apply("warrior_precision", context.Clock.CurrentTime);
         }

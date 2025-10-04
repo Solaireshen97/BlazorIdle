@@ -15,7 +15,7 @@ public class RangerProfession : IProfessionModule
         context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.RangerBleed);
         context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.FocusFlow);
         context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.RangerHuntersMark);
-        context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.RangerSharpsight); // 新
+        context.Buffs.RegisterDefinition(BuffDefinitionsRegistry.RangerSharpsight);
     }
 
     public void OnBattleStart(BattleContext context)
@@ -56,6 +56,7 @@ public class RangerProfession : IProfessionModule
 
     public void BuildSkills(BattleContext context, AutoCastEngine engine)
     {
+        // Power Shot：偏爆发 → 高暴击几率与倍数
         engine.AddSkill(new SkillDefinition(
             id: "power_shot",
             name: "Power Shot",
@@ -63,8 +64,12 @@ public class RangerProfession : IProfessionModule
             costAmount: 40,
             cooldownSeconds: 5.0,
             priority: 5,
-            baseDamage: 70
+            baseDamage: 70,
+            critChance: 0.25,
+            critMultiplier: 2.4
         ));
+
+        // Quick Shot：偏频率 → 低暴击几率与倍数
         engine.AddSkill(new SkillDefinition(
             id: "quick_shot",
             name: "Quick Shot",
@@ -72,7 +77,9 @@ public class RangerProfession : IProfessionModule
             costAmount: 10,
             cooldownSeconds: 1.5,
             priority: 15,
-            baseDamage: 25
+            baseDamage: 25,
+            critChance: 0.05,
+            critMultiplier: 1.8
         ));
     }
 
@@ -80,8 +87,8 @@ public class RangerProfession : IProfessionModule
     {
         if (def.Id == "power_shot")
         {
-            context.Buffs.Apply("ranger_hunters_mark", context.Clock.CurrentTime); // 物理易伤
-            context.Buffs.Apply("ranger_sharpsight", context.Clock.CurrentTime);   // 暴击倍数+
+            context.Buffs.Apply("ranger_hunters_mark", context.Clock.CurrentTime);
+            context.Buffs.Apply("ranger_sharpsight", context.Clock.CurrentTime);
         }
     }
 }
