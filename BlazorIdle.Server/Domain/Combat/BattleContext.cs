@@ -2,6 +2,7 @@
 using BlazorIdle.Server.Domain.Combat.Buffs;
 using BlazorIdle.Server.Domain.Combat.Damage;
 using BlazorIdle.Server.Domain.Combat.Enemies;
+using BlazorIdle.Server.Domain.Combat.Procs;
 using BlazorIdle.Server.Domain.Combat.Professions;
 using BlazorIdle.Server.Domain.Combat.Resources;
 using BlazorIdle.Server.Domain.Combat.Rng;
@@ -21,15 +22,15 @@ public class BattleContext
     public List<TrackState> Tracks { get; } = new();
     public ResourceSet Resources { get; } = new();
     public BuffManager Buffs { get; }
+    public ProcManager Procs { get; } = new();
     public IProfessionModule ProfessionModule { get; }
     public Profession Profession { get; }
     public AutoCastEngine AutoCaster { get; } = new();
     public RngContext Rng { get; }
     public Damage.CritSettings Crit { get; } = new();
 
-    // 遭遇：单体主目标 + 目标组
-    public Encounter? Encounter { get; }            // 兼容旧逻辑
-    public EncounterGroup? EncounterGroup { get; }  // 新增
+    public Encounter? Encounter { get; }
+    public EncounterGroup? EncounterGroup { get; }
 
     public BattleContext(
         Battle battle,
@@ -50,7 +51,6 @@ public class BattleContext
         Profession = profession;
         Rng = rng;
 
-        // 优先采用传入的组；否则用单体构建单元素组
         EncounterGroup = encounterGroup ?? (encounter != null ? EncounterGroup.FromSingle(encounter) : null);
         Encounter = EncounterGroup?.PrimaryAlive() ?? encounter;
 

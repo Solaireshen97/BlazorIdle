@@ -1,8 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using BlazorIdle.Server.Domain.Combat.Damage;
+﻿using BlazorIdle.Server.Domain.Combat.Damage;
 using BlazorIdle.Server.Domain.Combat.Enemies;
+using BlazorIdle.Server.Domain.Combat.Procs;
 using BlazorIdle.Server.Domain.Combat.Resources;
+using System;
+using System.Collections.Generic;
 
 namespace BlazorIdle.Server.Domain.Combat.Skills;
 
@@ -184,12 +185,12 @@ public class AutoCastEngine
         }
 
         // 伤害 + AoE
-        DoSkillDamage(slot, context, def);
+        DoSkillDamage(slot, context, def, now);
 
         if (_queuedSlot == slot) _queuedSlot = null;
     }
 
-    private void DoSkillDamage(SkillSlot slot, BattleContext context, SkillDefinition def)
+    private void DoSkillDamage(SkillSlot slot, BattleContext context, SkillDefinition def,double now)
     {
         var (chance, mult) = context.Crit.ResolveWith(context.Buffs.Aggregate, def.CritChance, def.CritMultiplier);
         bool isCrit = context.Rng.NextBool(chance);
@@ -240,6 +241,9 @@ public class AutoCastEngine
 
         context.SegmentCollector.OnTag("skill_cast:" + def.Id, 1);
         context.ProfessionModule.OnSkillCast(context, def);
+
+        // Proc：OnHit/OnCrit（非 DoT），来源为技能
+        context.Procs.OnDirectHit(context, "skill:" + def.Id, type, isCrit, isDot: false, DirectSourceKind.Skill, now);
     }
 
     private static double ResolveHasteFactor(BattleContext context)

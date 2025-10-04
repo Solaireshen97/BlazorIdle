@@ -1,6 +1,7 @@
 ﻿using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat;
 using BlazorIdle.Server.Domain.Combat.Enemies;
+using BlazorIdle.Server.Domain.Combat.Procs;
 using BlazorIdle.Server.Domain.Combat.Professions;
 using BlazorIdle.Server.Domain.Combat.Rng;
 using BlazorIdle.Shared.Models;
@@ -28,12 +29,15 @@ public class BattleRunner
         var collector = new SegmentCollector();
 
         var professionModule = module ?? ProfessionRegistry.Resolve(profession);
-        // 将 encounterGroup 传入；如为空且提供了 encounter，则由 BattleContext 内部构造单元素组
         var context = new BattleContext(battle, clock, scheduler, collector, professionModule, profession, rng, encounter, encounterGroup);
 
         professionModule.RegisterBuffDefinitions(context);
+        // 职业在 OnBattleStart/BuildSkills 之前可选择注册其特定 Proc
         professionModule.OnBattleStart(context);
         professionModule.BuildSkills(context, context.AutoCaster);
+
+        // 启动 RPPM 脉冲（每 1s）
+        scheduler.Schedule(new ProcPulseEvent(clock.CurrentTime + 1.0, 1.0));
 
         var attackTrack = new TrackState(TrackType.Attack, battle.AttackIntervalSeconds, 0);
         var specialTrack = new TrackState(TrackType.Special, battle.SpecialIntervalSeconds, battle.SpecialIntervalSeconds);
@@ -71,7 +75,6 @@ public class BattleRunner
             if (collector.ShouldFlush(clock.CurrentTime))
                 segments.Add(collector.Flush(clock.CurrentTime));
 
-            // 结束条件：维持旧语义——主目标死亡即结束
             if (context.Encounter?.IsDead == true)
             {
                 battle.Finish(clock.CurrentTime);

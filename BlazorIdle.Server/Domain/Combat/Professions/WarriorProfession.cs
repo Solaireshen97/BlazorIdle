@@ -1,4 +1,5 @@
 ﻿using BlazorIdle.Server.Domain.Combat.Buffs;
+using BlazorIdle.Server.Domain.Combat.Procs;
 using BlazorIdle.Server.Domain.Combat.Resources;
 using BlazorIdle.Server.Domain.Combat.Skills;
 
@@ -19,6 +20,9 @@ public class WarriorProfession : IProfessionModule
 
     public void OnBattleStart(BattleContext context)
     {
+        // 注册战士示例 Proc
+        context.Procs.RegisterDefinition(ProcDefinitionsRegistry.WarriorShredOnHit);
+
         context.Resources.Ensure(
             id: "rage",
             max: 100,
@@ -48,7 +52,6 @@ public class WarriorProfession : IProfessionModule
 
     public virtual void BuildSkills(BattleContext context, AutoCastEngine engine)
     {
-        // 主要伤害技能（示例）
         engine.AddSkill(new SkillDefinition(
             id: "heroic_strike",
             name: "Heroic Strike",
@@ -61,17 +64,17 @@ public class WarriorProfession : IProfessionModule
             critMultiplier: 2.2
         ));
 
-        // OffGCD 编织技能：Battle Shout（瞬发、可在施法中释放，提供 Precision）
+        // OffGCD 示例供参考（如之前已加入）
         engine.AddSkill(new SkillDefinition(
             id: "battle_shout",
             name: "Battle Shout",
             costResourceId: null,
             costAmount: 0,
-            cooldownSeconds: 20.0,  // 自身冷却
-            priority: 3,            // 比伤害技能更高的优先级，便于及时编织
-            baseDamage: 0,          // 无直接伤害
-            offGcd: true,           // 不受 GCD 限制
-            allowDuringCastingForOffGcd: true // 允许在施法期间释放
+            cooldownSeconds: 20.0,
+            priority: 3,
+            baseDamage: 0,
+            offGcd: true,
+            allowDuringCastingForOffGcd: true
         ));
     }
 
@@ -84,7 +87,6 @@ public class WarriorProfession : IProfessionModule
         }
         else if (def.Id == "battle_shout")
         {
-            // 释放即获得暴击率增益（演示 OffGCD 编织的实效玩法）
             context.Buffs.Apply("warrior_precision", context.Clock.CurrentTime);
             context.SegmentCollector.OnTag("shout_buff_applied", 1);
         }
