@@ -21,6 +21,7 @@ public class AutoCastEngine
     private SkillSlot? _castingSlot;
     private long _castSeq = 0;
     private long? _currentCastId;
+    private bool _consumedChargeForCurrentCast; // 本次施法是否在开始时消耗了充能
 
     public void AddSkill(SkillDefinition def)
     {
@@ -30,6 +31,18 @@ public class AutoCastEngine
 
     public bool TryAutoCast(BattleContext context, double now)
     {
+        // 先推进所有技能的充能恢复
+        var haste = ResolveHasteFactor(context);
+        foreach (var s in _slots)
+        {
+            var def = s.Runtime.Definition;
+            if (def.MaxCharges > 1)
+            {
+                // 按配置决定是否受 Haste 影响；受影响时，effRecharge 使用开始恢复时的快照（在 runtime 内部保存）
+                s.Runtime.TickRecharge(now);
+            }
+        }
+
         // 施法进行中：首版不支持编织
         if (IsCasting) return false;
 
@@ -41,7 +54,7 @@ public class AutoCastEngine
             if (!def.OffGcd && now < GlobalCooldownUntil)
                 continue;
 
-            // 冷却判断（单充能版）
+            // 冷却/充能判断
             if (!slot.Runtime.IsReady(now))
                 continue;
 
@@ -63,14 +76,14 @@ public class AutoCastEngine
 
             if (def.CastTimeSeconds > 0)
             {
-                // 施法技能：开始施法，GCD/Cast 受 Haste 缩放
-                StartCasting(slot, context, now);
+                // 施法技能：开始施法（GCD/Cast 受 Haste 缩放）
+                StartCasting(slot, context, now, haste);
                 return true;
             }
             else
             {
-                // 即时技能：GCD 受 Haste 缩放
-                CastInstant(slot, context, now);
+                // 即时技能
+                CastInstant(slot, context, now, haste);
                 return true;
             }
         }
@@ -78,16 +91,28 @@ public class AutoCastEngine
         return false;
     }
 
-    private void StartCasting(SkillSlot slot, BattleContext context, double now)
+    private void StartCasting(SkillSlot slot, BattleContext context, double now, double haste)
     {
         var def = slot.Runtime.Definition;
 
-        var haste = ResolveHasteFactor(context);
         var effCast = Math.Max(0.01, def.CastTimeSeconds / haste);
         var effGcd = def.OffGcd ? 0.0 : Math.Max(0.01, def.GcdSeconds / haste);
 
         if (!def.OffGcd)
             GlobalCooldownUntil = now + effGcd;
+
+        // 充能：如配置为开始时消耗
+        _consumedChargeForCurrentCast = false;
+        if (def.MaxCharges > 1 && def.ConsumeChargeOnCast)
+        {
+            var effRecharge = def.RechargeAffectedByHaste ? Math.Max(0.01, def.RechargeSeconds / haste) : def.RechargeSeconds;
+            slot.Runtime.ConsumeAtStart(now, effRecharge);
+            _consumedChargeForCurrentCast = true;
+        }
+        else if (def.MaxCharges <= 1)
+        {
+            // 单充能：开始施法时不进入冷却，完成时进入（保持与现有完成时 Mark 一致）
+        }
 
         IsCasting = true;
         _castingSlot = slot;
@@ -109,15 +134,16 @@ public class AutoCastEngine
         CastingSkillLocksAttack = false;
         _castingSlot = null;
         _currentCastId = null;
+        _consumedChargeForCurrentCast = false;
     }
 
-    private void CastInstant(SkillSlot slot, BattleContext context, double now)
+    private void CastInstant(SkillSlot slot, BattleContext context, double now, double haste)
     {
         var def = slot.Runtime.Definition;
 
+        // 即时技能的 GCD 受 Haste 缩放
         if (!def.OffGcd)
         {
-            var haste = ResolveHasteFactor(context);
             var effGcd = Math.Max(0.01, def.GcdSeconds / haste);
             GlobalCooldownUntil = now + effGcd;
         }
@@ -137,6 +163,19 @@ public class AutoCastEngine
             }
         }
 
+        // 充能/冷却处理
+        if (def.MaxCharges > 1)
+        {
+            var effRecharge = def.RechargeAffectedByHaste ? Math.Max(0.01, def.RechargeSeconds / haste) : def.RechargeSeconds;
+            // 即时技能：无完成时机，直接消耗
+            slot.Runtime.ConsumeAtStart(now, effRecharge);
+        }
+        else
+        {
+            // 单充能：即时释放后立即进入冷却
+            slot.Runtime.MarkCast(now);
+        }
+
         // 伤害 + 暴击
         var (chance, mult) = context.Crit.ResolveWith(context.Buffs.Aggregate, def.CritChance, def.CritMultiplier);
         bool isCrit = context.Rng.NextBool(chance);
@@ -150,8 +189,6 @@ public class AutoCastEngine
         context.SegmentCollector.OnTag("skill_cast:" + def.Id, 1);
 
         context.ProfessionModule.OnSkillCast(context, def);
-
-        slot.Runtime.MarkCast(now);
     }
 
     private static double ResolveHasteFactor(BattleContext context)
@@ -167,7 +204,7 @@ public class AutoCastEngine
         return true;
     }
 
-    // 由事件调用：执行打断逻辑（不造成伤害、不进入冷却；可按配置返还资源）
+    // 事件执行：打断当前施法
     internal void InterruptCasting(BattleContext context, double now, InterruptReason reason)
     {
         if (!IsCasting || _castingSlot is null || _currentCastId is null)
@@ -179,7 +216,7 @@ public class AutoCastEngine
         if (!def.Interruptible)
             return;
 
-        // 资源返还（如果开始时扣了且允许返还）
+        // 资源返还
         if (def.SpendCostOnCast && def.RefundCostOnInterrupt && def.CostResourceId is not null && def.CostAmount > 0)
         {
             if (context.Resources.TryGet(def.CostResourceId, out var bucket))
@@ -194,11 +231,19 @@ public class AutoCastEngine
             }
         }
 
-        // 打标签
+        // 充能返还（仅当本次施法在开始时消耗过充能且允许返还）
+        if (_consumedChargeForCurrentCast && def.MaxCharges > 1 && def.RefundChargeOnInterrupt)
+        {
+            var haste = ResolveHasteFactor(context);
+            var effRecharge = def.RechargeAffectedByHaste ? Math.Max(0.01, def.RechargeSeconds / haste) : def.RechargeSeconds;
+            _castingSlot.Runtime.RefundOnInterrupt(now, effRecharge);
+        }
+
+        // 标签
         context.SegmentCollector.OnTag("skill_cast_interrupt:" + def.Id, 1);
         context.SegmentCollector.OnTag("interrupt_reason:" + reason.ToString().ToLowerInvariant(), 1);
 
-        // 清空施法状态（不进入冷却）
+        // 清空施法状态
         ClearCasting();
     }
 }

@@ -10,21 +10,30 @@ public class SkillDefinition
     public int Priority { get; }
     public int BaseDamage { get; }
 
-    // 技能级暴击覆盖
+    // 技能级暴击覆盖（可选）
     public double? CritChance { get; }
     public double? CritMultiplier { get; }
 
     // 施法/GCD
-    public double CastTimeSeconds { get; } = 0.0;
-    public double GcdSeconds { get; } = 1.0;
+    public double CastTimeSeconds { get; } = 0.0;   // 0 表示即时
+    public double GcdSeconds { get; } = 1.0;        // OffGcd=false 时生效
     public bool OffGcd { get; } = false;
     public bool LockAttackDuringCast { get; } = true;
+
+    // 资源扣除时机
     public bool SpendCostOnCast { get; } = true;
 
-    // 新增：打断相关
-    public bool Interruptible { get; } = true;          // 是否可被打断
-    public bool RefundCostOnInterrupt { get; } = true;  // 若在开始时扣了资源，打断是否返还
-    public double RefundRatioOnInterrupt { get; } = 1.0;// 返还比例（0..1）
+    // 打断配置
+    public bool Interruptible { get; } = true;
+    public bool RefundCostOnInterrupt { get; } = true;
+    public double RefundRatioOnInterrupt { get; } = 1.0;
+
+    // 充能/恢复（新增）
+    public int MaxCharges { get; } = 1;                 // 1 = 无充能，走传统冷却
+    public double RechargeSeconds { get; } = 0;         // >0 才有意义（MaxCharges>1 时使用）
+    public bool ConsumeChargeOnCast { get; } = true;    // true=开始施法即消耗；false=完成时消耗
+    public bool RefundChargeOnInterrupt { get; } = true;// 若已在开始消耗，打断时是否返还
+    public bool RechargeAffectedByHaste { get; } = false;// 充能恢复是否受 Haste 影响（按开始时快照）
 
     public SkillDefinition(
         string id,
@@ -43,7 +52,13 @@ public class SkillDefinition
         bool spendCostOnCast = true,
         bool interruptible = true,
         bool refundCostOnInterrupt = true,
-        double refundRatioOnInterrupt = 1.0
+        double refundRatioOnInterrupt = 1.0,
+        // 充能相关
+        int maxCharges = 1,
+        double rechargeSeconds = 0,
+        bool consumeChargeOnCast = true,
+        bool refundChargeOnInterrupt = true,
+        bool rechargeAffectedByHaste = false
     )
     {
         Id = id;
@@ -66,5 +81,11 @@ public class SkillDefinition
         Interruptible = interruptible;
         RefundCostOnInterrupt = refundCostOnInterrupt;
         RefundRatioOnInterrupt = refundRatioOnInterrupt;
+
+        MaxCharges = maxCharges <= 0 ? 1 : maxCharges;
+        RechargeSeconds = rechargeSeconds;
+        ConsumeChargeOnCast = consumeChargeOnCast;
+        RefundChargeOnInterrupt = refundChargeOnInterrupt;
+        RechargeAffectedByHaste = rechargeAffectedByHaste;
     }
 }

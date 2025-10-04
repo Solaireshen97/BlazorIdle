@@ -10,7 +10,7 @@ public record SkillCastCompleteEvent(double ExecuteAt, SkillSlot Slot, long Cast
 
     public void Execute(BattleContext context)
     {
-        // 若期间已被打断或换了施法，忽略（幂等保护）
+        // 若期间已被打断或换了施法，忽略
         if (!context.AutoCaster.IsCasting || context.AutoCaster.CurrentCastId is null || context.AutoCaster.CurrentCastId != CastId)
             return;
 
@@ -27,10 +27,22 @@ public record SkillCastCompleteEvent(double ExecuteAt, SkillSlot Slot, long Cast
             }
             else
             {
-                // 资源不足，施法作废（不进入冷却）
                 context.AutoCaster.ClearCasting();
                 return;
             }
+        }
+
+        // 若配置为“完成时消耗充能”，此处消耗
+        if (def.MaxCharges > 1 && !def.ConsumeChargeOnCast)
+        {
+            var haste = context.Buffs.Aggregate.ApplyToBaseHaste(1.0);
+            var effRecharge = def.RechargeAffectedByHaste ? Math.Max(0.01, def.RechargeSeconds / haste) : def.RechargeSeconds;
+            Slot.Runtime.ConsumeAtComplete(ExecuteAt, effRecharge);
+        }
+        else if (def.MaxCharges <= 1)
+        {
+            // 单充能：完成时进入冷却（与原有逻辑一致）
+            Slot.Runtime.MarkCast(ExecuteAt);
         }
 
         // 结算伤害
@@ -47,9 +59,6 @@ public record SkillCastCompleteEvent(double ExecuteAt, SkillSlot Slot, long Cast
 
         // 职业钩子
         context.ProfessionModule.OnSkillCast(context, def);
-
-        // 完成时进入冷却
-        Slot.Runtime.MarkCast(ExecuteAt);
 
         // 清除施法状态
         context.AutoCaster.ClearCasting();
