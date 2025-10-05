@@ -37,7 +37,6 @@ public sealed class RunningBattle
     public long SeedIndexStart { get; }
     public long SeedIndexEnd => Context.Rng.Index;
 
-    // 持久化标记
     public bool Persisted { get; internal set; }
     public Guid? PersistedBattleId { get; internal set; }
 
@@ -180,6 +179,23 @@ public sealed class RunningBattle
         }
 
         _lastAdvanceWallUtc = wallNow;
+    }
+
+    // 手动终止：不再推进模拟时间，直接按当前时刻封盘。
+    public void ForceStopAndSeal()
+    {
+        if (Completed) return;
+
+        // 不推进 Clock，直接以当前时刻封盘
+        if (Collector.EventCount > 0)
+            Segments.Add(Collector.Flush(Clock.CurrentTime));
+
+        Killed = Context.Encounter?.IsDead ?? false;
+        KillTime = Context.Encounter?.KillTime;
+        Overkill = Context.Encounter?.Overkill ?? 0;
+
+        Completed = true;
+        Battle.Finish(Clock.CurrentTime);
     }
 
     private static void SyncTrackHaste(BattleContext context)

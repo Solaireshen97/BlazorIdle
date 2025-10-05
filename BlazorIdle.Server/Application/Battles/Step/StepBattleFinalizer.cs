@@ -2,14 +2,11 @@
 using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Domain.Combat.Enemies;
 using BlazorIdle.Server.Domain.Records;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BlazorIdle.Server.Application.Battles.Step;
 
-/// <summary>
-/// 将 RunningBattle 的聚合结果落库为 BattleRecord + BattleSegmentRecord。
-/// 使用 IServiceScopeFactory 以便在单例环境中安全获取 Scoped 仓储。
-/// </summary>
 public sealed class StepBattleFinalizer
 {
     private readonly IServiceScopeFactory _scopeFactory;
@@ -21,27 +18,34 @@ public sealed class StepBattleFinalizer
 
     public async Task<Guid> FinalizeAsync(RunningBattle rb, CancellationToken ct = default)
     {
-        // 已持久化则直接返回
+        // 若内存标记已持久化，直接返回
         if (rb.Persisted && rb.PersistedBattleId.HasValue)
             return rb.PersistedBattleId.Value;
 
         using var scope = _scopeFactory.CreateScope();
         var repo = scope.ServiceProvider.GetRequiredService<IBattleRepository>();
 
+        // 幂等保护 1：DB 是否已存在（可能是此前自动完成或并发）
+        if (await repo.ExistsAsync(rb.Battle.Id, ct))
+        {
+            rb.Persisted = true;
+            rb.PersistedBattleId = rb.Battle.Id;
+            return rb.Battle.Id;
+        }
+
         var enemy = EnemyRegistry.Resolve(rb.EnemyId);
 
         var totalDamage = rb.Segments.Sum(s => s.TotalDamage);
-        // 已完成用 KillTime 或 EndedAt 或 Target；未完成用当前模拟时长（防御）
+        var simulated = rb.Clock.CurrentTime;
         var duration = rb.Completed
-            ? Math.Min(rb.TargetDurationSeconds, rb.Battle.EndedAt ?? (rb.KillTime ?? rb.Clock.CurrentTime))
-            : rb.Clock.CurrentTime;
+            ? Math.Min(rb.TargetDurationSeconds, rb.Battle.EndedAt ?? (rb.KillTime ?? simulated))
+            : simulated;
 
         var record = new BattleRecord
         {
-            // 沿用运行时 Battle 的 Id，便于日志追踪
-            Id = rb.Battle.Id,
+            Id = rb.Battle.Id, // 使用运行时 BattleId，保证同一场仗只有一条记录
             CharacterId = rb.CharacterId,
-            StartedAt = DateTime.UtcNow,   // 若需精确，可改为 Coordinator 记录的开始时间
+            StartedAt = DateTime.UtcNow,
             EndedAt = DateTime.UtcNow,
             TotalDamage = totalDamage,
             DurationSeconds = duration,
@@ -75,16 +79,28 @@ public sealed class StepBattleFinalizer
                 TagCountersJson = JsonSerializer.Serialize(s.TagCounters),
                 ResourceFlowJson = JsonSerializer.Serialize(s.ResourceFlow),
                 DamageByTypeJson = JsonSerializer.Serialize(s.DamageByType),
-                // 若表结构包含段级 RNG，可赋值（你若尚未迁移到该列，可去掉下面两行）
+                // 若你还未迁移段级 RNG 列，则去掉下面两行
                 RngIndexStart = s.RngIndexStart,
                 RngIndexEnd = s.RngIndexEnd
             }).ToList()
         };
 
-        await repo.AddAsync(record, ct);
-
-        rb.Persisted = true;
-        rb.PersistedBattleId = record.Id;
-        return record.Id;
+        try
+        {
+            await repo.AddAsync(record, ct);
+            rb.Persisted = true;
+            rb.PersistedBattleId = record.Id;
+            return record.Id;
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            // 幂等保护 2：并发重复插入 -> 当作已存在处理
+            rb.Persisted = true;
+            rb.PersistedBattleId = rb.Battle.Id;
+            return rb.Battle.Id;
+        }
     }
+
+    private static bool IsUniqueViolation(DbUpdateException ex)
+        => ex.InnerException?.Message.Contains("UNIQUE constraint failed", StringComparison.OrdinalIgnoreCase) == true;
 }

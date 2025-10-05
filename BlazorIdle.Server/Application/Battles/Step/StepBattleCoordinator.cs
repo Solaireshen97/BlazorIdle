@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Enemies;
 using BlazorIdle.Server.Domain.Combat.Professions;
@@ -123,19 +124,17 @@ public sealed class StepBattleCoordinator
                 }
             }
 
-            // 完成后自动落库（仅一次）
             if (rb.Completed && !rb.Persisted)
             {
                 try
                 {
-                    // 同步等待，确保不会重复入库（可改为 fire-and-forget 加锁）
                     var persistedId = _finalizer.FinalizeAsync(rb, ct).GetAwaiter().GetResult();
                     rb.Persisted = true;
                     rb.PersistedBattleId = persistedId;
                 }
                 catch
                 {
-                    // 按需记录日志；避免抛出导致 HostedService 停止
+                    // TODO: log
                 }
             }
         }
@@ -160,6 +159,37 @@ public sealed class StepBattleCoordinator
         }
         return removed;
     }
+
+    // 手动终止并结算（并发安全）
+    public async Task<(bool ok, Guid persistedId)> StopAndFinalizeAsync(Guid id, CancellationToken ct = default)
+    {
+        if (!_running.TryGetValue(id, out var rb))
+            return (false, Guid.Empty);
+
+        lock (rb)
+        {
+            if (!rb.Completed)
+                rb.ForceStopAndSeal();
+        }
+
+        if (!rb.Persisted)
+        {
+            try
+            {
+                var persistedId = await _finalizer.FinalizeAsync(rb, ct);
+                rb.Persisted = true;
+                rb.PersistedBattleId = persistedId;
+            }
+            catch
+            {
+                // TODO: log
+                return (false, Guid.Empty);
+            }
+        }
+
+        _completedAtUtc.TryAdd(rb.Id, DateTime.UtcNow);
+        return (true, rb.PersistedBattleId!.Value);
+    }
 }
 
 public sealed class StepBattleStatusDto
@@ -181,8 +211,6 @@ public sealed class StepBattleStatusDto
     public bool Killed { get; set; }
     public double? KillTimeSeconds { get; set; }
     public int OverkillDamage { get; set; }
-
-    // 新增：持久化后的 BattleId（如果已入库）
     public Guid? PersistedBattleId { get; set; }
 }
 

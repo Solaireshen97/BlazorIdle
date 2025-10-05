@@ -22,7 +22,6 @@ public class ApiClient
         return (await resp.Content.ReadFromJsonAsync<CharacterCreated>(cancellationToken: ct))!;
     }
 
-    // 修改：增加 enemyId 参数并拼到查询串
     public async Task<BattleStartResponse> StartBattleAsync(
         Guid characterId,
         double seconds = 10,
@@ -44,8 +43,7 @@ public class ApiClient
     public async Task<List<BattleSegmentDto>> GetBattleSegmentsAsync(Guid battleId, CancellationToken ct = default)
         => (await _http.GetFromJsonAsync<List<BattleSegmentDto>>($"/api/battles/{battleId}/segments", ct)) ?? new();
 
-    // ========= 异步 Step 战斗 API（最小调试） =========
-
+    // Step APIs
     public async Task<StartStepBattleResponse> StartStepBattleAsync(
         Guid characterId,
         double seconds = 30,
@@ -70,9 +68,15 @@ public class ApiClient
 
     public async Task<List<StepBattleSegmentDto>> GetStepBattleSegmentsAsync(Guid battleId, int since = 0, CancellationToken ct = default)
         => (await _http.GetFromJsonAsync<List<StepBattleSegmentDto>>($"/api/battles/step/{battleId}/segments?since={since}", ct)) ?? new();
-}
 
-// ========== Client 侧 DTO（对应 step 接口） ==========
+    // 新增：Stop & Save
+    public async Task<StopStepBattleResponse> StopStepBattleAsync(Guid battleId, CancellationToken ct = default)
+    {
+        var resp = await _http.PostAsync($"/api/battles/step/{battleId}/stop", null, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<StopStepBattleResponse>(cancellationToken: ct))!;
+    }
+}
 
 public sealed class StartStepBattleResponse
 {
@@ -80,6 +84,11 @@ public sealed class StartStepBattleResponse
     public ulong Seed { get; set; }
     public string? EnemyId { get; set; }
     public int EnemyCount { get; set; }
+}
+
+public sealed class StopStepBattleResponse
+{
+    public Guid PersistedBattleId { get; set; }
 }
 
 public sealed class StepBattleStatusDto
@@ -101,6 +110,7 @@ public sealed class StepBattleStatusDto
     public bool Killed { get; set; }
     public double? KillTimeSeconds { get; set; }
     public int OverkillDamage { get; set; }
+    public Guid? PersistedBattleId { get; set; }
 }
 
 public sealed class StepBattleSegmentDto

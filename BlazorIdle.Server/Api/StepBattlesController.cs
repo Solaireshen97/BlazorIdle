@@ -21,7 +21,6 @@ public class StepBattlesController : ControllerBase
         _characters = characters;
     }
 
-    // POST /api/battles/step/start?characterId=...&seconds=...&seed=...&enemyId=...&enemyCount=...
     [HttpPost("start")]
     public async Task<IActionResult> Start([FromQuery] Guid characterId, [FromQuery] double seconds = 30, [FromQuery] ulong? seed = null, [FromQuery] string? enemyId = null, [FromQuery] int enemyCount = 1)
     {
@@ -29,7 +28,6 @@ public class StepBattlesController : ControllerBase
         if (c is null) return NotFound("Character not found.");
         var profession = c.Profession;
 
-        // 职业基础 + 主属性转换（与同步路径一致）
         var baseStats = ProfessionBaseStatsRegistry.Resolve(profession);
         var attrs = new PrimaryAttributes(c.Strength, c.Agility, c.Intellect, c.Stamina);
         var derived = StatsBuilder.BuildDerived(profession, attrs);
@@ -41,7 +39,6 @@ public class StepBattlesController : ControllerBase
         return Ok(new { battleId = id, seed = finalSeed, enemyId = enemyId ?? "dummy", enemyCount });
     }
 
-    // GET /api/battles/step/{id}/status
     [HttpGet("{id:guid}/status")]
     public ActionResult<object> Status(Guid id)
     {
@@ -50,13 +47,21 @@ public class StepBattlesController : ControllerBase
         return Ok(s);
     }
 
-    // GET /api/battles/step/{id}/segments?since=0
     [HttpGet("{id:guid}/segments")]
     public ActionResult<IEnumerable<object>> Segments(Guid id, [FromQuery] int since = 0)
     {
         var (found, segments) = _coord.GetSegments(id, since);
         if (!found) return NotFound();
         return Ok(segments);
+    }
+
+    // 确保存在的 Stop 端点
+    [HttpPost("{id:guid}/stop")]
+    public async Task<IActionResult> Stop(Guid id, CancellationToken ct)
+    {
+        var (ok, persistedId) = await _coord.StopAndFinalizeAsync(id, ct);
+        if (!ok) return NotFound();
+        return Ok(new { persistedBattleId = persistedId });
     }
 
     private static ulong DeriveSeed(Guid characterId)

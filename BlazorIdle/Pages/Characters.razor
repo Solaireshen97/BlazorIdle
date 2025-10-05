@@ -144,10 +144,11 @@
                 <label>轮询(ms)</label>
                 <input type="number" min="100" step="100" class="form-control" style="width:120px" @bind="stepPollMs" />
             </div>
-            <div>
+            <div style="display:flex;gap:8px;">
                 <button class="btn btn-primary" @onclick="StartStepBattle" disabled="@isBusy">Start Step</button>
                 <button class="btn btn-secondary" @onclick="StopStepPolling" disabled="@(!stepIsPolling)">Stop Poll</button>
                 <button class="btn btn-outline-danger" @onclick="ResetStep" disabled="@isBusy">Reset</button>
+                <button class="btn btn-success" @onclick="StopAndSaveAsync" disabled="@(!stepBattleId.HasValue)">Stop &amp; Save</button>
             </div>
         </div>
 
@@ -177,6 +178,15 @@
                     <div class="col-md-2"><b>Killed:</b> @(stepStatus.Killed ? "Yes" : "No")</div>
                     <div class="col-md-2"><b>KillTime:</b> @(stepStatus.KillTimeSeconds?.ToString("0.00") ?? "-")</div>
                 </div>
+                @if (stepStatus.PersistedBattleId is not null)
+                {
+                    <div class="row" style="margin-top:6px">
+                        <div class="col-md-12">
+                            <b>Persisted BattleId:</b> @stepStatus.PersistedBattleId
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenSummary(stepStatus.PersistedBattleId!.Value)">打开摘要</button>
+                        </div>
+                    </div>
+                }
             </div>
 
             <div class="card" style="padding: 12px; margin-top: 12px;">
@@ -406,6 +416,7 @@
     bool stepIsPolling;
     int _stepSinceIndex = 0;
     string? stepError;
+
     async Task StartStepBattle()
     {
         stepError = null;
@@ -422,7 +433,7 @@
                 seed = seedVal;
 
             var resp = await Api.StartStepBattleAsync(
-                lastCreated.Id,
+                lastCreated!.Id,
                 seconds: stepSeconds,
                 enemyId: selectedEnemyId,
                 enemyCount: stepEnemyCount,
@@ -435,7 +446,6 @@
             stepAggByType.Clear();
             stepStatus = null;
 
-            // 关键：不要等待轮询，启动后立即返回，避免阻塞事件
             _ = StartStepPollingAsync();
             await InvokeAsync(StateHasChanged);
         }
@@ -449,7 +459,6 @@
         }
     }
 
-
     async Task StartStepPollingAsync()
     {
         if (stepBattleId is null) return;
@@ -462,10 +471,7 @@
             while (!_stepPollCts.IsCancellationRequested)
             {
                 await PollStepOnceAsync(_stepPollCts.Token);
-
-                // 关键：每次轮询后刷新 UI
                 await InvokeAsync(StateHasChanged);
-
                 if (stepStatus?.Completed == true) break;
                 await Task.Delay(stepPollMs, _stepPollCts.Token);
             }
@@ -528,5 +534,30 @@
         stepAggByType.Clear();
         stepError = null;
         _stepSinceIndex = 0;
+    }
+
+    async Task StopAndSaveAsync()
+    {
+        if (stepBattleId is null) return;
+        try
+        {
+            var resp = await Api.StopStepBattleAsync(stepBattleId.Value);
+            StopStepPolling(); // 停止轮询
+            // 更新状态中的 PersistedBattleId
+            if (stepStatus is not null)
+                stepStatus.PersistedBattleId = resp.PersistedBattleId;
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            stepError = $"Stop & Save 异常: {ex.Message}";
+        }
+    }
+
+    void OpenSummary(Guid id)
+    {
+        // 简化处理：直接打开 API summary（如果你有专门前端页面可改为导航）
+        //var url = $"/api/battles/{id}/summary";_ = Microsoft.JSInterop.JSHost.ImportAsync("open", "data:text/javascript,"); // 如果未引入 IJSRuntime 可忽略
     }
 }
