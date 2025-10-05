@@ -7,17 +7,12 @@ namespace BlazorIdle.Server.Api;
 [Route("api/[controller]")]
 public class EnemiesController : ControllerBase
 {
-    // 最小可用：当前枚举常用敌人 ID。后续可改为 EnemyRegistry 暴露全量列表。
-    private static readonly string[] KnownIds = new[] { "dummy", "tank", "magebane", "paper" };
-
     [HttpGet]
     public ActionResult<IEnumerable<EnemyDto>> GetAll()
     {
-        var list = new List<EnemyDto>();
-        foreach (var id in KnownIds)
-        {
-            var def = EnemyRegistry.Resolve(id);
-            list.Add(new EnemyDto
+        // 标准化：直接枚举 EnemyRegistry 全量定义
+        var list = EnemyRegistry.All()
+            .Select(def => new EnemyDto
             {
                 Id = def.Id,
                 Name = def.Name,
@@ -25,8 +20,8 @@ public class EnemiesController : ControllerBase
                 MaxHp = def.MaxHp,
                 Armor = def.Armor,
                 MagicResist = def.MagicResist
-            });
-        }
+            })
+            .ToList();
         return Ok(list);
     }
 

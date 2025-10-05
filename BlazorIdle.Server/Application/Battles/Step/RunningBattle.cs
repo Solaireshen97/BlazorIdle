@@ -144,7 +144,12 @@ public sealed class RunningBattle
             }
 
             Clock.AdvanceTo(ev.ExecuteAt);
+
+            // 段级 RNG 区间：执行前/后各记录一次（与同步 BattleRunner 保持一致）
+            Collector.OnRngIndex(Context.Rng.Index);
             ev.Execute(Context);
+            Collector.OnRngIndex(Context.Rng.Index);
+
             Collector.Tick(Clock.CurrentTime);
 
             if (Collector.ShouldFlush(Clock.CurrentTime))
@@ -181,12 +186,10 @@ public sealed class RunningBattle
         _lastAdvanceWallUtc = wallNow;
     }
 
-    // 手动终止：不再推进模拟时间，直接按当前时刻封盘。
     public void ForceStopAndSeal()
     {
         if (Completed) return;
 
-        // 不推进 Clock，直接以当前时刻封盘
         if (Collector.EventCount > 0)
             Segments.Add(Collector.Flush(Clock.CurrentTime));
 
@@ -208,16 +211,13 @@ public sealed class RunningBattle
         }
     }
 
-    // 快速推进到目标模拟秒（忽略墙钟限速），用于恢复
     public void FastForwardTo(double targetSimSeconds)
     {
         if (Completed) return;
         targetSimSeconds = Math.Max(0, Math.Min(TargetDurationSeconds, targetSimSeconds));
 
-        // 采用“大切片 + 极大事件预算”的推进；每步让 allowedDelta >= 剩余
         while (Clock.CurrentTime + 1e-6 < targetSimSeconds && !Completed)
         {
-            // 让墙钟增量看起来很大，allowedDelta 由 maxSlice 控制
             _lastAdvanceWallUtc = _lastAdvanceWallUtc.AddSeconds(-3600);
             var remain = targetSimSeconds - Clock.CurrentTime;
             var slice = Math.Min(5.0, Math.Max(0.001, remain));
