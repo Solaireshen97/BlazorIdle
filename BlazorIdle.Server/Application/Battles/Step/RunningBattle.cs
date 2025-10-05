@@ -62,7 +62,8 @@ public sealed class RunningBattle
     // 刷新等待状态
     private EncounterGroup? _pendingNextGroup;
     private double? _pendingSpawnAt;
-    private bool _waitingSpawn; // 新增：已安排刷新但尚未执行
+    private bool _waitingSpawn; // 已安排刷新但尚未执行
+
     public RunningBattle(
         Guid id,
         Guid characterId,
@@ -143,6 +144,38 @@ public sealed class RunningBattle
         _lastAdvanceWallUtc = StartedWallUtc;
     }
 
+    // 波是否清空：整波全部死亡才算清场
+    private bool IsWaveCleared()
+    {
+        var grp = Context.EncounterGroup;
+        if (grp is null)
+            return Context.Encounter?.IsDead == true;
+        return grp.All.All(e => e.IsDead);
+    }
+
+    // 如果主目标已死且仍有存活单位，则切换到下一个存活的主目标
+    private bool TryRetargetPrimaryIfDead()
+    {
+        var grp = Context.EncounterGroup;
+        if (grp is null) return false;
+
+        // 若已有刷新安排则不 retarget（下一波即将刷新）
+        if (_waitingSpawn) return false;
+
+        // 当前主目标已死，但波未清空 → 选下一个存活
+        if (Context.Encounter is null || Context.Encounter.IsDead)
+        {
+            var next = grp.PrimaryAlive();
+            if (next is not null && !next.IsDead)
+            {
+                Context.RefreshPrimaryEncounter();
+                Collector.OnTag("retarget_primary", 1);
+                return true;
+            }
+        }
+        return false;
+    }
+
     public void Advance(int maxEvents = 2000, double maxSimSecondsSlice = 0.25)
     {
         if (Completed) return;
@@ -154,6 +187,9 @@ public sealed class RunningBattle
         // 入口补救：若错过了刷新点，立即执行刷新
         if (_waitingSpawn && _pendingSpawnAt.HasValue && Clock.CurrentTime + 1e-9 >= _pendingSpawnAt.Value)
             TryPerformPendingSpawn();
+
+        // 入口：如主目标已死但仍有存活单位，先重选主目标，避免后续事件打在已死亡目标上
+        TryRetargetPrimaryIfDead();
 
         var allowedDelta = Math.Min(wallDelta * SimSpeed, Math.Max(0.001, maxSimSecondsSlice));
         var desiredSliceEnd = (Mode == StepBattleMode.Duration)
@@ -210,6 +246,9 @@ public sealed class RunningBattle
                 break;
             }
 
+            // 执行事件前再次确保有活体主目标（例如上一事件刚杀死主目标）
+            TryRetargetPrimaryIfDead();
+
             Clock.AdvanceTo(ev.ExecuteAt);
 
             Collector.OnRngIndex(Context.Rng.Index);
@@ -219,9 +258,15 @@ public sealed class RunningBattle
             Collector.Tick(Clock.CurrentTime);
             TryFlushSegment();
 
-            // 击杀 → 仅首次安排刷新（避免每个后续事件重置刷新时刻）
-            if (Context.Encounter?.IsDead == true)
+            // 执行后：若主目标已死但整波未清空，立刻 retarget 继续本波
+            if (!IsWaveCleared())
             {
+                // 主目标可能刚被打死，快速切到下一个
+                TryRetargetPrimaryIfDead();
+            }
+            else
+            {
+                // 波已清空：进入刷新安排（仅安排一次）
                 if (Mode == StepBattleMode.Duration)
                 {
                     Battle.Finish(Clock.CurrentTime);
@@ -232,7 +277,7 @@ public sealed class RunningBattle
                 }
                 else
                 {
-                    if (!_waitingSpawn) // 关键：只安排一次
+                    if (!_waitingSpawn)
                     {
                         if (_provider.TryAdvance(out var nextGroup, out var runCompleted) && nextGroup is not null)
                         {
@@ -244,8 +289,13 @@ public sealed class RunningBattle
                             if (runCompleted) Collector.OnTag("dungeon_run_complete", 1);
                             Collector.OnTag("spawn_scheduled", 1);
 
-                            // UI 清瞬时标记
-                            Killed = false; KillTime = null; Overkill = 0;
+                            // 近似展示：以最后一个死亡目标的时间/溢出作为本波的 Killed 信息
+                            var last = Context.EncounterGroup?.All
+                                .OrderByDescending(e => e.KillTime ?? -1)
+                                .FirstOrDefault();
+                            Killed = true;
+                            KillTime = last?.KillTime ?? KillTime;
+                            Overkill = last?.Overkill ?? Overkill;
 
                             var spawnAt = Math.Max(_pendingSpawnAt.Value, Clock.CurrentTime);
                             effectiveSliceEnd = Math.Min(desiredSliceEnd, spawnAt);
@@ -263,7 +313,6 @@ public sealed class RunningBattle
                 }
             }
 
-            // 到点刷新
             if (_waitingSpawn && _pendingSpawnAt.HasValue && Clock.CurrentTime + 1e-9 >= _pendingSpawnAt.Value)
             {
                 TryPerformPendingSpawn();
@@ -302,7 +351,7 @@ public sealed class RunningBattle
 
             _pendingNextGroup = null;
             _pendingSpawnAt = null;
-            _waitingSpawn = false; // 关键：允许下一次安排
+            _waitingSpawn = false;
 
             Collector.OnTag("spawn_performed", 1);
         }
