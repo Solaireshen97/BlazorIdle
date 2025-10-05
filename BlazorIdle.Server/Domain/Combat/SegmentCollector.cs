@@ -15,6 +15,10 @@ public class SegmentCollector
     private readonly int _maxEvents;
     private readonly double _maxDuration;
 
+    // 段级 RNG 区间
+    private long? _rngStartInclusive;
+    private long _rngEndInclusive;
+
     public SegmentCollector(int maxEvents = 200, double maxDuration = 5)
     {
         _maxEvents = maxEvents;
@@ -22,7 +26,13 @@ public class SegmentCollector
         SegmentStart = 0;
     }
 
-    // 兼容旧签名（默认物理伤害）
+    // 由上层在事件执行“前后”各调用一次，记录当前 Rng.Index
+    public void OnRngIndex(long index)
+    {
+        if (!_rngStartInclusive.HasValue) _rngStartInclusive = index;
+        _rngEndInclusive = index;
+    }
+
     public void OnDamage(string src, int dmg) => OnDamage(src, dmg, DamageType.Physical);
 
     public void OnDamage(string src, int dmg, DamageType type)
@@ -76,7 +86,9 @@ public class SegmentCollector
             DamageBySource = bySource,
             DamageByType = byType,
             TagCounters = new Dictionary<string, int>(_tagCounters),
-            ResourceFlow = new Dictionary<string, int>(_resourceFlow)
+            ResourceFlow = new Dictionary<string, int>(_resourceFlow),
+            RngIndexStart = _rngStartInclusive ?? _rngEndInclusive,
+            RngIndexEnd = _rngEndInclusive
         };
 
         _damageEvents.Clear();
@@ -84,6 +96,9 @@ public class SegmentCollector
         _resourceFlow.Clear();
         EventCount = 0;
         SegmentStart = currentTime;
+        _rngStartInclusive = null;
+        _rngEndInclusive = 0;
+
         return seg;
     }
 }
@@ -95,7 +110,11 @@ public class CombatSegment
     public int EventCount { get; set; }
     public int TotalDamage { get; set; }
     public Dictionary<string, int> DamageBySource { get; set; } = new();
-    public Dictionary<string, int> DamageByType { get; set; } = new(); // 新增：按类型统计
+    public Dictionary<string, int> DamageByType { get; set; } = new();
     public Dictionary<string, int> TagCounters { get; set; } = new();
     public Dictionary<string, int> ResourceFlow { get; set; } = new();
+
+    // 新增：段级 RNG 区间
+    public long RngIndexStart { get; set; }
+    public long RngIndexEnd { get; set; }
 }

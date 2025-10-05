@@ -35,7 +35,6 @@ public class BattleRunner
         professionModule.RegisterBuffDefinitions(context);
         professionModule.OnBattleStart(context);
         professionModule.BuildSkills(context, context.AutoCaster);
-        // 启动 RPPM 脉冲（每 1s）
         scheduler.Schedule(new ProcPulseEvent(clock.CurrentTime + 1.0, 1.0));
 
         var attackTrack = new TrackState(TrackType.Attack, battle.AttackIntervalSeconds, 0);
@@ -68,7 +67,12 @@ public class BattleRunner
             }
 
             clock.AdvanceTo(ev.ExecuteAt);
+
+            // 段级 RNG 记录边界：执行前与执行后各记一次
+            collector.OnRngIndex(context.Rng.Index);
             ev.Execute(context);
+            collector.OnRngIndex(context.Rng.Index);
+
             collector.Tick(clock.CurrentTime);
 
             if (collector.ShouldFlush(clock.CurrentTime))

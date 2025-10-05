@@ -22,7 +22,6 @@ public class StartBattleService
         _runner = runner;
     }
 
-    // 新增 enemyCount 参数（默认 1），用于创建多目标遭遇组；不改数据库
     public async Task<Guid> StartAsync(Guid characterId, double simulateSeconds = 15, ulong? seed = null, string? enemyId = null, int enemyCount = 1, CancellationToken ct = default)
     {
         var c = await _characters.GetAsync(characterId, ct);
@@ -57,9 +56,9 @@ public class StartBattleService
             battleDomain, simulateSeconds, c.Profession, rng,
             out var killed, out var killTime, out var overkill,
             module: module,
-            encounter: null,               // 主目标由组内的 PrimaryAlive 决定
-            encounterGroup: encounterGroup, // 多目标组
-            stats: stats                    // 注入合并后的面板
+            encounter: null,
+            encounterGroup: encounterGroup,
+            stats: stats
         );
 
         long seedIndexEnd = rng.Index;
@@ -79,7 +78,6 @@ public class StartBattleService
             SeedIndexStart = seedIndexStart,
             SeedIndexEnd = seedIndexEnd,
 
-            // 敌人与击杀信息：沿用单目标（主目标）信息，不做 DB 变更
             EnemyId = enemyDef.Id,
             EnemyName = enemyDef.Name,
             EnemyLevel = enemyDef.Level,
@@ -101,7 +99,9 @@ public class StartBattleService
                 DamageBySourceJson = JsonSerializer.Serialize(s.DamageBySource),
                 TagCountersJson = JsonSerializer.Serialize(s.TagCounters),
                 ResourceFlowJson = JsonSerializer.Serialize(s.ResourceFlow),
-                DamageByTypeJson = JsonSerializer.Serialize(s.DamageByType)
+                DamageByTypeJson = JsonSerializer.Serialize(s.DamageByType),
+                RngIndexStart = s.RngIndexStart,
+                RngIndexEnd = s.RngIndexEnd
             }).ToList()
         };
 

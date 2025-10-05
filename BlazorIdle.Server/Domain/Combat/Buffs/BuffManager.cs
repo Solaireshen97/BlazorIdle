@@ -13,34 +13,36 @@ public class BuffManager
     private readonly Action<string, int>? _tag;
     private readonly Action<string, int>? _resource;
     private readonly Action<string, int, DamageType>? _dealDamage;
+    // 新增：DoT 触发 Proc 的回调（由上层连接到 Procs.OnDirectHit）
+    private readonly Action<string, DamageType, double>? _onDotDirectHit;
 
     // 新增：由上层注入的解析委托
     private readonly Func<double> _resolveHasteFactor;
     private readonly Func<(double ap, double sp)> _resolveAPSP;
-
-    // 向后兼容构造（不吃面板急速与 AP/SP）
+    // 兼容旧签名（不吃面板急速与 AP/SP，且不触发 DoT Proc）
     public BuffManager(
         Action<string, int>? tagRecorder,
         Action<string, int>? resourceRecorder,
         Action<string, int, DamageType>? damageApplier)
-        : this(tagRecorder, resourceRecorder, damageApplier, () => 1.0, () => (0.0, 0.0))
+        : this(tagRecorder, resourceRecorder, damageApplier, () => 1.0, () => (0.0, 0.0), onDotDirectHit: null)
     { }
 
-    // 新构造：吃面板急速与 AP/SP（推荐）
+    // 新构造：吃面板急速与 AP/SP（推荐）+ 可选 DoT Proc
     public BuffManager(
         Action<string, int>? tagRecorder,
         Action<string, int>? resourceRecorder,
         Action<string, int, DamageType>? damageApplier,
         Func<double> resolveHasteFactor,
-        Func<(double ap, double sp)> resolveApsp)
+        Func<(double ap, double sp)> resolveApsp,
+        Action<string, DamageType, double>? onDotDirectHit)
     {
         _tag = tagRecorder;
         _resource = resourceRecorder;
         _dealDamage = damageApplier;
         _resolveHasteFactor = resolveHasteFactor;
         _resolveAPSP = resolveApsp;
+        _onDotDirectHit = onDotDirectHit;
     }
-
     public void RegisterDefinition(BuffDefinition def)
     {
         if (_definitions.Exists(d => d.Id == def.Id)) return;
@@ -112,12 +114,15 @@ public class BuffManager
                 switch (def.PeriodicType)
                 {
                     case BuffPeriodicType.Damage:
-                        // DoT：每跳伤害 = 快照 per-stack × 当前层数
                         var dmg = (int)Math.Round(inst.TickBasePerStack * inst.Stacks);
                         if (dmg > 0)
                         {
-                            _dealDamage?.Invoke("buff_tick:" + id, dmg, def.PeriodicDamageType);
+                            var src = "buff_tick:" + id;
+                            _dealDamage?.Invoke(src, dmg, def.PeriodicDamageType);
                             _tag?.Invoke("buff_tick:" + id, 1);
+
+                            // 新增：可选触发 Proc（在 ProcManager 内部根据 AllowFromDot 控制）
+                            _onDotDirectHit?.Invoke(src, def.PeriodicDamageType, now);
                         }
                         break;
 

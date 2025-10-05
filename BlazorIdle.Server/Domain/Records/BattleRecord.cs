@@ -15,7 +15,7 @@ public class BattleRecord
     public long SeedIndexStart { get; set; }
     public long SeedIndexEnd { get; set; }
 
-    // 敌人与击杀信息（新增）
+    // 敌人与击杀信息
     public string EnemyId { get; set; } = "dummy";
     public string EnemyName { get; set; } = "Training Dummy";
     public int EnemyLevel { get; set; }
@@ -40,5 +40,9 @@ public class BattleSegmentRecord
     public string DamageBySourceJson { get; set; } = "{}";
     public string TagCountersJson { get; set; } = "{}";
     public string ResourceFlowJson { get; set; } = "{}";
-    public string DamageByTypeJson { get; set; } = "{}"; // 新增
+    public string DamageByTypeJson { get; set; } = "{}";
+
+    // 新增：段级 RNG 区间
+    public long RngIndexStart { get; set; }
+    public long RngIndexEnd { get; set; }
 }
