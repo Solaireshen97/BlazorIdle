@@ -46,11 +46,20 @@ public class ApiClient
     }
 
     // ===== Step 战斗 =====
+    // 兼容旧签名（不带 mode/dungeonId）
     public async Task<StartStepBattleResponse> StartStepBattleAsync(Guid characterId, double seconds = 30, string? enemyId = null, int enemyCount = 1, ulong? seed = null, CancellationToken ct = default)
+        => await StartStepBattleAsync(characterId, seconds, enemyId, enemyCount, seed, mode: null, dungeonId: null, ct: ct);
+
+    // 新增：支持 mode 与 dungeonId
+    // mode: "duration" | "continuous" | "dungeon" | "dungeonloop"
+    public async Task<StartStepBattleResponse> StartStepBattleAsync(Guid characterId, double seconds, string? enemyId, int enemyCount, ulong? seed, string? mode, string? dungeonId, CancellationToken ct = default)
     {
         var url = $"/api/battles/step/start?characterId={characterId}&seconds={seconds}&enemyCount={enemyCount}";
         if (!string.IsNullOrWhiteSpace(enemyId)) url += $"&enemyId={Uri.EscapeDataString(enemyId)}";
         if (seed.HasValue) url += $"&seed={seed.Value}";
+        if (!string.IsNullOrWhiteSpace(mode)) url += $"&mode={Uri.EscapeDataString(mode)}";
+        if (!string.IsNullOrWhiteSpace(dungeonId)) url += $"&dungeonId={Uri.EscapeDataString(dungeonId)}";
+
         var resp = await _http.PostAsync(url, null, ct);
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<StartStepBattleResponse>(cancellationToken: ct))!;
@@ -93,7 +102,7 @@ public class ApiClient
                 }).Unwrap();
 }
 
-// ====== Step DTOs (与你之前版本一致) ======
+// ====== Step DTOs ======
 public sealed class StartStepBattleResponse { public Guid BattleId { get; set; } public ulong Seed { get; set; } public string? EnemyId { get; set; } public int EnemyCount { get; set; } }
 public sealed class StopStepBattleResponse { public Guid PersistedBattleId { get; set; } }
 public sealed class StepBattleStatusDto
@@ -116,6 +125,12 @@ public sealed class StepBattleStatusDto
     public double? KillTimeSeconds { get; set; }
     public int OverkillDamage { get; set; }
     public Guid? PersistedBattleId { get; set; }
+
+    // 新增：持续/地城相关字段（服务端可能不返回时保留默认）
+    public string? Mode { get; set; }           // "duration"|"continuous"|"dungeonsingle"|"dungeonloop"
+    public int? WaveIndex { get; set; }
+    public int? RunCount { get; set; }
+    public string? DungeonId { get; set; }
 }
 public sealed class StepBattleSegmentDto
 {
@@ -169,19 +184,15 @@ public sealed class SimulateResponse
     public Profession Profession { get; set; }
     public string EnemyId { get; set; } = "dummy";
     public int EnemyCount { get; set; }
-
     public SimulateMode Mode { get; set; }
     public double Value { get; set; }
     public double SampleSeconds { get; set; }
     public int Runs { get; set; }
-
     public double TotalSimulatedSeconds { get; set; }
     public long TotalDamage { get; set; }
     public int TotalKills { get; set; }
-
     public double AvgDps { get; set; }
     public double KillsPerHour { get; set; }
-
     public double? AvgTtk { get; set; }
     public double? TtkP50 { get; set; }
     public double? TtkP90 { get; set; }

@@ -139,16 +139,48 @@
 
         <div class="row" style="gap:12px; align-items:end;">
             <div>
+                <label>模式</label>
+                <select class="form-control" style="width:160px" @bind="stepMode">
+                    <option value="duration">Duration（按时长）</option>
+                    <option value="continuous">Continuous（持续同怪）</option>
+                    <option value="dungeon">Dungeon（单次）</option>
+                    <option value="dungeonloop">Dungeon Loop（循环）</option>
+                </select>
+            </div>
+            <div>
                 <label>时长(s)</label>
-                <input type="number" min="1" step="1" class="form-control" style="width:100px" @bind="stepSeconds" />
+                <input type="number" min="1" step="1" class="form-control" style="width:100px" @bind="stepSeconds" disabled="@(stepMode != "duration")" />
             </div>
             <div>
                 <label>敌人数</label>
-                <input type="number" min="1" step="1" class="form-control" style="width:100px" @bind="stepEnemyCount" />
+                <input type="number" min="1" step="1" class="form-control" style="width:100px" @bind="stepEnemyCount" disabled="@(IsDungeonMode)" />
             </div>
             <div>
                 <label>Seed(可选)</label>
                 <input class="form-control" style="width:160px" @bind="stepSeedInput" />
+            </div>
+            <div>
+                <label>敌人</label>
+                <select class="form-control" style="width:240px" @bind="selectedEnemyId" disabled="@(IsDungeonMode)">
+                    @if (enemies?.Count > 0)
+                    {
+                        @foreach (var e in enemies)
+                        {
+                            <option value="@e.Id">@e.Name (@e.Id)</option>
+                        }
+                    }
+                    else
+                    {
+                        <option value="dummy">Training Dummy (dummy)</option>
+                        <option value="tank">Armored Golem (tank)</option>
+                        <option value="magebane">Magebane Warden (magebane)</option>
+                        <option value="paper">Paper Slime (paper)</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label>DungeonId</label>
+                <input class="form-control" style="width:200px" @bind="stepDungeonId" placeholder="intro_cave" disabled="@(stepMode == "duration" || stepMode == "continuous")" />
             </div>
             <div>
                 <label>状态轮询(ms)</label>
@@ -192,6 +224,11 @@
                     <div class="col-md-4"><b>SeedIdx:</b> @stepStatus.SeedIndexStart - @stepStatus.SeedIndexEnd</div>
                     <div class="col-md-2"><b>Killed:</b> @(stepStatus.Killed ? "Yes" : "No")</div>
                     <div class="col-md-2"><b>KillTime:</b> @(stepStatus.KillTimeSeconds?.ToString("0.00") ?? "-")</div>
+                </div>
+                <div class="row" style="margin-top:6px">
+                    <div class="col-md-4"><b>Mode:</b> @(stepStatus.Mode ?? "duration")</div>
+                    <div class="col-md-4"><b>Wave:</b> @(stepStatus.WaveIndex?.ToString() ?? "-")</div>
+                    <div class="col-md-4"><b>RunCount:</b> @(stepStatus.RunCount?.ToString() ?? "0")</div>
                 </div>
                 @if (stepStatus.PersistedBattleId is not null)
                 {
@@ -343,90 +380,90 @@
     </div>
 }
 
-
-if (lastCreated is not null)
+@if (lastCreated is not null)
 {
-<div class="panel" style="margin-top: 18px;">
-    <h4>5. 批量模拟器</h4>
+    <div class="panel" style="margin-top: 18px;">
+        <h4>5. 批量模拟器</h4>
 
-    <div class="row" style="gap:12px; align-items:end;">
-        <div>
-            <label>模式</label>
-            <select class="form-control" style="width:140px" @bind="simMode">
-                <option value="Kills">按击杀数</option>
-                <option value="Hours">按小时数</option>
-            </select>
-        </div>
-        <div>
-            <label>@(simMode == SimulateMode.Kills ? "击杀数" : "小时数")</label>
-            <input type="number" min="1" step="1" class="form-control" style="width:140px" @bind="simValue" />
-        </div>
-        <div>
-            <label>样本时长(s)</label>
-            <input type="number" min="1" step="1" class="form-control" style="width:140px" @bind="simSampleSeconds" />
-        </div>
-        <div>
-            <label>敌人数</label>
-            <input type="number" min="1" step="1" class="form-control" style="width:120px" @bind="simEnemyCount" />
-        </div>
-        <div>
-            <label>敌人</label>
-            <select class="form-control" style="width:240px" @bind="selectedEnemyId">
-                @if (enemies?.Count > 0)
-                {
-                    @foreach (var e in enemies)
-                    {
-                        <option value="@e.Id">@e.Name (@e.Id)</option>
-                    }
-                }
-                else
-                {
-                    <option value="dummy">Training Dummy (dummy)</option>
-                    <option value="tank">Armored Golem (tank)</option>
-                    <option value="magebane">Magebane Warden (magebane)</option>
-                    <option value="paper">Paper Slime (paper)</option>
-                }
-            </select>
-        </div>
-        <div>
-            <label>Seed(可选)</label>
-            <input class="form-control" style="width:200px" @bind="simSeedInput" />
-        </div>
-        <div style="display:flex;gap:8px;">
-            <button class="btn btn-primary" @onclick="RunSimAsync" disabled="@isBusy">开始模拟</button>
-        </div>
-    </div>
-
-    @if (!string.IsNullOrWhiteSpace(simError))
-    {
-        <div class="alert alert-danger" style="margin-top:8px">@simError</div>
-    }
-
-    @if (simResult is not null)
-    {
-        <div class="card" style="padding: 12px; margin-top: 12px;">
-            <h5>结果摘要</h5>
-            <div class="row">
-                <div class="col-md-3"><b>总时长(s):</b> @simResult.TotalSimulatedSeconds.ToString("0.00")</div>
-                <div class="col-md-3"><b>总伤害:</b> @simResult.TotalDamage</div>
-                <div class="col-md-3"><b>平均 DPS:</b> @simResult.AvgDps.ToString("0.00")</div>
-                <div class="col-md-3"><b>样本数:</b> @simResult.Runs</div>
+        <div class="row" style="gap:12px; align-items:end;">
+            <div>
+                <label>模式</label>
+                <select class="form-control" style="width:140px" @bind="simMode">
+                    <option value="Kills">按击杀数</option>
+                    <option value="Hours">按小时数</option>
+                </select>
             </div>
-            <div class="row">
-                <div class="col-md-3"><b>总击杀:</b> @simResult.TotalKills</div>
-                <div class="col-md-3"><b>每小时击杀:</b> @simResult.KillsPerHour.ToString("0.00")</div>
-                <div class="col-md-3"><b>TTK 平均:</b> @(simResult.AvgTtk?.ToString("0.00") ?? "-")</div>
-                <div class="col-md-3">
-                    <b>TTK P50/P90/P95/P99:</b>
-                    @(simResult.TtkP50?.ToString("0.00") ?? "-") /
-                    @(simResult.TtkP90?.ToString("0.00") ?? "-") /
-                    @(simResult.TtkP95?.ToString("0.00") ?? "-") /
-                    @(simResult.TtkP99?.ToString("0.00") ?? "-")
+            <div>
+                <label>@(simMode == SimulateMode.Kills ? "击杀数" : "小时数")</label>
+                <input type="number" min="1" step="1" class="form-control" style="width:140px" @bind="simValue" />
+            </div>
+            <div>
+                <label>样本时长(s)</label>
+                <input type="number" min="1" step="1" class="form-control" style="width:140px" @bind="simSampleSeconds" />
+            </div>
+            <div>
+                <label>敌人数</label>
+                <input type="number" min="1" step="1" class="form-control" style="width:120px" @bind="simEnemyCount" />
+            </div>
+            <div>
+                <label>敌人</label>
+                <select class="form-control" style="width:240px" @bind="selectedEnemyId">
+                    @if (enemies?.Count > 0)
+                    {
+                        @foreach (var e in enemies)
+                        {
+                            <option value="@e.Id">@e.Name (@e.Id)</option>
+                        }
+                    }
+                    else
+                    {
+                        <option value="dummy">Training Dummy (dummy)</option>
+                        <option value="tank">Armored Golem (tank)</option>
+                        <option value="magebane">Magebane Warden (magebane)</option>
+                        <option value="paper">Paper Slime (paper)</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label>Seed(可选)</label>
+                <input class="form-control" style="width:200px" @bind="simSeedInput" />
+            </div>
+            <div style="display:flex;gap:8px;">
+                <button class="btn btn-primary" @onclick="RunSimAsync" disabled="@isBusy">开始模拟</button>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(simError))
+        {
+            <div class="alert alert-danger" style="margin-top:8px">@simError</div>
+        }
+
+        @if (simResult is not null)
+        {
+            <div class="card" style="padding: 12px; margin-top: 12px;">
+                <h5>结果摘要</h5>
+                <div class="row">
+                    <div class="col-md-3"><b>总时长(s):</b> @simResult.TotalSimulatedSeconds.ToString("0.00")</div>
+                    <div class="col-md-3"><b>总伤害:</b> @simResult.TotalDamage</div>
+                    <div class="col-md-3"><b>平均 DPS:</b> @simResult.AvgDps.ToString("0.00")</div>
+                    <div class="col-md-3"><b>样本数:</b> @simResult.Runs</div>
+                </div>
+                <div class="row">
+                    <div class="col-md-3"><b>总击杀:</b> @simResult.TotalKills</div>
+                    <div class="col-md-3"><b>每小时击杀:</b> @simResult.KillsPerHour.ToString("0.00")</div>
+                    <div class="col-md-3"><b>TTK 平均:</b> @(simResult.AvgTtk?.ToString("0.00") ?? "-")</div>
+                    <div class="col-md-3">
+                        <b>TTK P50/P90/P95/P99:</b>
+                        @(simResult.TtkP50?.ToString("0.00") ?? "-") /
+                        @(simResult.TtkP90?.ToString("0.00") ?? "-") /
+                        @(simResult.TtkP95?.ToString("0.00") ?? "-") /
+                        @(simResult.TtkP99?.ToString("0.00") ?? "-")
+                    </div>
                 </div>
             </div>
-        </div>
-    }
-</div>
+        }
+    </div>
+}
 @code {
     // ====== 创建/同步战斗 ======
     protected override async Task OnInitializedAsync()
@@ -512,9 +549,7 @@ if (lastCreated is not null)
         try
         {
             isBusy = true;
-            // 直接调用回放 API，使用历史记录的敌人与时长；回放生成一个新的 step battle
             var start = await Api.StartReplayStepBattleAsync(summary.Id, seconds: summary.DurationSeconds, enemyCount: 1);
-            // 将 Step 面板切换到这场回放
             stepBattleId = start.BattleId;
             _stepSinceIndex = 0;
             stepSegments.Clear(); stepAggBySource.Clear(); stepAggByType.Clear();
@@ -530,6 +565,10 @@ if (lastCreated is not null)
 
     // ====== Step 战斗（含运行态调试）======
     Guid? stepBattleId;
+    string stepMode = "duration";     // duration | continuous | dungeon | dungeonloop
+    bool IsDungeonMode => stepMode == "dungeon" || stepMode == "dungeonloop";
+    string stepDungeonId = "intro_cave";
+
     double stepSeconds = 20;
     int stepEnemyCount = 1;
     string? stepSeedInput = null;
@@ -562,7 +601,21 @@ if (lastCreated is not null)
             isBusy = true;
             ulong? seed = null;
             if (ulong.TryParse(stepSeedInput, out var seedVal)) seed = seedVal;
-            var resp = await Api.StartStepBattleAsync(lastCreated!.Id, seconds: stepSeconds, enemyId: selectedEnemyId, enemyCount: stepEnemyCount, seed: seed);
+
+            var secondsToSend = stepMode == "duration" ? stepSeconds : Math.Max(1, stepSeconds); // 服务端需要 seconds 参数，但非 duration 模式仅用于占位
+            string? enemyToSend = IsDungeonMode ? null : selectedEnemyId;
+            int enemyCountToSend = IsDungeonMode ? 0 : stepEnemyCount;
+
+            var resp = await Api.StartStepBattleAsync(
+                characterId: lastCreated!.Id,
+                seconds: secondsToSend,
+                enemyId: enemyToSend,
+                enemyCount: enemyCountToSend <= 0 ? 1 : enemyCountToSend,
+                seed: seed,
+                mode: stepMode,
+                dungeonId: IsDungeonMode ? stepDungeonId : null
+            );
+
             stepBattleId = resp.BattleId;
             _stepSinceIndex = 0; stepSegments.Clear(); stepAggBySource.Clear(); stepAggByType.Clear(); stepStatus = null; stepDebug = null;
             _ = StartStepPollingAsync();
@@ -586,7 +639,7 @@ if (lastCreated is not null)
             {
                 await PollStepOnceAsync(_stepPollCts.Token);
                 await InvokeAsync(StateHasChanged);
-                if (stepStatus?.Completed == true) break;
+                if (stepStatus?.Completed == true && stepMode != "continuous" && stepMode != "dungeonloop") break; // 持续/循环模式不中断轮询
                 await Task.Delay(stepPollMs, _stepPollCts.Token);
             }
         }
@@ -667,7 +720,7 @@ if (lastCreated is not null)
             while (!_stepDebugCts.IsCancellationRequested)
             {
                 await RefreshRuntimeDebug();
-                if (stepStatus?.Completed == true) break;
+                if (stepStatus?.Completed == true && stepMode != "continuous" && stepMode != "dungeonloop") break;
                 await Task.Delay(stepDebugPollMs, _stepDebugCts.Token);
             }
         }
