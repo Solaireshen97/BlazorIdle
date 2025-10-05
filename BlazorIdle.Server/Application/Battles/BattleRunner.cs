@@ -1,15 +1,16 @@
 ﻿using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat;
 using BlazorIdle.Server.Domain.Combat.Enemies;
-using BlazorIdle.Server.Domain.Combat.Procs;
-using BlazorIdle.Server.Domain.Combat.Professions;
+using BlazorIdle.Server.Domain.Combat.Engine;
 using BlazorIdle.Server.Domain.Combat.Rng;
+using BlazorIdle.Server.Domain.Combat.Professions;
 using BlazorIdle.Shared.Models;
-using BlazorWebGame.Domain.Combat;
-using System.Collections.Generic;
 
 namespace BlazorIdle.Server.Application.Battles;
 
+/// <summary>
+/// 同步版战斗驱动：基于通用 BattleEngine 一次性推进到目标时长并返回段聚合。
+/// </summary>
 public class BattleRunner
 {
     public IReadOnlyList<CombatSegment> RunForDuration(
@@ -21,87 +22,35 @@ public class BattleRunner
         out double? killTime,
         out int overkill,
         IProfessionModule? module = null,
-        Encounter? encounter = null,
-        EncounterGroup? encounterGroup = null,
+        Encounter? encounter = null,                  // 保留签名兼容（内部改为 group）
+        EncounterGroup? encounterGroup = null,        // 保留签名兼容
         CharacterStats? stats = null)
     {
-        var clock = new GameClock();
-        var scheduler = new EventScheduler();
-        var collector = new SegmentCollector();
+        // 组装引擎（EncounterGroup 由 Engine 内部创建，这里传入敌人定义与数量）
+        var enemyDef = (encounterGroup?.All?.FirstOrDefault()?.Enemy)
+                       ?? (encounter is not null ? encounter.Enemy : EnemyRegistry.Resolve("dummy"));
+        var enemyCount = encounterGroup?.All?.Count ?? (encounter is null ? 1 : 1);
 
-        var professionModule = module ?? ProfessionRegistry.Resolve(profession);
-        var context = new BattleContext(battle, clock, scheduler, collector, professionModule, profession, rng, encounter, encounterGroup, stats);
+        var engine = new BattleEngine(
+            battleId: battle.Id,
+            characterId: battle.CharacterId,
+            profession: profession,
+            stats: stats ?? new CharacterStats(),
+            rng: rng,
+            enemyDef: enemyDef,
+            enemyCount: enemyCount,
+            module: module
+        );
 
-        professionModule.RegisterBuffDefinitions(context);
-        professionModule.OnBattleStart(context);
-        professionModule.BuildSkills(context, context.AutoCaster);
-        scheduler.Schedule(new ProcPulseEvent(clock.CurrentTime + 1.0, 1.0));
+        // 一次性推进
+        engine.AdvanceUntil(durationSeconds);
 
-        var attackTrack = new TrackState(TrackType.Attack, battle.AttackIntervalSeconds, 0);
-        var specialTrack = new TrackState(TrackType.Special, battle.SpecialIntervalSeconds, battle.SpecialIntervalSeconds);
-        context.Tracks.Add(attackTrack);
-        context.Tracks.Add(specialTrack);
+        killed = engine.Killed;
+        killTime = engine.KillTime;
+        overkill = engine.Overkill;
 
-        scheduler.Schedule(new AttackTickEvent(attackTrack.NextTriggerAt, attackTrack));
-        scheduler.Schedule(new SpecialPulseEvent(specialTrack.NextTriggerAt, specialTrack));
-
-        var segments = new List<CombatSegment>();
-        var endTarget = durationSeconds;
-        int safetyCounter = 0;
-        const int safetyLimit = 100000;
-
-        while (scheduler.Count > 0)
-        {
-            if (safetyCounter++ > safetyLimit)
-                throw new System.Exception("Safety limit exceeded in BattleRunner loop");
-
-            context.Buffs.Tick(clock.CurrentTime);
-            SyncTrackHaste(context);
-
-            var ev = scheduler.PopNext();
-            if (ev == null) break;
-            if (ev.ExecuteAt > endTarget)
-            {
-                battle.Finish(clock.CurrentTime);
-                break;
-            }
-
-            clock.AdvanceTo(ev.ExecuteAt);
-
-            // 段级 RNG 记录边界：执行前与执行后各记一次
-            collector.OnRngIndex(context.Rng.Index);
-            ev.Execute(context);
-            collector.OnRngIndex(context.Rng.Index);
-
-            collector.Tick(clock.CurrentTime);
-
-            if (collector.ShouldFlush(clock.CurrentTime))
-                segments.Add(collector.Flush(clock.CurrentTime));
-
-            if (context.Encounter?.IsDead == true)
-            {
-                battle.Finish(clock.CurrentTime);
-                break;
-            }
-        }
-
-        if (collector.EventCount > 0)
-            segments.Add(collector.Flush(clock.CurrentTime));
-
-        killed = context.Encounter?.IsDead ?? false;
-        killTime = context.Encounter?.KillTime;
-        overkill = context.Encounter?.Overkill ?? 0;
-
-        return segments;
-    }
-
-    private static void SyncTrackHaste(BattleContext context)
-    {
-        var agg = context.Buffs.Aggregate;
-        foreach (var t in context.Tracks)
-        {
-            if (t.TrackType == TrackType.Attack)
-                t.SetHaste(agg.ApplyToBaseHaste(1.0 + context.Stats.HastePercent));
-        }
+        // 将结束时间/间隔回写（保持原行为）
+        battle.Finish(engine.Battle.EndedAt ?? engine.Clock.CurrentTime);
+        return engine.Segments;
     }
 }

@@ -1,17 +1,19 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using BlazorIdle.Server.Domain.Characters;
+﻿using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat;
 using BlazorIdle.Server.Domain.Combat.Enemies;
+using BlazorIdle.Server.Domain.Combat.Engine;
 using BlazorIdle.Server.Domain.Combat.Professions;
 using BlazorIdle.Server.Domain.Combat.Rng;
-using BlazorIdle.Server.Domain.Combat.Procs;
-using BlazorWebGame.Domain.Combat;
 using BlazorIdle.Shared.Models;
+using BlazorWebGame.Domain.Combat;
+using System;
+using System.Linq;
 
 namespace BlazorIdle.Server.Application.Battles.Step;
 
+/// <summary>
+/// 异步 Step 战斗包装器：仅负责墙钟切片与目标时长，战斗核心由 BattleEngine 驱动。
+/// </summary>
 public sealed class RunningBattle
 {
     public Guid Id { get; }
@@ -21,12 +23,15 @@ public sealed class RunningBattle
     public string EnemyId { get; }
     public int EnemyCount { get; }
 
-    public Battle Battle { get; }
-    public IGameClock Clock { get; }
-    public IEventScheduler Scheduler { get; }
-    public SegmentCollector Collector { get; }
-    public BattleContext Context { get; }
-    public List<CombatSegment> Segments { get; } = new();
+    public BattleEngine Engine { get; }
+
+    // 为保持外部兼容，继续暴露以下快捷引用
+    public Battle Battle => Engine.Battle;
+    public IGameClock Clock => Engine.Clock;
+    public IEventScheduler Scheduler => Engine.Scheduler;
+    public SegmentCollector Collector => Engine.Collector;
+    public BattleContext Context => Engine.Context;
+    public System.Collections.Generic.List<CombatSegment> Segments => Engine.Segments;
 
     public bool Completed { get; internal set; }
     public bool Killed { get; private set; }
@@ -35,7 +40,7 @@ public sealed class RunningBattle
 
     public ulong Seed { get; }
     public long SeedIndexStart { get; }
-    public long SeedIndexEnd => Context.Rng.Index;
+    public long SeedIndexEnd => Engine.SeedIndexEnd;
 
     public bool Persisted { get; internal set; }
     public Guid? PersistedBattleId { get; internal set; }
@@ -66,38 +71,16 @@ public sealed class RunningBattle
         var rng = new RngContext(seed);
         SeedIndexStart = rng.Index;
 
-        var groupDefs = Enumerable.Range(0, EnemyCount).Select(_ => enemyDef).ToList();
-        var encounterGroup = new EncounterGroup(groupDefs);
-
-        Battle = new Battle
-        {
-            Id = id,
-            CharacterId = characterId,
-            AttackIntervalSeconds = (module ?? ProfessionRegistry.Resolve(profession)).BaseAttackInterval,
-            SpecialIntervalSeconds = (module ?? ProfessionRegistry.Resolve(profession)).BaseSpecialInterval,
-            StartedAt = 0
-        };
-
-        Clock = new GameClock();
-        Scheduler = new EventScheduler();
-        Collector = new SegmentCollector();
-
-        var professionModule = module ?? ProfessionRegistry.Resolve(profession);
-        Context = new BattleContext(Battle, Clock, Scheduler, Collector, professionModule, profession, rng,
-            encounter: null, encounterGroup: encounterGroup, stats: stats);
-
-        professionModule.RegisterBuffDefinitions(Context);
-        professionModule.OnBattleStart(Context);
-        professionModule.BuildSkills(Context, Context.AutoCaster);
-        Scheduler.Schedule(new ProcPulseEvent(Clock.CurrentTime + 1.0, 1.0));
-
-        var attackTrack = new TrackState(TrackType.Attack, Battle.AttackIntervalSeconds, 0);
-        var specialTrack = new TrackState(TrackType.Special, Battle.SpecialIntervalSeconds, Battle.SpecialIntervalSeconds);
-        Context.Tracks.Add(attackTrack);
-        Context.Tracks.Add(specialTrack);
-
-        Scheduler.Schedule(new AttackTickEvent(attackTrack.NextTriggerAt, attackTrack));
-        Scheduler.Schedule(new SpecialPulseEvent(specialTrack.NextTriggerAt, specialTrack));
+        Engine = new BattleEngine(
+            battleId: id,
+            characterId: characterId,
+            profession: profession,
+            stats: stats,
+            rng: rng,
+            enemyDef: enemyDef,
+            enemyCount: EnemyCount,
+            module: module
+        );
 
         StartedWallUtc = DateTime.UtcNow;
         _lastAdvanceWallUtc = StartedWallUtc;
@@ -113,104 +96,37 @@ public sealed class RunningBattle
 
         var allowedDelta = Math.Min(wallDelta * SimSpeed, Math.Max(0.001, maxSimSecondsSlice));
         var sliceEnd = Math.Min(TargetDurationSeconds, Clock.CurrentTime + allowedDelta);
-        int safety = 0;
 
-        while (Scheduler.Count > 0 && safety++ < maxEvents)
+        // 核心推进交给 Engine（含 RNG 段记录/flush/死亡判定）
+        Engine.AdvanceTo(sliceEnd, maxEvents);
+
+        if (Clock.CurrentTime >= TargetDurationSeconds || Engine.Completed)
         {
-            Context.Buffs.Tick(Clock.CurrentTime);
-            SyncTrackHaste(Context);
+            // 封盘（Engine 会完成最终段 flush）
+            Engine.FinalizeNow();
 
-            var ev = Scheduler.PopNext();
-            if (ev is null) break;
-
-            if (ev.ExecuteAt > sliceEnd)
-            {
-                Scheduler.Schedule(ev);
-
-                if (sliceEnd > Clock.CurrentTime)
-                {
-                    Clock.AdvanceTo(sliceEnd);
-                    Collector.Tick(Clock.CurrentTime);
-                    if (Collector.ShouldFlush(Clock.CurrentTime))
-                        Segments.Add(Collector.Flush(Clock.CurrentTime));
-                }
-                break;
-            }
-
-            if (ev.ExecuteAt > TargetDurationSeconds)
-            {
-                Battle.Finish(Clock.CurrentTime);
-                break;
-            }
-
-            Clock.AdvanceTo(ev.ExecuteAt);
-
-            // 段级 RNG 区间：执行前/后各记录一次（与同步 BattleRunner 保持一致）
-            Collector.OnRngIndex(Context.Rng.Index);
-            ev.Execute(Context);
-            Collector.OnRngIndex(Context.Rng.Index);
-
-            Collector.Tick(Clock.CurrentTime);
-
-            if (Collector.ShouldFlush(Clock.CurrentTime))
-                Segments.Add(Collector.Flush(Clock.CurrentTime));
-
-            if (Context.Encounter?.IsDead == true)
-            {
-                Battle.Finish(Clock.CurrentTime);
-                Killed = true;
-                KillTime = Context.Encounter.KillTime;
-                Overkill = Context.Encounter.Overkill;
-                Completed = true;
-
-                if (Collector.EventCount > 0)
-                    Segments.Add(Collector.Flush(Clock.CurrentTime));
-                _lastAdvanceWallUtc = wallNow;
-                return;
-            }
-        }
-
-        if (Clock.CurrentTime >= TargetDurationSeconds || Scheduler.Count == 0)
-        {
-            if (Collector.EventCount > 0)
-                Segments.Add(Collector.Flush(Clock.CurrentTime));
-
-            Killed = Context.Encounter?.IsDead ?? false;
-            KillTime = Context.Encounter?.KillTime;
-            Overkill = Context.Encounter?.Overkill ?? 0;
-
+            Killed = Engine.Killed;
+            KillTime = Engine.KillTime;
+            Overkill = Engine.Overkill;
             Completed = true;
-            Battle.Finish(Clock.CurrentTime);
         }
 
         _lastAdvanceWallUtc = wallNow;
     }
 
+    // 手动终止：不再推进模拟时间，直接封盘
     public void ForceStopAndSeal()
     {
         if (Completed) return;
+        Engine.FinalizeNow();
 
-        if (Collector.EventCount > 0)
-            Segments.Add(Collector.Flush(Clock.CurrentTime));
-
-        Killed = Context.Encounter?.IsDead ?? false;
-        KillTime = Context.Encounter?.KillTime;
-        Overkill = Context.Encounter?.Overkill ?? 0;
-
+        Killed = Engine.Killed;
+        KillTime = Engine.KillTime;
+        Overkill = Engine.Overkill;
         Completed = true;
-        Battle.Finish(Clock.CurrentTime);
     }
 
-    private static void SyncTrackHaste(BattleContext context)
-    {
-        var agg = context.Buffs.Aggregate;
-        foreach (var t in context.Tracks)
-        {
-            if (t.TrackType == TrackType.Attack)
-                t.SetHaste(agg.ApplyToBaseHaste(1.0 + context.Stats.HastePercent));
-        }
-    }
-
+    // 恢复追帧：用大切片快速推进到目标模拟秒
     public void FastForwardTo(double targetSimSeconds)
     {
         if (Completed) return;
