@@ -28,7 +28,7 @@ public sealed class RunningBattle
     public BattleContext Context { get; }
     public List<CombatSegment> Segments { get; } = new();
 
-    public bool Completed { get; private set; }
+    public bool Completed { get; internal set; }
     public bool Killed { get; private set; }
     public double? KillTime { get; private set; }
     public int Overkill { get; private set; }
@@ -37,10 +37,13 @@ public sealed class RunningBattle
     public long SeedIndexStart { get; }
     public long SeedIndexEnd => Context.Rng.Index;
 
-    // 真实时间推进锚点
+    // 持久化标记
+    public bool Persisted { get; internal set; }
+    public Guid? PersistedBattleId { get; internal set; }
+
     public DateTime StartedWallUtc { get; }
     private DateTime _lastAdvanceWallUtc;
-    public double SimSpeed { get; } = 1.0; // 1x 实时；可扩展为加速回放
+    public double SimSpeed { get; } = 1.0;
 
     public RunningBattle(
         Guid id,
@@ -84,7 +87,6 @@ public sealed class RunningBattle
         Context = new BattleContext(Battle, Clock, Scheduler, Collector, professionModule, profession, rng,
             encounter: null, encounterGroup: encounterGroup, stats: stats);
 
-        // 初始化
         professionModule.RegisterBuffDefinitions(Context);
         professionModule.OnBattleStart(Context);
         professionModule.BuildSkills(Context, Context.AutoCaster);
@@ -98,37 +100,30 @@ public sealed class RunningBattle
         Scheduler.Schedule(new AttackTickEvent(attackTrack.NextTriggerAt, attackTrack));
         Scheduler.Schedule(new SpecialPulseEvent(specialTrack.NextTriggerAt, specialTrack));
 
-        // 真实时间锚点
         StartedWallUtc = DateTime.UtcNow;
         _lastAdvanceWallUtc = StartedWallUtc;
     }
 
-    // 真实时间驱动：每次只推进 ≤ (wallDelta * SimSpeed) 的模拟时长，且不超过 maxSimSecondsSlice
     public void Advance(int maxEvents = 2000, double maxSimSecondsSlice = 0.25)
     {
         if (Completed) return;
 
         var wallNow = DateTime.UtcNow;
         var wallDelta = (wallNow - _lastAdvanceWallUtc).TotalSeconds;
-        if (wallDelta <= 0.0005) return; // 本帧真实时间太短，跳过
+        if (wallDelta <= 0.0005) return;
 
-        // 允许推进的模拟时长（受墙钟 + 上限限制）
         var allowedDelta = Math.Min(wallDelta * SimSpeed, Math.Max(0.001, maxSimSecondsSlice));
-
-        // 切片结束时间 = 当前模拟时间 + 允许推进
         var sliceEnd = Math.Min(TargetDurationSeconds, Clock.CurrentTime + allowedDelta);
         int safety = 0;
 
         while (Scheduler.Count > 0 && safety++ < maxEvents)
         {
-            // 当前时刻先推进周期效果与急速聚合
             Context.Buffs.Tick(Clock.CurrentTime);
             SyncTrackHaste(Context);
 
             var ev = Scheduler.PopNext();
             if (ev is null) break;
 
-            // 超出本帧切片：不执行，requeue，并 idle 前进到 sliceEnd
             if (ev.ExecuteAt > sliceEnd)
             {
                 Scheduler.Schedule(ev);
@@ -140,17 +135,15 @@ public sealed class RunningBattle
                     if (Collector.ShouldFlush(Clock.CurrentTime))
                         Segments.Add(Collector.Flush(Clock.CurrentTime));
                 }
-                break; // 结束本帧
+                break;
             }
 
-            // 超过总目标时长：结束
             if (ev.ExecuteAt > TargetDurationSeconds)
             {
                 Battle.Finish(Clock.CurrentTime);
                 break;
             }
 
-            // 执行事件
             Clock.AdvanceTo(ev.ExecuteAt);
             ev.Execute(Context);
             Collector.Tick(Clock.CurrentTime);
@@ -158,7 +151,6 @@ public sealed class RunningBattle
             if (Collector.ShouldFlush(Clock.CurrentTime))
                 Segments.Add(Collector.Flush(Clock.CurrentTime));
 
-            // 击杀终止
             if (Context.Encounter?.IsDead == true)
             {
                 Battle.Finish(Clock.CurrentTime);
@@ -174,7 +166,6 @@ public sealed class RunningBattle
             }
         }
 
-        // 收尾：达到总时长或队列空 → 完成
         if (Clock.CurrentTime >= TargetDurationSeconds || Scheduler.Count == 0)
         {
             if (Collector.EventCount > 0)
@@ -188,7 +179,6 @@ public sealed class RunningBattle
             Battle.Finish(Clock.CurrentTime);
         }
 
-        // 更新墙钟基准
         _lastAdvanceWallUtc = wallNow;
     }
 

@@ -17,8 +17,9 @@ public static class DependencyInjection
 
         services.AddRepositories();
 
-        // 注册 Step 异步战斗骨架
+        // Step 模式后台推进 + 落库
         services.AddSingleton<StepBattleCoordinator>();
+        services.AddSingleton<StepBattleFinalizer>();   // 使用 ScopeFactory 内部创建作用域
         services.AddHostedService<StepBattleHostedService>();
 
         return services;

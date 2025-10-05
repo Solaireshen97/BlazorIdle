@@ -6,7 +6,6 @@ using System.Threading;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Enemies;
 using BlazorIdle.Server.Domain.Combat.Professions;
-using BlazorIdle.Server.Domain.Combat.Rng;
 using BlazorIdle.Shared.Models;
 
 namespace BlazorIdle.Server.Application.Battles.Step;
@@ -14,9 +13,14 @@ namespace BlazorIdle.Server.Application.Battles.Step;
 public sealed class StepBattleCoordinator
 {
     private readonly ConcurrentDictionary<Guid, RunningBattle> _running = new();
-
-    // 新增：记录战斗完成的真实时间（UTC），用于 TTL 回收
     private readonly ConcurrentDictionary<Guid, DateTime> _completedAtUtc = new();
+
+    private readonly StepBattleFinalizer _finalizer;
+
+    public StepBattleCoordinator(StepBattleFinalizer finalizer)
+    {
+        _finalizer = finalizer;
+    }
 
     public Guid Start(Guid characterId, Profession profession, CharacterStats stats, double seconds, ulong seed, string? enemyId, int enemyCount)
     {
@@ -47,10 +51,12 @@ public sealed class StepBattleCoordinator
             return (false, default!);
 
         var totalDamage = rb.Segments.Sum(s => s.TotalDamage);
+
         var simulated = rb.Clock.CurrentTime;
         var effectiveDuration = rb.Completed
             ? Math.Min(rb.TargetDurationSeconds, rb.Battle.EndedAt ?? (rb.KillTime ?? simulated))
             : simulated;
+
         var dps = totalDamage / Math.Max(0.0001, effectiveDuration);
 
         return (true, new StepBattleStatusDto
@@ -71,7 +77,8 @@ public sealed class StepBattleCoordinator
             SeedIndexEnd = rb.SeedIndexEnd,
             Killed = rb.Killed,
             KillTimeSeconds = rb.KillTime,
-            OverkillDamage = rb.Overkill
+            OverkillDamage = rb.Overkill,
+            PersistedBattleId = rb.PersistedBattleId
         });
     }
 
@@ -104,22 +111,38 @@ public sealed class StepBattleCoordinator
         foreach (var kv in _running.ToArray())
         {
             if (ct.IsCancellationRequested) break;
+
             var rb = kv.Value;
-            if (rb.Completed) continue;
-
-            rb.Advance(maxEvents: maxEventsPerBattle, maxSimSecondsSlice: maxSliceSeconds);
-
-            if (rb.Completed)
+            if (!rb.Completed)
             {
-                // 标记完成的真实时间，用于 TTL 清理
-                _completedAtUtc.TryAdd(rb.Id, DateTime.UtcNow);
+                rb.Advance(maxEvents: maxEventsPerBattle, maxSimSecondsSlice: maxSliceSeconds);
+
+                if (rb.Completed)
+                {
+                    _completedAtUtc.TryAdd(rb.Id, DateTime.UtcNow);
+                }
+            }
+
+            // 完成后自动落库（仅一次）
+            if (rb.Completed && !rb.Persisted)
+            {
+                try
+                {
+                    // 同步等待，确保不会重复入库（可改为 fire-and-forget 加锁）
+                    var persistedId = _finalizer.FinalizeAsync(rb, ct).GetAwaiter().GetResult();
+                    rb.Persisted = true;
+                    rb.PersistedBattleId = persistedId;
+                }
+                catch
+                {
+                    // 按需记录日志；避免抛出导致 HostedService 停止
+                }
             }
         }
     }
 
     public bool TryGet(Guid id, out RunningBattle? rb) => _running.TryGetValue(id, out rb);
 
-    // 使用真实完成时间判断 TTL
     public int PruneCompleted(TimeSpan ttl)
     {
         var now = DateTime.UtcNow;
@@ -158,6 +181,9 @@ public sealed class StepBattleStatusDto
     public bool Killed { get; set; }
     public double? KillTimeSeconds { get; set; }
     public int OverkillDamage { get; set; }
+
+    // 新增：持久化后的 BattleId（如果已入库）
+    public Guid? PersistedBattleId { get; set; }
 }
 
 public sealed class StepBattleSegmentDto
