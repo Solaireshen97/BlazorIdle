@@ -81,6 +81,16 @@ public class ApiClient
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<StartStepBattleResponse>(cancellationToken: ct))!;
     }
+
+    // ===== 批量模拟 =====
+    public Task<SimulateResponse?> SimulateAsync(SimulateRequest req, CancellationToken ct = default)
+        => _http.PostAsJsonAsync("/api/simulation", req, ct)
+                .ContinueWith(async t =>
+                {
+                    var resp = await t;
+                    resp.EnsureSuccessStatusCode();
+                    return await resp.Content.ReadFromJsonAsync<SimulateResponse>(cancellationToken: ct);
+                }).Unwrap();
 }
 
 // ====== Step DTOs (与你之前版本一致) ======
@@ -138,4 +148,43 @@ public sealed class StepBattleDebugDto
     public sealed class SkillDebugDto { public string Id { get; set; } = ""; public string Name { get; set; } = ""; public int Priority { get; set; } public int MaxCharges { get; set; } public int Charges { get; set; } public double? NextChargeReadyAt { get; set; } public double NextAvailableTime { get; set; } public double CooldownSeconds { get; set; } public double CastTimeSeconds { get; set; } public double GcdSeconds { get; set; } public bool OffGcd { get; set; } public int CostAmount { get; set; } public string? CostResourceId { get; set; } public double AttackPowerCoef { get; set; } public double SpellPowerCoef { get; set; } public string DamageType { get; set; } = "physical"; public int BaseDamage { get; set; } }
     public sealed class EncounterDebugDto { public string EnemyId { get; set; } = ""; public int EnemyLevel { get; set; } public int EnemyMaxHp { get; set; } public int CurrentHp { get; set; } public bool IsDead { get; set; } public double? KillTime { get; set; } public int Overkill { get; set; } public int AliveCount { get; set; } public int TotalCount { get; set; } }
     public sealed class CollectorDebugDto { public double SegmentStart { get; set; } public double LastEventTime { get; set; } public int EventCount { get; set; } }
+}
+
+public enum SimulateMode { Kills, Hours }
+
+public sealed class SimulateRequest
+{
+    public Guid CharacterId { get; set; }
+    public string EnemyId { get; set; } = "dummy";
+    public int EnemyCount { get; set; } = 1;
+    public SimulateMode Mode { get; set; } = SimulateMode.Kills;
+    public double Value { get; set; } = 10;
+    public double SampleSeconds { get; set; } = 20;
+    public ulong? Seed { get; set; }
+}
+
+public sealed class SimulateResponse
+{
+    public Guid CharacterId { get; set; }
+    public Profession Profession { get; set; }
+    public string EnemyId { get; set; } = "dummy";
+    public int EnemyCount { get; set; }
+
+    public SimulateMode Mode { get; set; }
+    public double Value { get; set; }
+    public double SampleSeconds { get; set; }
+    public int Runs { get; set; }
+
+    public double TotalSimulatedSeconds { get; set; }
+    public long TotalDamage { get; set; }
+    public int TotalKills { get; set; }
+
+    public double AvgDps { get; set; }
+    public double KillsPerHour { get; set; }
+
+    public double? AvgTtk { get; set; }
+    public double? TtkP50 { get; set; }
+    public double? TtkP90 { get; set; }
+    public double? TtkP95 { get; set; }
+    public double? TtkP99 { get; set; }
 }

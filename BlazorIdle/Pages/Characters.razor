@@ -343,6 +343,90 @@
     </div>
 }
 
+
+if (lastCreated is not null)
+{
+<div class="panel" style="margin-top: 18px;">
+    <h4>5. 批量模拟器</h4>
+
+    <div class="row" style="gap:12px; align-items:end;">
+        <div>
+            <label>模式</label>
+            <select class="form-control" style="width:140px" @bind="simMode">
+                <option value="Kills">按击杀数</option>
+                <option value="Hours">按小时数</option>
+            </select>
+        </div>
+        <div>
+            <label>@(simMode == SimulateMode.Kills ? "击杀数" : "小时数")</label>
+            <input type="number" min="1" step="1" class="form-control" style="width:140px" @bind="simValue" />
+        </div>
+        <div>
+            <label>样本时长(s)</label>
+            <input type="number" min="1" step="1" class="form-control" style="width:140px" @bind="simSampleSeconds" />
+        </div>
+        <div>
+            <label>敌人数</label>
+            <input type="number" min="1" step="1" class="form-control" style="width:120px" @bind="simEnemyCount" />
+        </div>
+        <div>
+            <label>敌人</label>
+            <select class="form-control" style="width:240px" @bind="selectedEnemyId">
+                @if (enemies?.Count > 0)
+                {
+                    @foreach (var e in enemies)
+                    {
+                        <option value="@e.Id">@e.Name (@e.Id)</option>
+                    }
+                }
+                else
+                {
+                    <option value="dummy">Training Dummy (dummy)</option>
+                    <option value="tank">Armored Golem (tank)</option>
+                    <option value="magebane">Magebane Warden (magebane)</option>
+                    <option value="paper">Paper Slime (paper)</option>
+                }
+            </select>
+        </div>
+        <div>
+            <label>Seed(可选)</label>
+            <input class="form-control" style="width:200px" @bind="simSeedInput" />
+        </div>
+        <div style="display:flex;gap:8px;">
+            <button class="btn btn-primary" @onclick="RunSimAsync" disabled="@isBusy">开始模拟</button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(simError))
+    {
+        <div class="alert alert-danger" style="margin-top:8px">@simError</div>
+    }
+
+    @if (simResult is not null)
+    {
+        <div class="card" style="padding: 12px; margin-top: 12px;">
+            <h5>结果摘要</h5>
+            <div class="row">
+                <div class="col-md-3"><b>总时长(s):</b> @simResult.TotalSimulatedSeconds.ToString("0.00")</div>
+                <div class="col-md-3"><b>总伤害:</b> @simResult.TotalDamage</div>
+                <div class="col-md-3"><b>平均 DPS:</b> @simResult.AvgDps.ToString("0.00")</div>
+                <div class="col-md-3"><b>样本数:</b> @simResult.Runs</div>
+            </div>
+            <div class="row">
+                <div class="col-md-3"><b>总击杀:</b> @simResult.TotalKills</div>
+                <div class="col-md-3"><b>每小时击杀:</b> @simResult.KillsPerHour.ToString("0.00")</div>
+                <div class="col-md-3"><b>TTK 平均:</b> @(simResult.AvgTtk?.ToString("0.00") ?? "-")</div>
+                <div class="col-md-3">
+                    <b>TTK P50/P90/P95/P99:</b>
+                    @(simResult.TtkP50?.ToString("0.00") ?? "-") /
+                    @(simResult.TtkP90?.ToString("0.00") ?? "-") /
+                    @(simResult.TtkP95?.ToString("0.00") ?? "-") /
+                    @(simResult.TtkP99?.ToString("0.00") ?? "-")
+                </div>
+            </div>
+        </div>
+    }
+</div>
 @code {
     // ====== 创建/同步战斗 ======
     protected override async Task OnInitializedAsync()
@@ -595,4 +679,47 @@
     async Task OpenSummary(Guid id) { var url = $"/api/battles/{id}/summary"; await JS.InvokeVoidAsync("open", url, "_blank"); }
 
     public void Dispose() { StopPolling(); StopStepPolling(); StopDebugAutoPolling(); }
+
+    // 批量模拟器
+    SimulateMode simMode = SimulateMode.Kills;
+    double simValue = 10;
+    double simSampleSeconds = 20;
+    int simEnemyCount = 1;
+    string? simSeedInput;
+    SimulateResponse? simResult;
+    string? simError;
+
+    async Task RunSimAsync()
+    {
+        simError = null;
+        simResult = null;
+        if (lastCreated is null) { simError = "请先创建角色"; return; }
+        if (simValue <= 0) { simError = "值必须大于 0"; return; }
+        try
+        {
+            isBusy = true;
+            ulong? seed = null;
+            if (ulong.TryParse(simSeedInput, out var sv)) seed = sv;
+            var req = new SimulateRequest
+            {
+                CharacterId = lastCreated.Id,
+                EnemyId = selectedEnemyId,
+                EnemyCount = simEnemyCount,
+                Mode = simMode,
+                Value = simValue,
+                SampleSeconds = simSampleSeconds,
+                Seed = seed
+            };
+            simResult = await Api.SimulateAsync(req);
+        }
+        catch (Exception ex)
+        {
+            simError = $"模拟失败: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+            StateHasChanged();
+        }
+    }
 }

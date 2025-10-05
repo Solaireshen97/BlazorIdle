@@ -5,6 +5,7 @@ using BlazorIdle.Server.Infrastructure.Persistence;
 using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Infrastructure.Persistence.Repositories;
 using BlazorIdle.Server.Application.Battles.Step;
+using BlazorIdle.Server.Application.Battles.Simulation;
 
 namespace BlazorIdle.Server.Infrastructure;
 
@@ -17,10 +18,14 @@ public static class DependencyInjection
 
         services.AddRepositories();
 
+        // Step 异步战斗后台
         services.AddSingleton<StepBattleCoordinator>();
         services.AddSingleton<StepBattleFinalizer>();
-        services.AddSingleton<StepBattleSnapshotService>();   // 注册快照服务
+        services.AddSingleton<StepBattleSnapshotService>();
         services.AddHostedService<StepBattleHostedService>();
+
+        // 批量模拟
+        services.AddTransient<BatchSimulator>();
 
         return services;
     }
