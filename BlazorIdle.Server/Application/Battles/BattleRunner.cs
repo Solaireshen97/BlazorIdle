@@ -9,7 +9,10 @@ using BlazorIdle.Shared.Models;
 namespace BlazorIdle.Server.Application.Battles;
 
 /// <summary>
-/// 同步版战斗驱动：基于通用 BattleEngine 一次性推进到目标时长并返回段聚合。
+/// 同步版战斗驱动：基于 BattleEngine 推进到目标时长并返回段聚合。
+/// 支持：
+/// - 传统单波（不刷新）
+/// - 持续/地城（通过 IEncounterProvider 实现刷新、波次、循环）
 /// </summary>
 public class BattleRunner
 {
@@ -22,34 +25,40 @@ public class BattleRunner
         out double? killTime,
         out int overkill,
         IProfessionModule? module = null,
-        Encounter? encounter = null,                  // 保留签名兼容（内部改为 group）
-        EncounterGroup? encounterGroup = null,        // 保留签名兼容
-        CharacterStats? stats = null)
+        Encounter? encounter = null,                  // 兼容旧签名
+        EncounterGroup? encounterGroup = null,        // 兼容旧签名
+        CharacterStats? stats = null,
+        IEncounterProvider? provider = null)          // 新增：持续/地城
     {
-        // 组装引擎（EncounterGroup 由 Engine 内部创建，这里传入敌人定义与数量）
-        var enemyDef = (encounterGroup?.All?.FirstOrDefault()?.Enemy)
-                       ?? (encounter is not null ? encounter.Enemy : EnemyRegistry.Resolve("dummy"));
-        var enemyCount = encounterGroup?.All?.Count ?? (encounter is null ? 1 : 1);
+        var engine =
+            provider is not null
+            ? new BattleEngine(
+                battleId: battle.Id,
+                characterId: battle.CharacterId,
+                profession: profession,
+                stats: stats ?? new CharacterStats(),
+                rng: rng,
+                provider: provider,
+                module: module)
+            : new BattleEngine(
+                battleId: battle.Id,
+                characterId: battle.CharacterId,
+                profession: profession,
+                stats: stats ?? new CharacterStats(),
+                rng: rng,
+                enemyDef: (encounterGroup?.All?.FirstOrDefault()?.Enemy)
+                          ?? (encounter is not null ? encounter.Enemy : EnemyRegistry.Resolve("dummy")),
+                enemyCount: encounterGroup?.All?.Count ?? (encounter is null ? 1 : 1),
+                module: module);
 
-        var engine = new BattleEngine(
-            battleId: battle.Id,
-            characterId: battle.CharacterId,
-            profession: profession,
-            stats: stats ?? new CharacterStats(),
-            rng: rng,
-            enemyDef: enemyDef,
-            enemyCount: enemyCount,
-            module: module
-        );
-
-        // 一次性推进
+        // 推进到目标时长（持续/地城将按 provider 内的 delay/波次自动刷新）
         engine.AdvanceUntil(durationSeconds);
 
         killed = engine.Killed;
         killTime = engine.KillTime;
         overkill = engine.Overkill;
 
-        // 将结束时间/间隔回写（保持原行为）
+        // 结束时间/间隔回写（保持原行为）
         battle.Finish(engine.Battle.EndedAt ?? engine.Clock.CurrentTime);
         return engine.Segments;
     }
