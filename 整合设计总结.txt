@@ -1,0 +1,546 @@
+# BlazorWebGame 统一整合设计总结 (Comprehensive Integrated Design Spec)
+版本：2025-09（整合至 V3.1 决策 + 模型评审 + 后续演进规划）  
+作者：协同（你 + 设计辅助）  
+状态：Living Document（后续可拆分为 README、/docs 子文档、Issue 任务）
+
+---
+
+## 目录
+1. 愿景与核心定位  
+2. 玩家核心循环 (Core Loops)  
+3. 架构与工程原则  
+4. 领域模块总览与职责矩阵  
+5. 战斗系统 (双轨 + 资源 + 事件调度)  
+6. 技能与自动施放系统  
+7. 职业与资源差异化机制  
+8. 活动计划系统（多槽 / 限制 / 序列）  
+9. 离线收益 & 快进模拟 (Offline Fast-Forward)  
+10. 组队 / 副本 / 持续挂机策略  
+11. 地图 / 区域 / 解锁链 / NPC / 任务挂钩  
+12. 条件 / 解锁 DSL 与缓存体系  
+13. 装备与物品生态（品级 / 词条 / 套装 / 分解 / 重铸）  
+14. 消耗品与自动使用策略  
+15. 任务与声望 / 日常周常刷新  
+16. 经济循环与通胀控制  
+17. 多角色 Roster 系统  
+18. 持久化与事件溯源 / 快照策略  
+19. 配置版本化与热更新 (Config Version Pin)  
+20. 监控 / 诊断 / 调试面板 (Metrics & Debug)  
+21. 安全与反滥用策略  
+22. 随机性与控制（RNG 策略）  
+23. 数据驱动与可扩展性规范  
+24. 与当前已有代码的差异映射  
+25. 重构 / 演进路线图（Phase Plan）  
+26. 新增关键抽象类与结构清单  
+27. 决策日志 (Decision Log)  
+28. 后续拓展占位（赛季 / 公会 / 交易 / 高级事件）  
+29. 术语表 (Glossary)
+
+---
+
+## 1. 愿景与核心定位
+构建一款“服务端权威 + 放置循环 + 构筑深度”的 Web RPG。  
+特征：  
+- 基于时间驱动（Event Time Jump）统一推进所有循环（战斗、采集、生产、资源层叠）  
+- 双轨战斗节奏（Attack Track + Special Track）+ 双资源 / 叠层 Buff，塑造职业差异与构筑选择  
+- 支持离线收益，在线/离线一致性（同一调度算法）  
+- Map / Region 解锁 → 进程感 + 内容引导  
+- 数据驱动（技能 / 掉落 / 条件 / 配方 / 装备词条）降低新增内容成本  
+- 先单人多角色体验 → 渐进式扩展社交（队伍 → 副本 → 未来公会）
+
+---
+
+## 2. 玩家核心循环 (Core Loops)
+| 层级 | 时间尺度 | 描述 |
+|------|----------|------|
+| 短循环 | 秒 ~ 分钟 | 战斗事件→资源生成→技能释放→掉落→活动切换 |
+| 中循环 | 0.5~5小时 | 活动计划序列、职业经验积累、装备获取/重铸、离线回收 |
+| 长循环 | 天 / 周 | 声望推进、周常任务、职业转职、装备优化、地图解锁 |
+| 赛季循环 (未来) | 月+ | 赛季重置 / 限时事件 / 排行榜 |
+
+---
+
+## 3. 架构与工程原则
+- Server Authoritative：战斗判定 / 掉落 / 离线补算均在服务端  
+- Deterministic 时间推进：使用优先队列（min-heap）按“下一事件时间”跳跃  
+- Data-Driven：配置（JSON / 数据表）+ 版本号管理  
+- 事件导向 (Domain Events)：低耦合传播（SkillCast / ResourceOverflow / PlanCompleted / SegmentFlushed）  
+- 可测试：可注入 GameClock 与 RNGContext，实现回放 / 离线验证  
+- 稳健扩展：模块边界明确（Combat / Activity / Economy / Unlock）  
+- 监控优先：经济产出、资源溢出、Segment 频率、离线耗时指标  
+- 安全防滥用：节流、随机控制、离线上限、RNG 种子序列  
+- 小步演进：Phase 骨架先行→逐层增强
+
+---
+
+## 4. 领域模块总览与职责矩阵
+| 模块 | 职责焦点 | 核心实体/运行态 |
+|------|----------|----------------|
+| Activity | 活动计划/多槽调度 | ActivityPlan, ActivitySlot, LimitSpec |
+| Combat | 战斗实例/事件/双轨/聚合 | BattleInstance, TrackState, CombatantState, Segment |
+| Skills | 技能定义/资源消耗/优先释放 | SkillDef, SkillSlot, CooldownState |
+| Resources & Buff | 资源桶/叠层 Buff | ResourceBucket, BuffInstance |
+| Professions | 职业经验/参数修饰 | ProfessionProfile, ProfessionRuntime |
+| Equipment & Gear | 装备实例/词条/品级/套装 | GearDefinition, GearInstance, Affix, SetBonus |
+| Economy | 产出/消耗/分解/重铸 | EconomyEvent, DisenchantService |
+| Quests & Reputation | 任务生命周期/声望门槛 | Quest, QuestObjective, ReputationRecord |
+| Unlock / Condition | 通用条件表达式引擎 | ConditionExpr, ConditionCache |
+| Offline Engine | 离线快进/Segment生成 | OfflineFastForwardEngine |
+| Party & Dungeon | 组队 / 副本波次 / 持续挂机 | DungeonRun, DungeonSegment |
+| Map / Region | 区域怪池/解锁链/上下文 | MapRegion, RegionGraph |
+| Consumables | 食物/药剂自动使用 | ConsumableLoadout, ConsumableBuff |
+| Multi-Character | Roster 槽位 / 切换 | Roster, RosterSlot |
+| Persistence | 事件 + 快照 | EventLog, CharacterSnapshot |
+| Config & Version | 静态数据 & 热更 | ConfigBundle, VersionPin |
+| Monitoring | 指标/日志/调试 | MetricsCollector, DebugSnapshotBuilder |
+| Security | 风险控制 | RateLimitState, SessionAuth |
+| RNG | 有界随机/种子 | RNGContext, SeedSequence |
+
+---
+
+## 5. 战斗系统 (双轨 + 事件调度 + 聚合)
+### 5.1 核心概念
+- BattleInstance：运行态根对象  
+- TrackState：  
+  - AttackTrack（受攻速/急速影响）  
+  - SpecialTrack（职业特性节奏，默认不受常规急速）  
+- EventScheduler：优先队列（按 nextTriggerTime）  
+- 可触发事件类型：AttackTick / SpecialPulse / SkillReady / BuffExpire / PlanTransition / SegmentFlush
+
+### 5.2 战斗循环（伪流程）
+1. 从优先队列取最近事件 t  
+2. GameClock.AdvanceTo(t)  
+3. 执行事件 → 更新资源/伤害/Buff/冷却  
+4. 可施放技能：按槽位顺序检查 → 满足资源+冷却则执行 → 生成 SkillCastEvent  
+5. 记录原子事件进 Segment 缓冲  
+6. 若 Segment 达到阈值（事件数≥N 或时间≥M）→ 产出 CombatSegmentEvent → 清空缓冲
+
+### 5.3 CombatSegment
+- 作用：减少存储/离线合并成本  
+- 字段：startTime, endTime, eventCount, dmgBySource, resourceGain, buffsApplied, rngSeedRange  
+- 用于离线登录时“快速合并”无需逐事件重放
+
+### 5.4 RNG 管理
+- BattleInstance 初始化 Seed（由 playerId + 时间 + 增量序列）  
+- 每次事件消耗 RNGContext.Next() → 可回放 / 反作弊
+
+---
+
+## 6. 技能与自动施放系统
+| 要素 | 说明 |
+|------|------|
+| SkillDef | 静态定义：id, trackAffinity(attack/special/none), baseCooldown, costs[], tags |
+| SkillSlot | 4 个槽位（1→4 顺序优先级） |
+| AutoCastPolicy | 初始=Slot 顺序；未来扩展：Rotation / 条件表达式 |
+| CooldownState | readyAt（GameClock time） |
+| Cost 模型 | 支持资源桶 / Buff 层数 / 复合 |
+| 技能等级（后期） | SkillLevelData：level→伤害系数/冷却缩减 |
+
+自动施放流程：事件循环结束后→遍历 SkillSlot → 第一个满足 Ready + Cost OK 的技能施放，写事件。
+
+---
+
+## 7. 职业与资源差异化机制
+| 元素 | 描述 |
+|------|------|
+| 基础资源桶 | AttackTrack 触发生成（如 怒气 / 冰碎片） |
+| 特殊资源/层数 | SpecialTrack Pulse 生成（战斗专注层 / 冰冷血脉层） |
+| OverflowPolicy | Clamp / Convert(→ 另一资源或临时 Buff) |
+| ProfessionRuntime | {attackHasteMod, specialInterval, resourceMax, overflowRules} |
+
+示例：
+- 战士：Attack → +1 怒气；Special 每 5s → +1 专注层；3 层触发“蓄势”Buff (下次技能伤害×1.5)  
+- 法师：Attack → +1 寒冰碎片；Special 每 3s → +1 冰冷血脉层（攻速+2%，10 层上限）
+
+---
+
+## 8. 活动计划系统
+| 要素 | 描述 |
+|------|------|
+| ActivitySlot (3~5) | 每个角色拥有固定槽位 |
+| ActivityPlan | {type: Combat/Gather/Craft..., limit: Count/Duration/Infinite, state, payload} |
+| 状态机 | Pending → Running → Completed/Cancelled |
+| 限制类型 | CountLimit / DurationLimit / Infinite |
+| 优先级 | 队列顺序；支持重排未执行项 |
+| 互斥 | 通过标签 ActivityClass + exclusionTags（避免多个战斗类并发） |
+
+自动衔接：当前 plan 达到限制 → 查找下一个 Pending → 启动，否则角色 Idle。
+
+---
+
+## 9. 离线收益 & 快进模拟
+| 步骤 | 描述 |
+|------|------|
+| 1 | 计算 offlineDuration = min(realOffline, cap=12h 可调) |
+| 2 | 初始化 OfflineFastForwardEngine（注入最后快照 + 计划状态） |
+| 3 | 使用与在线一致的事件调度（跳跃时间） |
+| 4 | 生成 CombatSegmentEvent / ActivityCompleteEvent / ResourceGain |
+| 5 | 输出：状态差异 + 奖励包 + 聚合经济统计 |
+| 分段防卡顿 | >1h 副本/战斗：后台定时写 Segment，登录时快速合并 |
+
+---
+
+## 10. 组队 / 副本 / 持续挂机策略
+| 规则 | 说明 |
+|------|------|
+| 副本全员离线 | 不暂停，持续模拟（地城“持续模式”） |
+| 终止条件 | 队长主动结束 / 成员离队触发低于最小需求 / 超过 MaxContinuousDuration |
+| 产出递减 (可选) | 持续时长过长 → 掉落系数递减 (diminishingFactor) |
+| 分段 | DungeonSegment 每 N 事件 或 M 秒 |
+| 队伍成员上线 | 获取未合并 Segment 汇总 |
+| 战斗中变更 | 不允许换技能/装备；需停止活动 |
+
+---
+
+## 11. 地图 / 区域 / 解锁链
+| 元素 | 描述 |
+|------|------|
+| MapRegion | {id, levelRange, monsterPool[], gatheringNodes[], dungeons[], npcSet[], unlockConditionExpr} |
+| RegionGraph | 定义邻接与解锁路径 |
+| 区域挂机 | 从 monsterPool 权重随机 → 戴入 Battle 生成波次/单战 |
+| 特殊区（未来） | 临时事件 / 稀有怪 / 产出加成 |
+| NPC / 任务 | 主线引导下个 Region 解锁条件（任务/副本/声望） |
+
+---
+
+## 12. 条件 / 解锁 DSL 与缓存
+| 组件 | 功能 |
+|------|------|
+| ConditionExpr | 原始字符串 → AST → 依赖列表 |
+| 依赖键 | 如 player.level, reputation.factionX, quest.completed.Q123 |
+| Cache 层 | ParseCache（AST）/ ResultCache（表达式结果）/ DependencyIndex（反向索引） |
+| 失效 | 基础数据变更广播 → 失效相关表达式结果 |
+| 示例 DSL | `AND(level>=20, reputation.factionA>=300, quest.completed("WeeklyMine"))` |
+
+用途：地图 / 副本 / 职业转职 / 商店货品 / 角色槽位 / 高级配方。
+
+---
+
+## 13. 装备与物品生态
+| 设计点 | 内容 |
+|--------|------|
+| GearDefinition | 基础属性范围 / 允许词条池 / slot / 稀有度权重 |
+| GearInstance | defId + tier(T1/T2/T3) + affixes[] + setId + qualityScore |
+| Tier 系数 | T1=0.8 / T2=1.0 / T3=1.2（可配置） |
+| Affix | id, type (Flat/Percent/Proc), rollRange, rarityWeight |
+| 套装 | setId + pieceBonuses + activeCount |
+| 分解 (Disenchant) | 输入：装备 → 材料（按 tier/rarity） |
+| 品级重铸 (ReforgeTier) | 消耗：材料+金币 → +Tier |
+| 词条重置 (Reroll) | 重生成 affixes；成本递增 / 保底机制 |
+| 词条重铸 (Refine Future) | 精炼指定 affix 小幅提升 |
+| 装备技能/特效 | 特殊标签：在事件钩子 (OnHit/OnCast) 注册 |
+
+数值管线 (防膨胀)：  
+`final = clamp(((base + ΣAdditive) * Π(1+Mult)) + ΣFinalAdd)`  
+限制：Mult 源数控制；攻速下限；暴击上限。
+
+---
+
+## 14. 消耗品与自动使用策略
+| 元素 | 描述 |
+|------|------|
+| ConsumableLoadout | 通用 2 槽 + 战斗治疗 2 槽 |
+| UsePolicy | onStart / onBuffExpire / onHPBelow% |
+| Buff | 计时 Buff 与即时恢复区分 |
+| 冷却管理 | ConsumableCooldownManager（同技能） |
+| 活动绑定 | ActivityPlan 可指向 Loadout 配置 |
+
+---
+
+## 15. 任务与声望
+| 内容 | 说明 |
+|------|------|
+| 任务类型 | Main / Side / Daily / Weekly / Dungeon / Event / Achievement |
+| 状态机 | Available → Active → ReadyToComplete → Completed |
+| 重置 | 日常/周常：登录或定时服务重置 |
+| 声望 | 多派系；积分→等级（Neutral → Exalted） |
+| 声望用途 | 解锁商店 / 配方 / 副本 / 地图 / 角色槽位 |
+| 数据驱动 | QuestDef / FactionDef |
+
+---
+
+## 16. 经济循环与通胀控制
+| 产出渠道 | 战斗 / 副本 / 采集 / 制作 / 任务 / 分解掉落 |
+| 消耗槽位 | 技能升级 / 重铸 / 词条重置 / 购买消耗品 / 角色槽位解锁 / 特殊配方 |
+| 材料分层 | 每 10 级一档 Tier 材料；满级 LegendaryCore |
+| 控制手段 | 递增成本函数 / 分解返利≤部分投入 / 产出监控 (in/out ratio) / 附加税（可选） |
+| 监控指标 | gold_net, material_flow_tierX, reroll_attempts, disenchant_freq |
+
+---
+
+## 17. 多角色 Roster 系统
+| 设计 | 说明 |
+|------|------|
+| Slots | 最多 5，Slot1 默认开放，其余通过条件/金币解锁 |
+| 角色切换 | 不影响其他角色活动推进（后台继续） |
+| 统一限额 | 账号级日常/声望增量全角色共享上限（反多号刷） |
+| 数据结构 | Roster{slots[], unlockedCount} / RosterSlot{state, unlockConditionExpr} |
+
+---
+
+## 18. 持久化与事件溯源 / 快照策略
+| 类别 | 策略 |
+|------|------|
+| 高频战斗 | 聚合 SegmentEvent |
+| 经济事件 | 原子记录（装备重铸、分解、购买） |
+| 活动计划 | Start / Complete / Cancel |
+| 离线应用 | OfflineFastForwardAppliedEvent |
+| 快照 | 每 N 分钟或事件计数阈值保存 CharacterSnapshot |
+| 重放流程 | Load 最新快照 → Apply 后续事件 → 得运行态 |
+| 存储结构 | EventStream (append-only) + SnapshotStore |
+
+---
+
+## 19. 配置版本化与热更新
+| 要素 | 描述 |
+|------|------|
+| ConfigBundle | {version, hash, modules{skills.json, items.json,...}} |
+| VersionPin | Battle / OfflineSim 中持有固定版本 |
+| 热更流程 | 上传→校验→加载→广播→新实例使用新版本 |
+| 迁移 | Migration脚本：字段重命名/值范围修正 |
+| 回滚 | 保留最近 N 版本，支持指针切换 |
+| Diff 报告 | 发现数值波动 > 阈值→警报 |
+
+---
+
+## 20. 监控 / 诊断 / 调试面板
+| 项目 | 指标 |
+|------|------|
+| 战斗 | segment_events_per_min, avg_events_per_segment, flush_due_time_ratio |
+| 资源 | resource_overflow_rate(resourceId), bucket_fill_ratio |
+| 离线 | offline_fast_forward_duration_ms, offline_segment_generated |
+| 经济 | gold_in_out_ratio, reroll_cost_avg, disenchant_yield |
+| 技能自动施放 | autocast_skip_cycles（资源不足） |
+| 副本 | dungeon_continuous_runtime_dist, diminishing_applied_count |
+| 条件引擎 | condition_cache_hit, invalidations_per_min |
+| 调试面板 | Tracks nextTriggerTime / ResourceBuckets / SkillCD / ActivePlans / RecentSegments |
+
+---
+
+## 21. 安全与反滥用策略
+| 风险 | 应对 |
+|------|------|
+| 时间篡改 | Server Clock 权威；客户端不传递可信时间 |
+| 请求洪泛 | Rate Limit（活动/装备/技能变更单独限频） |
+| 离线刷 | 离线上限 + 分段结算 + 行为异常监控 |
+| RNG 操控 | RNGContext Seed + 记录 seedRange |
+| 重放攻击 | 指令含 sessionId + lastSnapshotVersion |
+| 数据回滚 | 事件溯源可审计 |
+
+---
+
+## 22. 随机性与控制（RNG 策略）
+| 元素 | 范围 / 策略 |
+|------|-----------|
+| 伤害浮动 | ±5% |
+| HP 差异 | 怪物 HP ±3%（区域内轻微） |
+| 暴击 | 固定概率 + 可实现伪随机补偿（避免长时间不触发） |
+| 掉落 | 权重 + 独立低概率保底（Reroll 次数提高 rare chance 可选） |
+| 记录 | seedIndex per BattleSegment |
+
+---
+
+## 23. 数据驱动与可扩展性规范
+| 资源 | 载体 | 版本控制 |
+|------|------|---------|
+| SkillDefs | JSON/DB | configVersion |
+| GearDefinitions | JSON/DB | configVersion |
+| MapRegionDefs | JSON/DB | configVersion |
+| ConditionExpr | 文本 DSL | 解析缓存 |
+| DropTables | JSON | 可热更 |
+| ProfessionDefs | JSON | configVersion |
+| 经验/经济曲线 | JSON | configVersion |
+
+命名规范：  
+- ID：全小写 + 下划线或中横线 (`warrior_basic_strike`)  
+- 配置引用一致 id → 反向索引校验  
+- 校验工具：启动时统计未解析引用（orphan / unresolved）
+
+---
+
+## 24. 现有代码差异映射（关键缺失）
+| 目标设计项 | 当前实现 | 状态 |
+|-----------|----------|------|
+| EventScheduler | 无 | 缺失 |
+| 双轨 TrackState | AttacksPerSecond 单一 | 缺失 |
+| ResourceBucket / Overflow | Mana/Health only | 缺失 |
+| Buff 实例 | 仅 SkillEffect 定义 | 缺失 |
+| 技能槽优先级 | List<string> | 部分需重构 |
+| 活动计划多槽 | CharacterActions 单动作 | 缺失 |
+| Offline 快进 | 离线记录占位 | 缺失逻辑 |
+| CombatSegment | 仅全量 ActionHistory | 缺失 |
+| 条件 DSL | 无 | 缺失 |
+| MapRegion | 无 | 缺失 |
+| Gear Tier/Affix | 固定 EquipmentStats | 缺失 |
+| 分解 / 重铸 | 无 | 缺失 |
+| 经济监控 | 无 | 缺失 |
+| 调试面板 | 无 | 缺失 |
+| Config VersionPin | 无 | 缺失 |
+| 多角色 Roster 体系 | 账号角色列表 | 缺失逻辑 |
+| RNG 可回放 | 随机 scattered | 缺失 |
+| Domain / Persistence 分层 | 混用实体/领域 | 需整理 |
+
+---
+
+## 25. 重构 / 演进路线图（Phase）
+| Phase | 目标 | 交付 |
+|-------|------|------|
+| P1 | 事件调度 + 普通战斗骨架 | GameClock, EventScheduler, AttackTrack |
+| P2 | 双轨 + ResourceBucket + 自动技能槽 | TrackState, ResourceBucket, AutoCastEngine |
+| P3 | 活动计划统一（采集/制作/战斗） | ActivitySlot+Plan 替换旧结构 |
+| P4 | CombatSegment + 离线快进最小版 | SegmentAggregator, OfflineEngine |
+| P5 | 条件引擎 + 地图/区域基础 | ConditionExpr, MapRegion |
+| P6 | 装备扩展 (Tier/Affix/分解/重铸) | GearDefinition/Instance/Affix 服务 |
+| P7 | Buff/Effect 运行态 + 资源溢出 Convert | ActiveBuffInstance, OverflowPolicy |
+| P8 | 经济监控 & 指标埋点 | MetricsCollector, EconomyEvents |
+| P9 | Debug 面板 API | DebugSnapshotBuilder |
+| P10 | Config 版本化/热更 & VersionPin | ConfigBundle |
+| P11 | 职业增强 / 特殊区域事件 | ProfessionRuntime, RegionEvents |
+| P12 | 高级玩法（赛季 / 排行 / 未来社交） | 赛季模块草案 |
+
+---
+
+## 26. 新增关键抽象类与结构清单 (建议)
+```
+GameClock
+EventScheduler
+IGameEvent (子类：AttackTickEvent, SpecialPulseEvent, SkillCastEvent, BuffExpireEvent, PlanCompleteEvent, SegmentFlushEvent)
+BattleInstance
+TrackState {trackType, baseInterval, hasteFactor, nextTriggerAt}
+ResourceBucket {id, current, max, overflowPolicy, convertTarget?, ratio?}
+OverflowPolicy (Enum)
+BuffInstance {id, sourceId, stacks, maxStacks, expireAt, effects[]}
+SkillSlot {slotIndex, skillId}
+CooldownState {skillId, readyAt}
+ActivityPlan {id, type, limitSpec, payload, state}
+ActivitySlot {index, currentPlanId, queue[]}
+LimitSpec {type, targetValue, remaining}
+CombatSegment {startTime, endTime, events, aggregates..., rngSeedRange}
+OfflineFastForwardEngine
+ConditionExpr {id, raw, ast, deps[]}
+ConditionCache
+MapRegion {id, monsterPool[], gatherNodes[], unlockConditionExpr}
+RNGContext {seed, Advance()}
+GearDefinition, GearInstance, Affix, SetBonus
+ReforgeService / RerollService / DisenchantService
+MetricsCollector + DomainEventBus
+DebugSnapshotBuilder
+Roster / RosterSlot
+DungeonRun / DungeonSegment
+ConfigBundle / VersionPin
+```
+
+---
+
+## 27. 决策日志 (Decision Log)
+| 序号 | 决策 | 描述 |
+|------|------|------|
+| D01 | 战斗调度 | 使用事件时间跳跃（PriorityQueue） |
+| D02 | 副本离线策略 | 全离线持续模拟直到终止条件（队长结束/成员变动） |
+| D03 | 战斗双轨 | Attack + Special；Special 不受常规急速 |
+| D04 | 双资源模型 | 基础资源 + 特殊层数，支持职业差异 |
+| D05 | 资源溢出 | 支持 Clamp / Convert 两模式（per-resource） |
+| D06 | 技能自动释放 | 槽位顺序 1→4，首个满足条件施放 |
+| D07 | 活动计划 | 多槽 / 限制类型（Count/Duration/Infinite）/ 顺序执行 |
+| D08 | CombatSegment | 按事件数阈值或时间 flush（eg. 200 events or 5s） |
+| D09 | 地图 & 解锁 | MapRegion + 条件解锁 + 区域挂机 |
+| D10 | 装备强化 | 品级 + 词条 + 分解 + 重铸 + 词条重置 |
+| D11 | 经济初批消耗 | 技能升级 / 分解 / 品级重铸 / 词条重置 |
+| D12 | 离线上限 | 最大 12 小时（配置化） |
+| D13 | 职业切换 | 战斗内禁止；离线不自动切换职业 |
+| D14 | 多角色 | 最多 5，逐步解锁槽位 |
+| D15 | 无耐久系统 | 放置体验避免额外维护负担 |
+| D16 | 随机性 | 小幅波动（伤害 ±5% / HP ±3%）保持挂机稳定感 |
+| D17 | 数值叠加规则 | Additive → Multiplicative → FinalAdd → Clamp |
+| D18 | 配置热更 | 战斗内版本钉死，活动边界切换 |
+| D19 | 监控优先 | 提前规划 metrics & debug 面板 |
+| D20 | 安全限频 | 关键操作（活动/技能/装备变更）单独限频 |
+| D21 | RNG 记录 | seed + seedRange per Segment |
+| D22 | 分段离线副本 | 每小时后台 segment 生成防登录卡顿 |
+
+---
+
+## 28. 后续拓展占位
+| 模块 | 设想 |
+|------|------|
+| 赛季机制 | 赛季特定地图 / Buff / 天赋树更迭 / Reset 规则 |
+| 公会 | 公会任务 / 公会副本 / 公会科技 |
+| 玩家交易 | 拍卖行 / 点对点交易（需反刷金治理） |
+| 高级事件 | 世界 Boss / 区域周期生态变化 / 稀有入侵 |
+| 构筑深化 | 天赋树 / 符文系统 / 装备精炼追加词条 |
+| PvP | 非对称挂机对战 / 擂台排名 |
+| 数据输出 | 战斗回放摘要分享（Segment 汇总可视化） |
+
+---
+
+## 29. 术语表 (Glossary)
+| 术语 | 定义 |
+|------|------|
+| Track | 战斗节奏轨道（Attack / Special） |
+| Bucket | 资源桶（如 怒气 / 碎片） |
+| Pulse | SpecialTrack 周期触发事件 |
+| Segment | 战斗事件聚合包 |
+| Plan | 活动计划单元 |
+| Slot | 活动槽位 / 技能槽位上下文 |
+| OverflowConvert | 资源溢出转化策略 |
+| VersionPin | 实例固定配置版本的机制 |
+| ConditionExpr | 通用解锁条件表达式 |
+| FastForward | 离线时间快进模拟 |
+| Affix | 装备随机词条 |
+| Reforge | 装备品级/词条重铸操作 |
+| Roster | 多角色管理结构 |
+| DungeonRun | 副本实例运行态 |
+| Diminishing | 掉落递减机制 |
+| AutoCast | 技能槽位自动施放策略 |
+| RNGContext | 战斗随机序列控制上下文 |
+
+---
+
+## 附录 A：示例最小事件调度伪代码
+```
+loop:
+  event = scheduler.PopNext()
+  clock.AdvanceTo(event.time)
+  event.Execute(context)
+  context.TryAutoCastSkills()
+  segmentAggregator.Add(event)
+  if segmentAggregator.ShouldFlush():
+      EmitSegment()
+```
+
+## 附录 B：资源溢出示例
+```
+怒气(bucket_rage):
+  max=100, overflow=Convert -> 战意(buff) ratio=20
+溢出 37:
+  current=100
+  excess=37
+  converted=floor(37/20)=1 层 战意 (持续10s)
+  剩余 17 被截断
+```
+
+## 附录 C：技能槽检查伪流程
+```
+for slot in 1..4:
+  skill = slots[slot]
+  if skill.Ready(clock) and CostsSatisfied(skill, buckets, buffs):
+      Cast(skill)
+      break
+```
+
+## 附录 D：CombatSegment 聚合字段建议
+```
+{
+  startTime, endTime,
+  eventCount,
+  damageBySource: {skillId: totalDamage},
+  resourceFlow: {rage: +35, shard: +12},
+  buffUptime: {buffId: uptimeSeconds},
+  rngSeedStart, rngSeedEnd
+}
+```
+
+---
+
+## 结束语
+本设计总结融合了：初始系统概述、V2→V3→V3.1 迭代要点、你的新增想法（地图化、双资源、持续副本、经济初版）、领域模型缺口评审与重构计划。  
