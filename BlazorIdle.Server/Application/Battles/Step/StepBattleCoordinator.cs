@@ -46,6 +46,9 @@ public sealed class StepBattleCoordinator
         return id;
     }
 
+    // 供 HostedService 遍历
+    internal IEnumerable<Guid> InternalIdsSnapshot() => _running.Keys.ToArray();
+
     public (bool found, StepBattleStatusDto status) GetStatus(Guid id)
     {
         if (!_running.TryGetValue(id, out var rb))
