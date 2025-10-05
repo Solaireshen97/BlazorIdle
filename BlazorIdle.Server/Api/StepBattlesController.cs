@@ -3,9 +3,7 @@ using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Professions;
 using BlazorIdle.Server.Domain.Combat.Rng;
-using BlazorIdle.Server.Domain.Combat.Skills;
 using Microsoft.AspNetCore.Mvc;
-using System.Linq;
 
 namespace BlazorIdle.Server.Api;
 
@@ -22,8 +20,10 @@ public class StepBattlesController : ControllerBase
         _characters = characters;
     }
 
+    // 新增支持：mode 与 dungeonId
+    // mode: duration|continuous|dungeon|dungeonLoop（默认 duration）
     [HttpPost("start")]
-    public async Task<IActionResult> Start([FromQuery] Guid characterId, [FromQuery] double seconds = 30, [FromQuery] ulong? seed = null, [FromQuery] string? enemyId = null, [FromQuery] int enemyCount = 1)
+    public async Task<IActionResult> Start([FromQuery] Guid characterId, [FromQuery] double seconds = 30, [FromQuery] ulong? seed = null, [FromQuery] string? enemyId = null, [FromQuery] int enemyCount = 1, [FromQuery] string? mode = null, [FromQuery] string? dungeonId = null)
     {
         var c = await _characters.GetAsync(characterId);
         if (c is null) return NotFound("Character not found.");
@@ -36,8 +36,24 @@ public class StepBattlesController : ControllerBase
 
         ulong finalSeed = seed ?? DeriveSeed(characterId);
 
-        var id = _coord.Start(characterId, profession, stats, seconds, finalSeed, enemyId, enemyCount);
-        return Ok(new { battleId = id, seed = finalSeed, enemyId = enemyId ?? "dummy", enemyCount });
+        StepBattleMode parsedMode = StepBattleMode.Duration;
+        if (!string.IsNullOrWhiteSpace(mode))
+        {
+            var m = mode.Trim().ToLowerInvariant();
+            parsedMode = m switch
+            {
+                "continuous" => StepBattleMode.Continuous,
+                "dungeon" => StepBattleMode.DungeonSingle,
+                "dungeonloop" => StepBattleMode.DungeonLoop,
+                _ => StepBattleMode.Duration
+            };
+        }
+
+        if ((parsedMode == StepBattleMode.DungeonSingle || parsedMode == StepBattleMode.DungeonLoop) && string.IsNullOrWhiteSpace(dungeonId))
+            return BadRequest("dungeonId is required for dungeon modes.");
+
+        var id = _coord.Start(characterId, profession, stats, seconds, finalSeed, enemyId, enemyCount, parsedMode, dungeonId);
+        return Ok(new { battleId = id, seed = finalSeed, enemyId = enemyId ?? "dummy", enemyCount, mode = parsedMode.ToString().ToLowerInvariant(), dungeonId });
     }
 
     [HttpGet("{id:guid}/status")]
@@ -64,7 +80,6 @@ public class StepBattlesController : ControllerBase
         return Ok(new { persistedBattleId = persistedId });
     }
 
-    // 实时运行态调试
     [HttpGet("{id:guid}/debug")]
     public ActionResult<StepBattleDebugDto> Debug(Guid id)
     {
@@ -80,7 +95,6 @@ public class StepBattlesController : ControllerBase
             SchedulerCount = ctx.Scheduler.Count
         };
 
-        // Tracks（使用真实 BaseInterval）
         foreach (var t in ctx.Tracks)
         {
             dto.Tracks.Add(new StepBattleDebugDto.TrackDebugDto
@@ -93,7 +107,6 @@ public class StepBattlesController : ControllerBase
             });
         }
 
-        // 资源（示例：rage / focus）
         var resourceIds = new[] { "rage", "focus" };
         foreach (var rid in resourceIds)
         {
@@ -107,7 +120,6 @@ public class StepBattlesController : ControllerBase
             }
         }
 
-        // Buffs
         foreach (var b in ctx.Buffs.Active)
         {
             dto.Buffs.Add(new StepBattleDebugDto.BuffDebugDto
@@ -124,7 +136,6 @@ public class StepBattlesController : ControllerBase
             });
         }
 
-        // AutoCast + Skills
         var ac = ctx.AutoCaster;
         var acDto = new StepBattleDebugDto.AutoCastDebugDto
         {
@@ -139,13 +150,13 @@ public class StepBattlesController : ControllerBase
         {
             var def = slot.Runtime.Definition;
             var rt = slot.Runtime;
-            var ext = def as SkillDefinitionExt;
+            var ext = def as Domain.Combat.Skills.SkillDefinitionExt;
             acDto.Skills.Add(new StepBattleDebugDto.SkillDebugDto
             {
                 Id = def.Id,
                 Name = def.Name,
                 Priority = def.Priority,
-                MaxCharges = def.MaxCharges,
+                MaxCharges = rt.Charges, // note: this is displaying current charges/max below
                 Charges = rt.Charges,
                 NextChargeReadyAt = rt.NextChargeReadyAt,
                 NextAvailableTime = rt.NextAvailableTime,
@@ -163,7 +174,6 @@ public class StepBattlesController : ControllerBase
         }
         dto.AutoCast = acDto;
 
-        // Encounter（主目标来自组内 PrimaryAlive）
         var enc = ctx.Encounter;
         var grp = ctx.EncounterGroup;
         dto.Encounter = new StepBattleDebugDto.EncounterDebugDto
@@ -179,7 +189,6 @@ public class StepBattlesController : ControllerBase
             TotalCount = grp?.All.Count ?? (enc is not null ? 1 : 0)
         };
 
-        // 新增：Collector 段信息
         dto.Collector = new StepBattleDebugDto.CollectorDebugDto
         {
             SegmentStart = ctx.SegmentCollector.SegmentStart,
@@ -192,9 +201,9 @@ public class StepBattlesController : ControllerBase
 
     private static ulong DeriveSeed(Guid characterId)
     {
-        var baseRng = BlazorIdle.Server.Domain.Combat.Rng.RngContext.FromGuid(characterId);
+        var baseRng = RngContext.FromGuid(characterId);
         baseRng.Skip(4);
         ulong salt = (ulong)DateTime.UtcNow.Ticks;
-        return BlazorIdle.Server.Domain.Combat.Rng.RngContext.Hash64(baseRng.NextUInt64() ^ salt);
+        return RngContext.Hash64(baseRng.NextUInt64() ^ salt);
     }
 }

@@ -1,19 +1,25 @@
 ﻿using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat;
 using BlazorIdle.Server.Domain.Combat.Enemies;
-using BlazorIdle.Server.Domain.Combat.Engine;
+using BlazorIdle.Server.Domain.Combat.Procs;
 using BlazorIdle.Server.Domain.Combat.Professions;
 using BlazorIdle.Server.Domain.Combat.Rng;
 using BlazorIdle.Shared.Models;
 using BlazorWebGame.Domain.Combat;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace BlazorIdle.Server.Application.Battles.Step;
 
-/// <summary>
-/// 异步 Step 战斗包装器：仅负责墙钟切片与目标时长，战斗核心由 BattleEngine 驱动。
-/// </summary>
+public enum StepBattleMode
+{
+    Duration = 0,      // 原有：按目标秒数结束
+    Continuous = 1,    // 持续：怪死就重生，同配置
+    DungeonSingle = 2, // 地城：按波完成一次后结束
+    DungeonLoop = 3    // 地城循环：完成后重置第一波继续
+}
+
 public sealed class RunningBattle
 {
     public Guid Id { get; }
@@ -23,15 +29,17 @@ public sealed class RunningBattle
     public string EnemyId { get; }
     public int EnemyCount { get; }
 
-    public BattleEngine Engine { get; }
+    public StepBattleMode Mode { get; }
+    public string? DungeonId { get; }
+    public int WaveIndex => _provider?.CurrentWaveIndex ?? 1;
+    public int RunCount => _provider?.CompletedRunCount ?? 0;
 
-    // 为保持外部兼容，继续暴露以下快捷引用
-    public Battle Battle => Engine.Battle;
-    public IGameClock Clock => Engine.Clock;
-    public IEventScheduler Scheduler => Engine.Scheduler;
-    public SegmentCollector Collector => Engine.Collector;
-    public BattleContext Context => Engine.Context;
-    public System.Collections.Generic.List<CombatSegment> Segments => Engine.Segments;
+    public Battle Battle { get; }
+    public IGameClock Clock { get; }
+    public IEventScheduler Scheduler { get; }
+    public SegmentCollector Collector { get; }
+    public BattleContext Context { get; }
+    public List<CombatSegment> Segments { get; } = new();
 
     public bool Completed { get; internal set; }
     public bool Killed { get; private set; }
@@ -40,7 +48,7 @@ public sealed class RunningBattle
 
     public ulong Seed { get; }
     public long SeedIndexStart { get; }
-    public long SeedIndexEnd => Engine.SeedIndexEnd;
+    public long SeedIndexEnd => Context.Rng.Index;
 
     public bool Persisted { get; internal set; }
     public Guid? PersistedBattleId { get; internal set; }
@@ -48,6 +56,8 @@ public sealed class RunningBattle
     public DateTime StartedWallUtc { get; }
     private DateTime _lastAdvanceWallUtc;
     public double SimSpeed { get; } = 1.0;
+
+    private readonly IEncounterProvider _provider;
 
     public RunningBattle(
         Guid id,
@@ -58,6 +68,8 @@ public sealed class RunningBattle
         EnemyDefinition enemyDef,
         int enemyCount,
         CharacterStats stats,
+        StepBattleMode mode = StepBattleMode.Duration,
+        string? dungeonId = null,
         IProfessionModule? module = null)
     {
         Id = id;
@@ -66,21 +78,55 @@ public sealed class RunningBattle
         TargetDurationSeconds = targetSeconds;
         EnemyId = enemyDef.Id;
         EnemyCount = Math.Max(1, enemyCount);
+        Mode = mode;
+        DungeonId = dungeonId;
         Seed = seed;
 
         var rng = new RngContext(seed);
         SeedIndexStart = rng.Index;
 
-        Engine = new BattleEngine(
-            battleId: id,
-            characterId: characterId,
-            profession: profession,
-            stats: stats,
-            rng: rng,
-            enemyDef: enemyDef,
-            enemyCount: EnemyCount,
-            module: module
-        );
+        // Provider & 初始敌群
+        if (mode == StepBattleMode.DungeonSingle || mode == StepBattleMode.DungeonLoop)
+        {
+            var dungeon = DungeonRegistry.Resolve(dungeonId ?? "intro_cave");
+            _provider = new DungeonEncounterProvider(dungeon, loop: mode == StepBattleMode.DungeonLoop);
+        }
+        else
+        {
+            _provider = new ContinuousEncounterProvider(enemyDef, EnemyCount);
+        }
+
+        var encounterGroup = _provider.CurrentGroup;
+
+        Battle = new Battle
+        {
+            Id = id,
+            CharacterId = characterId,
+            AttackIntervalSeconds = (module ?? ProfessionRegistry.Resolve(profession)).BaseAttackInterval,
+            SpecialIntervalSeconds = (module ?? ProfessionRegistry.Resolve(profession)).BaseSpecialInterval,
+            StartedAt = 0
+        };
+
+        Clock = new GameClock();
+        Scheduler = new EventScheduler();
+        Collector = new SegmentCollector();
+
+        var professionModule = module ?? ProfessionRegistry.Resolve(profession);
+        Context = new BattleContext(Battle, Clock, Scheduler, Collector, professionModule, profession, rng,
+            encounter: null, encounterGroup: encounterGroup, stats: stats);
+
+        professionModule.RegisterBuffDefinitions(Context);
+        professionModule.OnBattleStart(Context);
+        professionModule.BuildSkills(Context, Context.AutoCaster);
+        Scheduler.Schedule(new ProcPulseEvent(Clock.CurrentTime + 1.0, 1.0));
+
+        var attackTrack = new TrackState(TrackType.Attack, Battle.AttackIntervalSeconds, 0);
+        var specialTrack = new TrackState(TrackType.Special, Battle.SpecialIntervalSeconds, Battle.SpecialIntervalSeconds);
+        Context.Tracks.Add(attackTrack);
+        Context.Tracks.Add(specialTrack);
+
+        Scheduler.Schedule(new AttackTickEvent(attackTrack.NextTriggerAt, attackTrack));
+        Scheduler.Schedule(new SpecialPulseEvent(specialTrack.NextTriggerAt, specialTrack));
 
         StartedWallUtc = DateTime.UtcNow;
         _lastAdvanceWallUtc = StartedWallUtc;
@@ -95,42 +141,147 @@ public sealed class RunningBattle
         if (wallDelta <= 0.0005) return;
 
         var allowedDelta = Math.Min(wallDelta * SimSpeed, Math.Max(0.001, maxSimSecondsSlice));
-        var sliceEnd = Math.Min(TargetDurationSeconds, Clock.CurrentTime + allowedDelta);
+        var sliceEnd = (Mode == StepBattleMode.Duration)
+            ? Math.Min(TargetDurationSeconds, Clock.CurrentTime + allowedDelta)
+            : (Clock.CurrentTime + allowedDelta);
 
-        // 核心推进交给 Engine（含 RNG 段记录/flush/死亡判定）
-        Engine.AdvanceTo(sliceEnd, maxEvents);
+        int safety = 0;
 
-        if (Clock.CurrentTime >= TargetDurationSeconds || Engine.Completed)
+        while (Scheduler.Count > 0 && safety++ < maxEvents)
         {
-            // 封盘（Engine 会完成最终段 flush）
-            Engine.FinalizeNow();
+            Context.Buffs.Tick(Clock.CurrentTime);
+            SyncTrackHaste(Context);
 
-            Killed = Engine.Killed;
-            KillTime = Engine.KillTime;
-            Overkill = Engine.Overkill;
+            var ev = Scheduler.PopNext();
+            if (ev is null) break;
+
+            if (ev.ExecuteAt > sliceEnd)
+            {
+                Scheduler.Schedule(ev);
+
+                if (sliceEnd > Clock.CurrentTime)
+                {
+                    Clock.AdvanceTo(sliceEnd);
+                    Collector.Tick(Clock.CurrentTime);
+                    if (Collector.ShouldFlush(Clock.CurrentTime))
+                        Segments.Add(Collector.Flush(Clock.CurrentTime));
+                }
+                break;
+            }
+
+            if (Mode == StepBattleMode.Duration && ev.ExecuteAt > TargetDurationSeconds)
+            {
+                Battle.Finish(Clock.CurrentTime);
+                break;
+            }
+
+            Clock.AdvanceTo(ev.ExecuteAt);
+
+            // 段级 RNG 记录
+            Collector.OnRngIndex(Context.Rng.Index);
+            ev.Execute(Context);
+            Collector.OnRngIndex(Context.Rng.Index);
+
+            Collector.Tick(Clock.CurrentTime);
+
+            if (Collector.ShouldFlush(Clock.CurrentTime))
+                Segments.Add(Collector.Flush(Clock.CurrentTime));
+
+            // 死亡处理：根据模式切波/循环/结束
+            if (Context.Encounter?.IsDead == true)
+            {
+                Killed = true;
+                KillTime = Context.Encounter.KillTime;
+                Overkill = Context.Encounter.Overkill;
+
+                Collector.OnTag("encounter_cleared", 1);
+
+                if (Mode == StepBattleMode.Duration)
+                {
+                    Battle.Finish(Clock.CurrentTime);
+                    Completed = true;
+
+                    if (Collector.EventCount > 0)
+                        Segments.Add(Collector.Flush(Clock.CurrentTime));
+                    _lastAdvanceWallUtc = wallNow;
+                    return;
+                }
+                else
+                {
+                    // 尝试获取下一波/下一轮
+                    if (_provider.TryAdvance(out var nextGroup, out var runCompleted) && nextGroup is not null)
+                    {
+                        if (runCompleted)
+                            Collector.OnTag("dungeon_run_complete", 1);
+
+                        Context.ResetEncounterGroup(nextGroup);
+                        // 切换主目标
+                        Context.RefreshPrimaryEncounter();
+
+                        // 重置“本次击杀状态”标志，仅用于状态展示（可选）
+                        Killed = false;
+                        KillTime = null;
+                        Overkill = 0;
+
+                        // 继续 while 循环，战斗不停
+                        continue;
+                    }
+                    else
+                    {
+                        // 非循环地城：完成一次后结束
+                        Battle.Finish(Clock.CurrentTime);
+                        Completed = true;
+
+                        if (Collector.EventCount > 0)
+                            Segments.Add(Collector.Flush(Clock.CurrentTime));
+                        _lastAdvanceWallUtc = wallNow;
+                        return;
+                    }
+                }
+            }
+        }
+
+        // 仅在 Duration 模式下因时间达标结束；其他模式不因时间自然结束
+        if ((Mode == StepBattleMode.Duration && Clock.CurrentTime >= TargetDurationSeconds) || Scheduler.Count == 0)
+        {
+            if (Collector.EventCount > 0)
+                Segments.Add(Collector.Flush(Clock.CurrentTime));
+
             Completed = true;
+            Battle.Finish(Clock.CurrentTime);
         }
 
         _lastAdvanceWallUtc = wallNow;
     }
 
-    // 手动终止：不再推进模拟时间，直接封盘
     public void ForceStopAndSeal()
     {
         if (Completed) return;
-        Engine.FinalizeNow();
 
-        Killed = Engine.Killed;
-        KillTime = Engine.KillTime;
-        Overkill = Engine.Overkill;
+        if (Collector.EventCount > 0)
+            Segments.Add(Collector.Flush(Clock.CurrentTime));
+
+        // 持续/地城模式：Stop 时强制封盘
         Completed = true;
+        Battle.Finish(Clock.CurrentTime);
     }
 
-    // 恢复追帧：用大切片快速推进到目标模拟秒
+    private static void SyncTrackHaste(BattleContext context)
+    {
+        var agg = context.Buffs.Aggregate;
+        foreach (var t in context.Tracks)
+        {
+            if (t.TrackType == TrackType.Attack)
+                t.SetHaste(agg.ApplyToBaseHaste(1.0 + context.Stats.HastePercent));
+        }
+    }
+
     public void FastForwardTo(double targetSimSeconds)
     {
         if (Completed) return;
-        targetSimSeconds = Math.Max(0, Math.Min(TargetDurationSeconds, targetSimSeconds));
+        targetSimSeconds = Math.Max(0, (Mode == StepBattleMode.Duration
+            ? Math.Min(TargetDurationSeconds, targetSimSeconds)
+            : targetSimSeconds));
 
         while (Clock.CurrentTime + 1e-6 < targetSimSeconds && !Completed)
         {

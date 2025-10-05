@@ -23,7 +23,7 @@ public sealed class StepBattleCoordinator
         _finalizer = finalizer;
     }
 
-    public Guid Start(Guid characterId, Profession profession, CharacterStats stats, double seconds, ulong seed, string? enemyId, int enemyCount)
+    public Guid Start(Guid characterId, Profession profession, CharacterStats stats, double seconds, ulong seed, string? enemyId, int enemyCount, StepBattleMode mode = StepBattleMode.Duration, string? dungeonId = null)
     {
         var eid = EnemyRegistry.Resolve(enemyId).Id;
         var enemy = EnemyRegistry.Resolve(eid);
@@ -37,7 +37,9 @@ public sealed class StepBattleCoordinator
             targetSeconds: seconds,
             enemyDef: enemy,
             enemyCount: enemyCount,
-            stats: stats
+            stats: stats,
+            mode: mode,
+            dungeonId: dungeonId
         );
 
         if (!_running.TryAdd(id, rb))
@@ -46,7 +48,6 @@ public sealed class StepBattleCoordinator
         return id;
     }
 
-    // 供 HostedService 遍历
     internal IEnumerable<Guid> InternalIdsSnapshot() => _running.Keys.ToArray();
 
     public (bool found, StepBattleStatusDto status) GetStatus(Guid id)
@@ -82,7 +83,12 @@ public sealed class StepBattleCoordinator
             Killed = rb.Killed,
             KillTimeSeconds = rb.KillTime,
             OverkillDamage = rb.Overkill,
-            PersistedBattleId = rb.PersistedBattleId
+            PersistedBattleId = rb.PersistedBattleId,
+            // 新增附加信息（前端可忽略）
+            Mode = rb.Mode.ToString().ToLowerInvariant(),
+            WaveIndex = rb.WaveIndex,
+            RunCount = rb.RunCount,
+            DungeonId = rb.DungeonId
         });
     }
 
@@ -163,7 +169,6 @@ public sealed class StepBattleCoordinator
         return removed;
     }
 
-    // 手动终止并结算（并发安全）
     public async Task<(bool ok, Guid persistedId)> StopAndFinalizeAsync(Guid id, CancellationToken ct = default)
     {
         if (!_running.TryGetValue(id, out var rb))
@@ -185,7 +190,6 @@ public sealed class StepBattleCoordinator
             }
             catch
             {
-                // TODO: log
                 return (false, Guid.Empty);
             }
         }
@@ -215,6 +219,12 @@ public sealed class StepBattleStatusDto
     public double? KillTimeSeconds { get; set; }
     public int OverkillDamage { get; set; }
     public Guid? PersistedBattleId { get; set; }
+
+    // 附加：持续/地城展示（前端可忽略这些字段）
+    public string? Mode { get; set; }            // "duration"|"continuous"|"dungeonsingle"|"dungeonloop"
+    public int? WaveIndex { get; set; }
+    public int? RunCount { get; set; }
+    public string? DungeonId { get; set; }
 }
 
 public sealed class StepBattleSegmentDto

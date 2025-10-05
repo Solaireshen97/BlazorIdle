@@ -29,8 +29,8 @@ public class BattleContext
     public RngContext Rng { get; }
     public Damage.CritSettings Crit { get; } = new();
 
-    public Encounter? Encounter { get; }
-    public EncounterGroup? EncounterGroup { get; }
+    public Encounter? Encounter { get; private set; }
+    public EncounterGroup? EncounterGroup { get; private set; }
 
     public CharacterStats Stats { get; }
 
@@ -55,7 +55,7 @@ public class BattleContext
         Rng = rng;
         Stats = stats ?? new CharacterStats();
 
-        EncounterGroup = encounterGroup ?? (encounter != null ? EncounterGroup.FromSingle(encounter) : null);
+        EncounterGroup = encounterGroup ?? (encounter != null ? Enemies.EncounterGroup.FromSingle(encounter) : null);
         Encounter = EncounterGroup?.PrimaryAlive() ?? encounter;
 
         // DoT：Haste/AP/SP 快照委托 + DoT 命中回调到 Procs（isDot=true）
@@ -67,5 +67,17 @@ public class BattleContext
             resolveApsp: () => (Stats.AttackPower, Stats.SpellPower),
             onDotDirectHit: (src, type, now) => Procs.OnDirectHit(this, src, type, isCrit: false, isDot: true, DirectSourceKind.Dot, now)
         );
+    }
+
+    // 新增：切换当前 EncounterGroup（用于连续模式重生/地城切波）
+    public void ResetEncounterGroup(EncounterGroup group)
+    {
+        EncounterGroup = group;
+        Encounter = EncounterGroup.PrimaryAlive();
+    }
+
+    internal void RefreshPrimaryEncounter()
+    {
+        Encounter = EncounterGroup?.PrimaryAlive() ?? Encounter;
     }
 }
