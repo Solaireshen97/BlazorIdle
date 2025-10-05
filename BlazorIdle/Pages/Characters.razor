@@ -32,10 +32,20 @@
         <h4>2. 发起战斗（同步一次性）</h4>
         时长(s): <input type="number" min="1" max="120" @bind="battleSeconds" style="width:80px" />
         敌人:
-        <select @bind="selectedEnemyId" style="width:200px">
-            @foreach (var e in enemyOptions)
+        <select @bind="selectedEnemyId" style="width:240px">
+            @if (enemies?.Count > 0)
             {
-                <option value="@e.Id">@e.Name (@e.Id)</option>
+                @foreach (var e in enemies)
+                {
+                    <option value="@e.Id">@e.Name (@e.Id)</option>
+                }
+            }
+            else
+            {
+                <option value="dummy">Training Dummy (dummy)</option>
+                <option value="tank">Armored Golem (tank)</option>
+                <option value="magebane">Magebane Warden (magebane)</option>
+                <option value="paper">Paper Slime (paper)</option>
             }
         </select>
 
@@ -62,8 +72,14 @@
             <p>Attack间隔: @summary.AttackIntervalSeconds | Special间隔: @summary.SpecialIntervalSeconds</p>
         }
 
-        <button @onclick="ForceRefresh" disabled="@(isBusy || battleInProgress)">手动刷新</button>
-        <button @onclick="LoadSegments" disabled="@(isBusy || segmentsLoading)">加载段详情</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-outline-secondary" @onclick="ForceRefresh" disabled="@(isBusy || battleInProgress)">手动刷新</button>
+            <button class="btn btn-outline-primary" @onclick="LoadSegments" disabled="@(isBusy || segmentsLoading)">加载段详情</button>
+            @if (summary is not null)
+            {
+                <button class="btn btn-success" @onclick="ReplayThisBattle">回放此战斗（Step）</button>
+            }
+        </div>
 
         @if (segmentsLoading)
         {
@@ -149,9 +165,7 @@
                 <button class="btn btn-success" @onclick="StopAndSaveAsync" disabled="@(!stepBattleId.HasValue)">Stop &amp; Save</button>
                 <button class="btn btn-outline-info" @onclick="RefreshRuntimeDebug" disabled="@(!stepBattleId.HasValue)">刷新运行态</button>
                 <div class="form-check" style="display:flex;align-items:center;gap:6px;">
-                    <input class="form-check-input" type="checkbox" id="chkAutoDbg"
-                           @bind="stepAutoDebug"
-                           @bind:after="OnAutoDebugChanged" />
+                    <input class="form-check-input" type="checkbox" id="chkAutoDbg" @bind="stepAutoDebug" @bind:after="OnAutoDebugChanged" />
                     <label class="form-check-label" for="chkAutoDbg">自动刷新运行态</label>
                 </div>
             </div>
@@ -331,17 +345,17 @@
 
 @code {
     // ====== 创建/同步战斗 ======
+    protected override async Task OnInitializedAsync()
+    {
+        // 动态加载敌人
+        try { enemies = await Api.GetEnemiesAsync() ?? new(); }
+        catch { enemies = new(); }
+    }
+
     string newName = "TestWarrior";
     Profession selectedProfession = Profession.Warrior;
 
-    private record EnemyOption(string Id, string Name);
-    readonly EnemyOption[] enemyOptions = new[]
-    {
-        new EnemyOption("dummy", "Training Dummy"),
-        new EnemyOption("tank", "Armored Golem"),
-        new EnemyOption("magebane", "Magebane Warden"),
-        new EnemyOption("paper", "Paper Slime"),
-    };
+    List<ApiClient.EnemyDto> enemies = new();
     string selectedEnemyId = "dummy";
 
     bool isBusy;
@@ -358,12 +372,7 @@
 
     async Task CreateCharacter()
     {
-        try
-        {
-            isBusy = true;
-            lastCreated = await Api.CreateCharacterAsync(newName, selectedProfession);
-            ResetBattleState();
-        }
+        try { isBusy = true; lastCreated = await Api.CreateCharacterAsync(newName, selectedProfession); ResetBattleState(); }
         finally { isBusy = false; }
     }
 
@@ -382,66 +391,56 @@
         if (!CanStartBattle || lastCreated is null) return;
         try
         {
-            isBusy = true;
-            battleInProgress = true;
-            summary = null;
-            segments = null;
-
+            isBusy = true; battleInProgress = true; summary = null; segments = null;
             var resp = await Api.StartBattleAsync(lastCreated.Id, battleSeconds, enemyId: selectedEnemyId);
             currentBattleId = resp.BattleId;
-
             await RefreshSummary();
             await LoadSegments();
             battleInProgress = false;
         }
-        finally
-        {
-            isBusy = false;
-            StateHasChanged();
-        }
+        finally { isBusy = false; StateHasChanged(); }
     }
 
     void StartPolling()
     {
         StopPolling();
         pollTimer = new System.Timers.Timer(1500);
-        pollTimer.Elapsed += async (_, _) => await InvokeAsync(async () =>
-        {
-            await RefreshSummary();
-            StateHasChanged();
-        });
-        pollTimer.AutoReset = true;
-        pollTimer.Start();
+        pollTimer.Elapsed += async (_, _) => await InvokeAsync(async () => { await RefreshSummary(); StateHasChanged(); });
+        pollTimer.AutoReset = true; pollTimer.Start();
     }
 
-    void StopPolling()
-    {
-        pollTimer?.Stop();
-        pollTimer?.Dispose();
-        pollTimer = null;
-    }
+    void StopPolling() { pollTimer?.Stop(); pollTimer?.Dispose(); pollTimer = null; }
 
-    async Task RefreshSummary()
-    {
-        if (currentBattleId == Guid.Empty) return;
-        summary = await Api.GetBattleSummaryAsync(currentBattleId);
-    }
+    async Task RefreshSummary() { if (currentBattleId == Guid.Empty) return; summary = await Api.GetBattleSummaryAsync(currentBattleId); }
 
     async Task LoadSegments()
     {
         if (currentBattleId == Guid.Empty) return;
-        try
-        {
-            segmentsLoading = true;
-            segments = await Api.GetBattleSegmentsAsync(currentBattleId);
-        }
+        try { segmentsLoading = true; segments = await Api.GetBattleSegmentsAsync(currentBattleId); }
         finally { segmentsLoading = false; }
     }
 
-    async Task ForceRefresh()
+    async Task ForceRefresh() { if (battleInProgress) return; try { isBusy = true; await RefreshSummary(); } finally { isBusy = false; } }
+
+    async Task ReplayThisBattle()
     {
-        if (battleInProgress) return;
-        try { isBusy = true; await RefreshSummary(); }
+        if (summary is null || lastCreated is null) return;
+        try
+        {
+            isBusy = true;
+            // 直接调用回放 API，使用历史记录的敌人与时长；回放生成一个新的 step battle
+            var start = await Api.StartReplayStepBattleAsync(summary.Id, seconds: summary.DurationSeconds, enemyCount: 1);
+            // 将 Step 面板切换到这场回放
+            stepBattleId = start.BattleId;
+            _stepSinceIndex = 0;
+            stepSegments.Clear(); stepAggBySource.Clear(); stepAggByType.Clear();
+            stepStatus = null; stepDebug = null;
+            _ = StartStepPollingAsync();
+        }
+        catch (Exception ex)
+        {
+            stepError = $"回放启动失败: {ex.Message}";
+        }
         finally { isBusy = false; }
     }
 
@@ -462,7 +461,6 @@
     int _stepSinceIndex = 0;
     string? stepError;
 
-    // debug
     StepBattleDebugDto? stepDebug;
     bool stepAutoDebug = false;
     int stepDebugPollMs = 1000;
@@ -478,34 +476,16 @@
         try
         {
             isBusy = true;
-
             ulong? seed = null;
-            if (ulong.TryParse(stepSeedInput, out var seedVal))
-                seed = seedVal;
-
-            var resp = await Api.StartStepBattleAsync(
-                lastCreated!.Id,
-                seconds: stepSeconds,
-                enemyId: selectedEnemyId,
-                enemyCount: stepEnemyCount,
-                seed: seed);
-
+            if (ulong.TryParse(stepSeedInput, out var seedVal)) seed = seedVal;
+            var resp = await Api.StartStepBattleAsync(lastCreated!.Id, seconds: stepSeconds, enemyId: selectedEnemyId, enemyCount: stepEnemyCount, seed: seed);
             stepBattleId = resp.BattleId;
-            _stepSinceIndex = 0;
-            stepSegments.Clear();
-            stepAggBySource.Clear();
-            stepAggByType.Clear();
-            stepStatus = null;
-            stepDebug = null;
-
+            _stepSinceIndex = 0; stepSegments.Clear(); stepAggBySource.Clear(); stepAggByType.Clear(); stepStatus = null; stepDebug = null;
             _ = StartStepPollingAsync();
             if (stepAutoDebug) _ = StartDebugAutoPollingAsync();
             await InvokeAsync(StateHasChanged);
         }
-        catch (Exception ex)
-        {
-            stepError = $"StartStep 异常: {ex.Message}";
-        }
+        catch (Exception ex) { stepError = $"StartStep 异常: {ex.Message}"; }
         finally { isBusy = false; }
     }
 
@@ -528,17 +508,12 @@
         }
         catch (TaskCanceledException) { }
         catch (Exception ex) { stepError = $"轮询异常: {ex.Message}"; }
-        finally
-        {
-            stepIsPolling = false;
-            await InvokeAsync(StateHasChanged);
-        }
+        finally { stepIsPolling = false; await InvokeAsync(StateHasChanged); }
     }
 
     async Task PollStepOnceAsync(CancellationToken ct)
     {
         if (stepBattleId is null) return;
-
         var s = await Api.GetStepBattleStatusAsync(stepBattleId.Value, ct);
         if (s is not null) stepStatus = s;
 
@@ -563,82 +538,39 @@
         }
     }
 
-    void StopStepPolling()
-    {
-        _stepPollCts?.Cancel();
-        stepIsPolling = false;
-        StateHasChanged();
-    }
+    void StopStepPolling() { _stepPollCts?.Cancel(); stepIsPolling = false; StateHasChanged(); }
 
     void ResetStep()
     {
-        StopStepPolling();
-        StopDebugAutoPolling();
-        stepBattleId = null;
-        stepStatus = null;
-        stepSegments.Clear();
-        stepAggBySource.Clear();
-        stepAggByType.Clear();
-        stepDebug = null;
-        stepError = null;
-        _stepSinceIndex = 0;
+        StopStepPolling(); StopDebugAutoPolling();
+        stepBattleId = null; stepStatus = null; stepSegments.Clear(); stepAggBySource.Clear(); stepAggByType.Clear(); stepDebug = null; stepError = null; _stepSinceIndex = 0;
         StateHasChanged();
     }
+
     void OnAutoDebugChanged()
     {
-        if (stepAutoDebug)
-        {
-            // fire-and-forget，不阻塞 UI
-            _ = StartDebugAutoPollingAsync();
-        }
-        else
-        {
-            StopDebugAutoPolling();
-        }
+        if (stepAutoDebug) _ = StartDebugAutoPollingAsync();
+        else StopDebugAutoPolling();
     }
+
     async Task StopAndSaveAsync()
     {
         if (stepBattleId is null) return;
         try
         {
             var resp = await Api.StopStepBattleAsync(stepBattleId.Value);
-            StopStepPolling();
-            StopDebugAutoPolling();
-            if (stepStatus is not null)
-                stepStatus.PersistedBattleId = resp.PersistedBattleId;
+            StopStepPolling(); StopDebugAutoPolling();
+            if (stepStatus is not null) stepStatus.PersistedBattleId = resp.PersistedBattleId;
             await InvokeAsync(StateHasChanged);
         }
-        catch (Exception ex)
-        {
-            stepError = $"Stop & Save 异常: {ex.Message}";
-        }
+        catch (Exception ex) { stepError = $"Stop & Save 异常: {ex.Message}"; }
     }
 
     async Task RefreshRuntimeDebug()
     {
         if (stepBattleId is null) return;
-        try
-        {
-            stepDebug = await Api.GetStepBattleDebugAsync(stepBattleId.Value);
-            await InvokeAsync(StateHasChanged);
-        }
-        catch (Exception ex)
-        {
-            stepError = $"Debug 异常: {ex.Message}";
-        }
-    }
-
-    void ToggleAutoDebug(ChangeEventArgs e)
-    {
-        if (stepAutoDebug)
-        {
-            // 启动后台轮询（fire-and-forget，不阻塞 UI）
-            _ = StartDebugAutoPollingAsync();
-        }
-        else
-        {
-            StopDebugAutoPolling();
-        }
+        try { stepDebug = await Api.GetStepBattleDebugAsync(stepBattleId.Value); await InvokeAsync(StateHasChanged); }
+        catch (Exception ex) { stepError = $"Debug 异常: {ex.Message}"; }
     }
 
     async Task StartDebugAutoPollingAsync()
@@ -658,22 +590,9 @@
         catch (TaskCanceledException) { }
         catch (Exception ex) { stepError = $"Debug 轮询异常: {ex.Message}"; }
     }
+    void StopDebugAutoPolling() { _stepDebugCts?.Cancel(); }
 
-    void StopDebugAutoPolling()
-    {
-        _stepDebugCts?.Cancel();
-    }
+    async Task OpenSummary(Guid id) { var url = $"/api/battles/{id}/summary"; await JS.InvokeVoidAsync("open", url, "_blank"); }
 
-    async Task OpenSummary(Guid id)
-    {
-        var url = $"/api/battles/{id}/summary";
-        await JS.InvokeVoidAsync("open", url, "_blank");
-    }
-
-    public void Dispose()
-    {
-        StopPolling();
-        StopStepPolling();
-        StopDebugAutoPolling();
-    }
+    public void Dispose() { StopPolling(); StopStepPolling(); StopDebugAutoPolling(); }
 }

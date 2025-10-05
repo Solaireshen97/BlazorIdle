@@ -8,7 +8,7 @@ public class ApiClient
     private readonly HttpClient _http;
     public ApiClient(HttpClient http) => _http = http;
 
-    // ========== 同步战斗相关 ==========
+    // ===== 角色与同步战斗 =====
     public async Task<CharacterCreated> CreateCharacterAsync(string name, Profession profession, CancellationToken ct = default)
     {
         var resp = await _http.PostAsJsonAsync("/api/characters", new CreateCharacterRequest(name, profession), ct);
@@ -31,14 +31,22 @@ public class ApiClient
     public async Task<List<BattleSegmentDto>> GetBattleSegmentsAsync(Guid battleId, CancellationToken ct = default)
         => (await _http.GetFromJsonAsync<List<BattleSegmentDto>>($"/api/battles/{battleId}/segments", ct)) ?? new();
 
-    // ========== Step 战斗相关 ==========
-    public async Task<StartStepBattleResponse> StartStepBattleAsync(
-        Guid characterId,
-        double seconds = 30,
-        string? enemyId = null,
-        int enemyCount = 1,
-        ulong? seed = null,
-        CancellationToken ct = default)
+    // ===== 敌人（动态） =====
+    public Task<List<EnemyDto>?> GetEnemiesAsync(CancellationToken ct = default)
+        => _http.GetFromJsonAsync<List<EnemyDto>>("/api/enemies", ct);
+
+    public sealed class EnemyDto
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public int Level { get; set; }
+        public int MaxHp { get; set; }
+        public double Armor { get; set; }
+        public double MagicResist { get; set; }
+    }
+
+    // ===== Step 战斗 =====
+    public async Task<StartStepBattleResponse> StartStepBattleAsync(Guid characterId, double seconds = 30, string? enemyId = null, int enemyCount = 1, ulong? seed = null, CancellationToken ct = default)
     {
         var url = $"/api/battles/step/start?characterId={characterId}&seconds={seconds}&enemyCount={enemyCount}";
         if (!string.IsNullOrWhiteSpace(enemyId)) url += $"&enemyId={Uri.EscapeDataString(enemyId)}";
@@ -63,22 +71,21 @@ public class ApiClient
 
     public Task<StepBattleDebugDto?> GetStepBattleDebugAsync(Guid battleId, CancellationToken ct = default)
         => _http.GetFromJsonAsync<StepBattleDebugDto>($"/api/battles/step/{battleId}/debug", ct);
+
+    // ===== 回放（基于历史记录） =====
+    public async Task<StartStepBattleResponse> StartReplayStepBattleAsync(Guid sourceBattleRecordId, double? seconds = null, int enemyCount = 1, CancellationToken ct = default)
+    {
+        var url = $"/api/battles/replay/{sourceBattleRecordId}/start?enemyCount={enemyCount}";
+        if (seconds.HasValue) url += $"&seconds={seconds.Value}";
+        var resp = await _http.PostAsync(url, null, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<StartStepBattleResponse>(cancellationToken: ct))!;
+    }
 }
 
-// ========== Step DTOs（前端自带）==========
-public sealed class StartStepBattleResponse
-{
-    public Guid BattleId { get; set; }
-    public ulong Seed { get; set; }
-    public string? EnemyId { get; set; }
-    public int EnemyCount { get; set; }
-}
-
-public sealed class StopStepBattleResponse
-{
-    public Guid PersistedBattleId { get; set; }
-}
-
+// ====== Step DTOs (与你之前版本一致) ======
+public sealed class StartStepBattleResponse { public Guid BattleId { get; set; } public ulong Seed { get; set; } public string? EnemyId { get; set; } public int EnemyCount { get; set; } }
+public sealed class StopStepBattleResponse { public Guid PersistedBattleId { get; set; } }
 public sealed class StepBattleStatusDto
 {
     public Guid Id { get; set; }
@@ -100,7 +107,6 @@ public sealed class StepBattleStatusDto
     public int OverkillDamage { get; set; }
     public Guid? PersistedBattleId { get; set; }
 }
-
 public sealed class StepBattleSegmentDto
 {
     public int Index { get; set; }
@@ -112,7 +118,6 @@ public sealed class StepBattleSegmentDto
     public Dictionary<string, int> DamageByType { get; set; } = new();
     public Dictionary<string, int> ResourceFlow { get; set; } = new();
 }
-
 public sealed class StepBattleDebugDto
 {
     public Guid StepBattleId { get; set; }
