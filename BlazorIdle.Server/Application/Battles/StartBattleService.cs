@@ -1,4 +1,5 @@
 ﻿using BlazorIdle.Server.Application.Abstractions;
+using BlazorIdle.Server.Application.Battles.Step;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat;
 using BlazorIdle.Server.Domain.Combat.Enemies;
@@ -22,7 +23,16 @@ public class StartBattleService
         _runner = runner;
     }
 
-    public async Task<Guid> StartAsync(Guid characterId, double simulateSeconds = 15, ulong? seed = null, string? enemyId = null, int enemyCount = 1, CancellationToken ct = default)
+    // 新增: mode/dungeonId，mode: duration(默认) | continuous | dungeon | dungeonloop
+    public async Task<Guid> StartAsync(
+        Guid characterId,
+        double simulateSeconds = 15,
+        ulong? seed = null,
+        string? enemyId = null,
+        int enemyCount = 1,
+        string? mode = null,
+        string? dungeonId = null,
+        CancellationToken ct = default)
     {
         var c = await _characters.GetAsync(characterId, ct);
         if (c is null) throw new InvalidOperationException("Character not found");
@@ -31,8 +41,6 @@ public class StartBattleService
 
         var enemyDef = EnemyRegistry.Resolve(enemyId);
         enemyCount = Math.Max(1, enemyCount);
-        var groupDefs = Enumerable.Range(0, enemyCount).Select(_ => enemyDef).ToList();
-        var encounterGroup = new EncounterGroup(groupDefs);
 
         var battleDomain = new Battle
         {
@@ -42,26 +50,82 @@ public class StartBattleService
             StartedAt = 0
         };
 
-        // 职业基础 + 主属性转换（不影响急速）
+        // 职业基础 + 主属性转换
         var baseStats = ProfessionBaseStatsRegistry.Resolve(c.Profession);
         var attrs = new PrimaryAttributes(c.Strength, c.Agility, c.Intellect, c.Stamina);
         var derived = StatsBuilder.BuildDerived(c.Profession, attrs);
         var stats = StatsBuilder.Combine(baseStats, derived);
 
         ulong finalSeed = seed ?? DeriveSeed(characterId);
-        var rng = new RngContext(finalSeed);
-        long seedIndexStart = rng.Index;
 
-        var segments = _runner.RunForDuration(
-            battleDomain, simulateSeconds, c.Profession, rng,
-            out var killed, out var killTime, out var overkill,
-            module: module,
-            encounter: null,
-            encounterGroup: encounterGroup,
-            stats: stats
-        );
+        // 解析 mode
+        var m = (mode ?? "duration").Trim().ToLowerInvariant();
 
-        long seedIndexEnd = rng.Index;
+        List<CombatSegment> segments;
+        bool killed;
+        double? killTime;
+        int overkill;
+        long seedIndexStart;
+        long seedIndexEnd;
+
+        if (m == "continuous" || m == "dungeon" || m == "dungeonloop")
+        {
+            // 复用 Step 的 RunningBattle，同步快进到 simulateSeconds
+            var stepMode = m switch
+            {
+                "continuous" => StepBattleMode.Continuous,
+                "dungeon" => StepBattleMode.DungeonSingle,
+                "dungeonloop" => StepBattleMode.DungeonLoop,
+                _ => StepBattleMode.Duration
+            };
+
+            var rng = new RngContext(finalSeed);
+            seedIndexStart = rng.Index;
+
+            var rb = new RunningBattle(
+                id: battleDomain.Id,
+                characterId: characterId,
+                profession: c.Profession,
+                seed: finalSeed,
+                targetSeconds: simulateSeconds,
+                enemyDef: enemyDef,
+                enemyCount: enemyCount,
+                stats: stats,
+                mode: stepMode,
+                dungeonId: dungeonId
+            );
+
+            // 快进至目标秒数（非持续模式也会完成提前结束）
+            rb.FastForwardTo(simulateSeconds);
+
+            segments = rb.Segments.ToList();
+            killed = rb.Killed;
+            killTime = rb.KillTime;
+            overkill = rb.Overkill;
+            seedIndexEnd = rb.SeedIndexEnd;
+        }
+        else
+        {
+            // 原有一次性时长模式
+            var rng = new RngContext(finalSeed);
+            seedIndexStart = rng.Index;
+
+            // 构造 EncounterGroup（单波）
+            var groupDefs = Enumerable.Range(0, enemyCount).Select(_ => enemyDef).ToList();
+            var encounterGroup = new EncounterGroup(groupDefs);
+
+            segments = _runner.RunForDuration(
+                battleDomain, simulateSeconds, c.Profession, rng,
+                out killed, out killTime, out overkill,
+                module: module,
+                encounter: null,
+                encounterGroup: encounterGroup,
+                stats: stats
+            ).ToList();
+
+            seedIndexEnd = rng.Index;
+        }
+
         var totalDamage = segments.Sum(s => s.TotalDamage);
 
         var record = new BattleRecord

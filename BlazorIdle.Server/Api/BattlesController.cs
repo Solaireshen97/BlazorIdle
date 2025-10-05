@@ -18,12 +18,20 @@ public class BattlesController : ControllerBase
         _battleRepo = battleRepo;
     }
 
-    // POST /api/battles/start?characterId=...&seconds=...&seed=...&enemyId=...&enemyCount=...
+    // POST /api/battles/start?characterId=...&seconds=...&seed=...&enemyId=...&enemyCount=...&mode=...&dungeonId=...
+    // mode: duration(默认) | continuous | dungeon | dungeonloop
     [HttpPost("start")]
-    public async Task<IActionResult> Start([FromQuery] Guid characterId, [FromQuery] double seconds = 15, [FromQuery] ulong? seed = null, [FromQuery] string? enemyId = null, [FromQuery] int enemyCount = 1)
+    public async Task<IActionResult> Start(
+        [FromQuery] Guid characterId,
+        [FromQuery] double seconds = 15,
+        [FromQuery] ulong? seed = null,
+        [FromQuery] string? enemyId = null,
+        [FromQuery] int enemyCount = 1,
+        [FromQuery] string? mode = null,
+        [FromQuery] string? dungeonId = null)
     {
-        var id = await _startSvc.StartAsync(characterId, seconds, seed, enemyId, enemyCount);
-        return Ok(new { battleId = id, seed, enemyId, enemyCount });
+        var id = await _startSvc.StartAsync(characterId, seconds, seed, enemyId, enemyCount, mode, dungeonId);
+        return Ok(new { battleId = id, seed, enemyId, enemyCount, mode = mode ?? "duration", dungeonId });
     }
 
     // GET /api/battles/{id}/summary
@@ -45,7 +53,6 @@ public class BattlesController : ControllerBase
             SegmentCount = battle.Segments.Count,
             battle.AttackIntervalSeconds,
             battle.SpecialIntervalSeconds,
-            // 新增：敌人与击杀
             battle.EnemyId,
             battle.EnemyName,
             battle.EnemyLevel,
@@ -55,7 +62,6 @@ public class BattlesController : ControllerBase
             battle.Killed,
             battle.KillTimeSeconds,
             battle.OverkillDamage,
-            // 新增：RNG
             battle.Seed,
             battle.SeedIndexStart,
             battle.SeedIndexEnd
@@ -80,7 +86,6 @@ public class BattlesController : ControllerBase
                 DamageBySource = JsonSerializer.Deserialize<Dictionary<string, int>>(s.DamageBySourceJson) ?? new(),
                 DamageByType = JsonSerializer.Deserialize<Dictionary<string, int>>(s.DamageByTypeJson) ?? new(),
                 ResourceFlow = JsonSerializer.Deserialize<Dictionary<string, int>>(s.ResourceFlowJson) ?? new(),
-                // 新增：段级 RNG 区间
                 s.RngIndexStart,
                 s.RngIndexEnd
             });
@@ -88,8 +93,6 @@ public class BattlesController : ControllerBase
         return Ok(result);
     }
 
-    // GET /api/battles/{id}/debug
-    // 最小版：返回持久化摘要 + 段统计 + RNG 段区间（实时状态将在异步 Step 上线后提供）
     [HttpGet("{id:guid}/debug")]
     public async Task<ActionResult<object>> Debug(Guid id)
     {

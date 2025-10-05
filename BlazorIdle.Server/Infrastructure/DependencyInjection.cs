@@ -6,6 +6,7 @@ using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Infrastructure.Persistence.Repositories;
 using BlazorIdle.Server.Application.Battles.Step;
 using BlazorIdle.Server.Application.Battles.Simulation;
+using BlazorIdle.Server.Application.Battles.Offline;
 
 namespace BlazorIdle.Server.Infrastructure;
 
@@ -26,6 +27,9 @@ public static class DependencyInjection
 
         // 批量模拟
         services.AddTransient<BatchSimulator>();
+
+        // 离线结算
+        services.AddTransient<OfflineSettlementService>();
 
         return services;
     }
