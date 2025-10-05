@@ -149,6 +149,7 @@
                 <button class="btn btn-secondary" @onclick="StopStepPolling" disabled="@(!stepIsPolling)">Stop Poll</button>
                 <button class="btn btn-outline-danger" @onclick="ResetStep" disabled="@isBusy">Reset</button>
                 <button class="btn btn-success" @onclick="StopAndSaveAsync" disabled="@(!stepBattleId.HasValue)">Stop &amp; Save</button>
+                <button class="btn btn-outline-info" @onclick="RefreshRuntimeDebug" disabled="@(!stepBattleId.HasValue)">刷新运行态</button>
             </div>
         </div>
 
@@ -160,7 +161,98 @@
         {
             <div class="alert alert-danger" style="margin-top:8px">@stepError</div>
         }
+        @if (stepDebug is not null)
+        {
+            <div class="card" style="padding:12px; margin-top:12px;">
+                <h5>Runtime Debug</h5>
+                <div class="row">
+                    <div class="col-md-3"><b>Now:</b> @stepDebug.Now.ToString("0.00")</div>
+                    <div class="col-md-3"><b>RNG Index:</b> @stepDebug.RngIndex</div>
+                    <div class="col-md-3"><b>Scheduler:</b> @stepDebug.SchedulerCount</div>
+                    <div class="col-md-3"><b>Enemy:</b> @stepDebug.Encounter.EnemyId (@stepDebug.Encounter.CurrentHp/@stepDebug.Encounter.EnemyMaxHp)</div>
+                </div>
 
+                <h6 style="margin-top:10px">Tracks</h6>
+                <table class="table table-sm table-striped">
+                    <thead><tr><th>Type</th><th>Base</th><th>Haste</th><th>Current</th><th>Next</th></tr></thead>
+                    <tbody>
+                        @foreach (var t in stepDebug.Tracks)
+                        {
+                            <tr>
+                                <td>@t.Type</td>
+                                <td>@t.BaseInterval.ToString("0.00")</td>
+                                <td>@t.HasteFactor.ToString("0.00")</td>
+                                <td>@t.CurrentInterval.ToString("0.00")</td>
+                                <td>@t.NextTriggerAt.ToString("0.00")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+
+                <h6>Resources</h6>
+                @if (stepDebug.Resources?.Count > 0)
+                {
+                    <table class="table table-sm table-bordered" style="max-width:400px">
+                        <thead><tr><th>Id</th><th>Current</th><th>Max</th></tr></thead>
+                        <tbody>
+                            @foreach (var kv in stepDebug.Resources)
+                            {
+                                <tr><td>@kv.Key</td><td>@kv.Value.Current</td><td>@kv.Value.Max</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                else
+                {
+                    <div><i>(无资源快照或未命中 rage/focus)</i></div>
+                }
+
+                <h6>Buffs (@stepDebug.Buffs.Count)</h6>
+                <table class="table table-sm table-striped">
+                    <thead><tr><th>Id</th><th>Stacks</th><th>Expire</th><th>NextTick</th><th>TickIntv</th><th>HasteSnap</th><th>BasePerStack</th><th>Type</th><th>DmgType</th></tr></thead>
+                    <tbody>
+                        @foreach (var b in stepDebug.Buffs.OrderBy(x => x.Id))
+                        {
+                            <tr>
+                                <td>@b.Id</td>
+                                <td>@b.Stacks</td>
+                                <td>@b.ExpiresAt.ToString("0.00")</td>
+                                <td>@(b.NextTickAt?.ToString("0.00") ?? "-")</td>
+                                <td>@b.TickIntervalSeconds.ToString("0.00")</td>
+                                <td>@b.HasteSnapshot.ToString("0.00")</td>
+                                <td>@b.TickBasePerStack.ToString("0")</td>
+                                <td>@b.PeriodicType</td>
+                                <td>@b.PeriodicDamageType</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+
+                <h6>Skills (@stepDebug.AutoCast?.Skills?.Count ?? 0)</h6>
+                <div><b>GCDUntil:</b> @stepDebug.AutoCast.GlobalCooldownUntil.ToString("0.00") | <b>IsCasting:</b> @(stepDebug.AutoCast.IsCasting ? "Yes" : "No") | <b>CastingUntil:</b> @stepDebug.AutoCast.CastingUntil.ToString("0.00")</div>
+                <table class="table table-sm table-striped">
+                    <thead><tr><th>Id</th><th>Prio</th><th>Charges</th><th>NextCharge</th><th>NextAvail</th><th>CD</th><th>Cast</th><th>GCD</th><th>OffGCD</th><th>Cost</th><th>DMGType</th></tr></thead>
+                    <tbody>
+                        @foreach (var s in stepDebug.AutoCast.Skills.OrderBy(x => x.Priority))
+                        {
+                            <tr>
+                                <td>@s.Id</td>
+                                <td>@s.Priority</td>
+                                <td>@s.Charges/@s.MaxCharges</td>
+                                <td>@(s.NextChargeReadyAt?.ToString("0.00") ?? "-")</td>
+                                <td>@s.NextAvailableTime.ToString("0.00")</td>
+                                <td>@s.CooldownSeconds.ToString("0.00")</td>
+                                <td>@s.CastTimeSeconds.ToString("0.00")</td>
+                                <td>@s.GcdSeconds.ToString("0.00")</td>
+                                <td>@(s.OffGcd ? "Y" : "N")</td>
+                                <td>@(s.CostResourceId is null ? "-" : $"{s.CostResourceId}:{s.CostAmount}")</td>
+                                <td>@s.DamageType</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
         @if (stepStatus is not null)
         {
             <div class="card" style="padding: 12px; margin-top: 12px;">
@@ -555,6 +647,22 @@
         }
     }
 
+
+    StepBattleDebugDto? stepDebug;
+
+    async Task RefreshRuntimeDebug()
+    {
+        if (stepBattleId is null) return;
+        try
+        {
+            stepDebug = await Api.GetStepBattleDebugAsync(stepBattleId.Value);
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            stepError = $"Debug 异常: {ex.Message}";
+        }
+    }
     void OpenSummary(Guid id)
     {
         // 简化处理：直接打开 API summary（如果你有专门前端页面可改为导航）
