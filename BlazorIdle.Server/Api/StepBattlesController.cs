@@ -1,11 +1,11 @@
-﻿using System.Text.Json;
-using BlazorIdle.Server.Application.Battles.Step;
+﻿using BlazorIdle.Server.Application.Battles.Step;
 using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Professions;
 using BlazorIdle.Server.Domain.Combat.Rng;
 using BlazorIdle.Server.Domain.Combat.Skills;
 using Microsoft.AspNetCore.Mvc;
+using System.Linq;
 
 namespace BlazorIdle.Server.Api;
 
@@ -64,7 +64,7 @@ public class StepBattlesController : ControllerBase
         return Ok(new { persistedBattleId = persistedId });
     }
 
-    // 新增：运行态调试
+    // 实时运行态调试
     [HttpGet("{id:guid}/debug")]
     public ActionResult<StepBattleDebugDto> Debug(Guid id)
     {
@@ -80,20 +80,20 @@ public class StepBattlesController : ControllerBase
             SchedulerCount = ctx.Scheduler.Count
         };
 
-        // Tracks
+        // Tracks（使用真实 BaseInterval）
         foreach (var t in ctx.Tracks)
         {
             dto.Tracks.Add(new StepBattleDebugDto.TrackDebugDto
             {
                 Type = t.TrackType.ToString().ToLowerInvariant(),
-                BaseInterval = t.CurrentInterval * t.HasteFactor, // 反推 baseInterval
+                BaseInterval = t.BaseInterval,
                 HasteFactor = t.HasteFactor,
                 CurrentInterval = t.CurrentInterval,
                 NextTriggerAt = t.NextTriggerAt
             });
         }
 
-        // Resources（最小：尝试 rage/focus，存在则回传）
+        // 资源（示例：rage / focus）
         var resourceIds = new[] { "rage", "focus" };
         foreach (var rid in resourceIds)
         {
@@ -139,10 +139,7 @@ public class StepBattlesController : ControllerBase
         {
             var def = slot.Runtime.Definition;
             var rt = slot.Runtime;
-
             var ext = def as SkillDefinitionExt;
-            var damageType = ext?.DamageType.ToString().ToLowerInvariant() ?? "physical";
-
             acDto.Skills.Add(new StepBattleDebugDto.SkillDebugDto
             {
                 Id = def.Id,
@@ -160,14 +157,13 @@ public class StepBattlesController : ControllerBase
                 CostResourceId = def.CostResourceId,
                 AttackPowerCoef = def.AttackPowerCoef,
                 SpellPowerCoef = def.SpellPowerCoef,
-                DamageType = damageType,
+                DamageType = (ext?.DamageType.ToString().ToLowerInvariant() ?? "physical"),
                 BaseDamage = def.BaseDamage
             });
         }
-
         dto.AutoCast = acDto;
 
-        // Encounter（主目标为组内 PrimaryAlive）
+        // Encounter（主目标来自组内 PrimaryAlive）
         var enc = ctx.Encounter;
         var grp = ctx.EncounterGroup;
         dto.Encounter = new StepBattleDebugDto.EncounterDebugDto
@@ -183,14 +179,22 @@ public class StepBattlesController : ControllerBase
             TotalCount = grp?.All.Count ?? (enc is not null ? 1 : 0)
         };
 
+        // 新增：Collector 段信息
+        dto.Collector = new StepBattleDebugDto.CollectorDebugDto
+        {
+            SegmentStart = ctx.SegmentCollector.SegmentStart,
+            LastEventTime = ctx.SegmentCollector.LastEventTime,
+            EventCount = ctx.SegmentCollector.EventCount
+        };
+
         return Ok(dto);
     }
 
     private static ulong DeriveSeed(Guid characterId)
     {
-        var baseRng = RngContext.FromGuid(characterId);
+        var baseRng = BlazorIdle.Server.Domain.Combat.Rng.RngContext.FromGuid(characterId);
         baseRng.Skip(4);
         ulong salt = (ulong)DateTime.UtcNow.Ticks;
-        return RngContext.Hash64(baseRng.NextUInt64() ^ salt);
+        return BlazorIdle.Server.Domain.Combat.Rng.RngContext.Hash64(baseRng.NextUInt64() ^ salt);
     }
 }

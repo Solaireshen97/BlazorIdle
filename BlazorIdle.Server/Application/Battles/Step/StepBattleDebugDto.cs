@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using BlazorIdle.Server.Domain.Combat.Damage;
 
 namespace BlazorIdle.Server.Application.Battles.Step;
 
@@ -16,6 +15,9 @@ public sealed class StepBattleDebugDto
     public List<BuffDebugDto> Buffs { get; set; } = new();
     public AutoCastDebugDto AutoCast { get; set; } = new();
     public EncounterDebugDto Encounter { get; set; } = new();
+
+    // 新增：当前 SegmentCollector 段信息
+    public CollectorDebugDto Collector { get; set; } = new();
 
     public sealed class TrackDebugDto
     {
@@ -87,5 +89,12 @@ public sealed class StepBattleDebugDto
         public int Overkill { get; set; }
         public int AliveCount { get; set; }
         public int TotalCount { get; set; }
+    }
+
+    public sealed class CollectorDebugDto
+    {
+        public double SegmentStart { get; set; }
+        public double LastEventTime { get; set; }
+        public int EventCount { get; set; }
     }
 }

@@ -2,10 +2,12 @@
 @using BlazorIdle.Shared.Models
 @using BlazorIdle.Client.Services
 @inject ApiClient Api
+@inject IJSRuntime JS
 @implements IDisposable
 
 <h3>角色 & 战斗测试</h3>
 
+<!-- 1) 创建角色 -->
 <div class="panel">
     <h4>1. 创建角色</h4>
     <input @bind="newName" placeholder="角色名" />
@@ -23,14 +25,12 @@
     }
 </div>
 
+<!-- 2) 同步战斗 -->
 @if (lastCreated is not null)
 {
     <div class="panel">
         <h4>2. 发起战斗（同步一次性）</h4>
-        时长(s):
-        <input type="number" min="1" max="120" @bind="battleSeconds" style="width:80px" />
-
-        <!-- 新增：选择敌人 -->
+        时长(s): <input type="number" min="1" max="120" @bind="battleSeconds" style="width:80px" />
         敌人:
         <select @bind="selectedEnemyId" style="width:200px">
             @foreach (var e in enemyOptions)
@@ -44,12 +44,6 @@
         {
             <p>当前 BattleId: @currentBattleId</p>
         }
-        @if (!battleInProgress && currentBattleId != Guid.Empty)
-        {
-            <button class="btn btn-sm" @onclick="StartAnotherBattle" disabled="@isBusy">
-                再次战斗
-            </button>
-        }
     </div>
 }
 
@@ -61,14 +55,13 @@
             总伤害: @summary?.TotalDamage |
             时长: @summary?.DurationSeconds s |
             DPS: @summary?.Dps |
-            段数: @summary?.SegmentCount|
-            @if (summary is not null)
-            {
+            段数: @summary?.SegmentCount
+        </p>
+        @if (summary is not null)
+        {
             <p>Attack间隔: @summary.AttackIntervalSeconds | Special间隔: @summary.SpecialIntervalSeconds</p>
         }
-        </p>
 
-        <p>DEBUG isBusy=@isBusy battleInProgress=@battleInProgress segmentsLoading=@segmentsLoading</p>
         <button @onclick="ForceRefresh" disabled="@(isBusy || battleInProgress)">手动刷新</button>
         <button @onclick="LoadSegments" disabled="@(isBusy || segmentsLoading)">加载段详情</button>
 
@@ -122,10 +115,11 @@
     </div>
 }
 
+<!-- 4) 异步 Step 战斗（含运行态调试） -->
 @if (lastCreated is not null)
 {
     <div class="panel" style="margin-top: 18px;">
-        <h4>4. 异步 Step 战斗（调试最小版）</h4>
+        <h4>4. 异步 Step 战斗（调试）</h4>
 
         <div class="row" style="gap:12px; align-items:end;">
             <div>
@@ -141,118 +135,33 @@
                 <input class="form-control" style="width:160px" @bind="stepSeedInput" />
             </div>
             <div>
-                <label>轮询(ms)</label>
+                <label>状态轮询(ms)</label>
                 <input type="number" min="100" step="100" class="form-control" style="width:120px" @bind="stepPollMs" />
             </div>
-            <div style="display:flex;gap:8px;">
+            <div>
+                <label>调试轮询(ms)</label>
+                <input type="number" min="200" step="100" class="form-control" style="width:120px" @bind="stepDebugPollMs" />
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
                 <button class="btn btn-primary" @onclick="StartStepBattle" disabled="@isBusy">Start Step</button>
                 <button class="btn btn-secondary" @onclick="StopStepPolling" disabled="@(!stepIsPolling)">Stop Poll</button>
                 <button class="btn btn-outline-danger" @onclick="ResetStep" disabled="@isBusy">Reset</button>
                 <button class="btn btn-success" @onclick="StopAndSaveAsync" disabled="@(!stepBattleId.HasValue)">Stop &amp; Save</button>
                 <button class="btn btn-outline-info" @onclick="RefreshRuntimeDebug" disabled="@(!stepBattleId.HasValue)">刷新运行态</button>
+                <div class="form-check" style="display:flex;align-items:center;gap:6px;">
+                    <input class="form-check-input" type="checkbox" id="chkAutoDbg"
+                           @bind="stepAutoDebug"
+                           @bind:after="OnAutoDebugChanged" />
+                    <label class="form-check-label" for="chkAutoDbg">自动刷新运行态</label>
+                </div>
             </div>
-        </div>
-
-        <div style="margin-top:8px;color:#666;">
-            <small>说明：使用 /api/battles/step/* 接口，后台每帧推进。前端按间隔轮询状态与增量段。</small>
         </div>
 
         @if (!string.IsNullOrWhiteSpace(stepError))
         {
             <div class="alert alert-danger" style="margin-top:8px">@stepError</div>
         }
-        @if (stepDebug is not null)
-        {
-            <div class="card" style="padding:12px; margin-top:12px;">
-                <h5>Runtime Debug</h5>
-                <div class="row">
-                    <div class="col-md-3"><b>Now:</b> @stepDebug.Now.ToString("0.00")</div>
-                    <div class="col-md-3"><b>RNG Index:</b> @stepDebug.RngIndex</div>
-                    <div class="col-md-3"><b>Scheduler:</b> @stepDebug.SchedulerCount</div>
-                    <div class="col-md-3"><b>Enemy:</b> @stepDebug.Encounter.EnemyId (@stepDebug.Encounter.CurrentHp/@stepDebug.Encounter.EnemyMaxHp)</div>
-                </div>
 
-                <h6 style="margin-top:10px">Tracks</h6>
-                <table class="table table-sm table-striped">
-                    <thead><tr><th>Type</th><th>Base</th><th>Haste</th><th>Current</th><th>Next</th></tr></thead>
-                    <tbody>
-                        @foreach (var t in stepDebug.Tracks)
-                        {
-                            <tr>
-                                <td>@t.Type</td>
-                                <td>@t.BaseInterval.ToString("0.00")</td>
-                                <td>@t.HasteFactor.ToString("0.00")</td>
-                                <td>@t.CurrentInterval.ToString("0.00")</td>
-                                <td>@t.NextTriggerAt.ToString("0.00")</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-
-                <h6>Resources</h6>
-                @if (stepDebug.Resources?.Count > 0)
-                {
-                    <table class="table table-sm table-bordered" style="max-width:400px">
-                        <thead><tr><th>Id</th><th>Current</th><th>Max</th></tr></thead>
-                        <tbody>
-                            @foreach (var kv in stepDebug.Resources)
-                            {
-                                <tr><td>@kv.Key</td><td>@kv.Value.Current</td><td>@kv.Value.Max</td></tr>
-                            }
-                        </tbody>
-                    </table>
-                }
-                else
-                {
-                    <div><i>(无资源快照或未命中 rage/focus)</i></div>
-                }
-
-                <h6>Buffs (@stepDebug.Buffs.Count)</h6>
-                <table class="table table-sm table-striped">
-                    <thead><tr><th>Id</th><th>Stacks</th><th>Expire</th><th>NextTick</th><th>TickIntv</th><th>HasteSnap</th><th>BasePerStack</th><th>Type</th><th>DmgType</th></tr></thead>
-                    <tbody>
-                        @foreach (var b in stepDebug.Buffs.OrderBy(x => x.Id))
-                        {
-                            <tr>
-                                <td>@b.Id</td>
-                                <td>@b.Stacks</td>
-                                <td>@b.ExpiresAt.ToString("0.00")</td>
-                                <td>@(b.NextTickAt?.ToString("0.00") ?? "-")</td>
-                                <td>@b.TickIntervalSeconds.ToString("0.00")</td>
-                                <td>@b.HasteSnapshot.ToString("0.00")</td>
-                                <td>@b.TickBasePerStack.ToString("0")</td>
-                                <td>@b.PeriodicType</td>
-                                <td>@b.PeriodicDamageType</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-
-                <h6>Skills (@stepDebug.AutoCast?.Skills?.Count ?? 0)</h6>
-                <div><b>GCDUntil:</b> @stepDebug.AutoCast.GlobalCooldownUntil.ToString("0.00") | <b>IsCasting:</b> @(stepDebug.AutoCast.IsCasting ? "Yes" : "No") | <b>CastingUntil:</b> @stepDebug.AutoCast.CastingUntil.ToString("0.00")</div>
-                <table class="table table-sm table-striped">
-                    <thead><tr><th>Id</th><th>Prio</th><th>Charges</th><th>NextCharge</th><th>NextAvail</th><th>CD</th><th>Cast</th><th>GCD</th><th>OffGCD</th><th>Cost</th><th>DMGType</th></tr></thead>
-                    <tbody>
-                        @foreach (var s in stepDebug.AutoCast.Skills.OrderBy(x => x.Priority))
-                        {
-                            <tr>
-                                <td>@s.Id</td>
-                                <td>@s.Priority</td>
-                                <td>@s.Charges/@s.MaxCharges</td>
-                                <td>@(s.NextChargeReadyAt?.ToString("0.00") ?? "-")</td>
-                                <td>@s.NextAvailableTime.ToString("0.00")</td>
-                                <td>@s.CooldownSeconds.ToString("0.00")</td>
-                                <td>@s.CastTimeSeconds.ToString("0.00")</td>
-                                <td>@s.GcdSeconds.ToString("0.00")</td>
-                                <td>@(s.OffGcd ? "Y" : "N")</td>
-                                <td>@(s.CostResourceId is null ? "-" : $"{s.CostResourceId}:{s.CostAmount}")</td>
-                                <td>@s.DamageType</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        }
         @if (stepStatus is not null)
         {
             <div class="card" style="padding: 12px; margin-top: 12px;">
@@ -315,42 +224,116 @@
             </div>
 
             <div class="card" style="padding: 12px; margin-top: 12px;">
-                <h5>Aggregates</h5>
-                <div class="row">
-                    <div class="col-md-6">
-                        <b>DamageBySource (sum across segments)</b>
-                        <table class="table table-sm table-bordered">
-                            <thead><tr><th>Source</th><th>Damage</th></tr></thead>
+                <h5>Runtime Debug</h5>
+                @if (stepDebug is null)
+                {
+                    <div><i>点击“刷新运行态”或勾选“自动刷新运行态”查看。</i></div>
+                }
+                else
+                {
+                    <div class="row">
+                        <div class="col-md-3"><b>Now:</b> @stepDebug.Now.ToString("0.00")</div>
+                        <div class="col-md-3"><b>RNG Index:</b> @stepDebug.RngIndex</div>
+                        <div class="col-md-3"><b>Scheduler:</b> @stepDebug.SchedulerCount</div>
+                        <div class="col-md-3"><b>Enemy:</b> @stepDebug.Encounter.EnemyId (@stepDebug.Encounter.CurrentHp/@stepDebug.Encounter.EnemyMaxHp)</div>
+                    </div>
+
+                    <div class="row" style="margin-top:6px">
+                        <div class="col-md-4"><b>SegmentStart:</b> @stepDebug.Collector.SegmentStart.ToString("0.00")</div>
+                        <div class="col-md-4"><b>LastEventTime:</b> @stepDebug.Collector.LastEventTime.ToString("0.00")</div>
+                        <div class="col-md-4"><b>EventCount:</b> @stepDebug.Collector.EventCount</div>
+                    </div>
+
+                    <h6 style="margin-top:10px">Tracks</h6>
+                    <table class="table table-sm table-striped">
+                        <thead><tr><th>Type</th><th>Base</th><th>Haste</th><th>Current</th><th>Next</th></tr></thead>
+                        <tbody>
+                            @foreach (var t in stepDebug.Tracks)
+                            {
+                                <tr>
+                                    <td>@t.Type</td>
+                                    <td>@t.BaseInterval.ToString("0.00")</td>
+                                    <td>@t.HasteFactor.ToString("0.00")</td>
+                                    <td>@t.CurrentInterval.ToString("0.00")</td>
+                                    <td>@t.NextTriggerAt.ToString("0.00")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+
+                    <h6>Resources</h6>
+                    @if (stepDebug.Resources?.Count > 0)
+                    {
+                        <table class="table table-sm table-bordered" style="max-width:400px">
+                            <thead><tr><th>Id</th><th>Current</th><th>Max</th></tr></thead>
                             <tbody>
-                                @foreach (var kv in stepAggBySource.OrderByDescending(x => x.Value))
+                                @foreach (var kv in stepDebug.Resources)
                                 {
-                                    <tr><td>@kv.Key</td><td>@kv.Value</td></tr>
+                                    <tr><td>@kv.Key</td><td>@kv.Value.Current</td><td>@kv.Value.Max</td></tr>
                                 }
                             </tbody>
                         </table>
-                    </div>
-                    <div class="col-md-6">
-                        <b>DamageByType (sum across segments)</b>
-                        <table class="table table-sm table-bordered">
-                            <thead><tr><th>Type</th><th>Damage</th></tr></thead>
-                            <tbody>
-                                <tr><td>physical</td><td>@(stepAggByType.TryGetValue("physical", out var p) ? p : 0)</td></tr>
-                                <tr><td>magic</td><td>@(stepAggByType.TryGetValue("magic", out var m) ? m : 0)</td></tr>
-                                <tr><td>true</td><td>@(stepAggByType.TryGetValue("true", out var t) ? t : 0)</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                    }
+                    else
+                    {
+                        <div><i>(无资源快照或未命中 rage/focus)</i></div>
+                    }
+
+                    <h6>Buffs (@stepDebug.Buffs.Count)</h6>
+                    <table class="table table-sm table-striped">
+                        <thead><tr><th>Id</th><th>Stacks</th><th>Expire</th><th>NextTick</th><th>TickIntv</th><th>HasteSnap</th><th>BasePerStack</th><th>Type</th><th>DmgType</th></tr></thead>
+                        <tbody>
+                            @foreach (var b in stepDebug.Buffs.OrderBy(x => x.Id))
+                            {
+                                <tr>
+                                    <td>@b.Id</td>
+                                    <td>@b.Stacks</td>
+                                    <td>@b.ExpiresAt.ToString("0.00")</td>
+                                    <td>@(b.NextTickAt?.ToString("0.00") ?? "-")</td>
+                                    <td>@b.TickIntervalSeconds.ToString("0.00")</td>
+                                    <td>@b.HasteSnapshot.ToString("0.00")</td>
+                                    <td>@b.TickBasePerStack.ToString("0")</td>
+                                    <td>@b.PeriodicType</td>
+                                    <td>@b.PeriodicDamageType</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+
+                    <h6>Skills (@(stepDebug.AutoCast?.Skills?.Count ?? 0))</h6>
+                    <div><b>GCDUntil:</b> @stepDebug.AutoCast.GlobalCooldownUntil.ToString("0.00") | <b>IsCasting:</b> @(stepDebug.AutoCast.IsCasting ? "Yes" : "No") | <b>CastingUntil:</b> @stepDebug.AutoCast.CastingUntil.ToString("0.00")</div>
+                    <table class="table table-sm table-striped">
+                        <thead><tr><th>Id</th><th>Prio</th><th>Charges</th><th>NextCharge</th><th>NextAvail</th><th>CD</th><th>Cast</th><th>GCD</th><th>OffGCD</th><th>Cost</th><th>DMGType</th></tr></thead>
+                        <tbody>
+                            @foreach (var s in stepDebug.AutoCast.Skills.OrderBy(x => x.Priority))
+                            {
+                                <tr>
+                                    <td>@s.Id</td>
+                                    <td>@s.Priority</td>
+                                    <td>@s.Charges/@s.MaxCharges</td>
+                                    <td>@(s.NextChargeReadyAt?.ToString("0.00") ?? "-")</td>
+                                    <td>@s.NextAvailableTime.ToString("0.00")</td>
+                                    <td>@s.CooldownSeconds.ToString("0.00")</td>
+                                    <td>@s.CastTimeSeconds.ToString("0.00")</td>
+                                    <td>@s.GcdSeconds.ToString("0.00")</td>
+                                    <td>@(s.OffGcd ? "Y" : "N")</td>
+                                    <td>@(s.CostResourceId is null ? "-" : $"{s.CostResourceId}:{s.CostAmount}")</td>
+                                    <td>@s.DamageType</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
             </div>
         }
     </div>
 }
 
 @code {
+    // ====== 创建/同步战斗 ======
     string newName = "TestWarrior";
-    Profession selectedProfession = Profession.Warrior; // 默认值
+    Profession selectedProfession = Profession.Warrior;
 
-    // 新增：敌人选项和当前选择（为快速测试，先用前端静态列表；后续可改为从后端拉取）
     private record EnemyOption(string Id, string Name);
     readonly EnemyOption[] enemyOptions = new[]
     {
@@ -379,12 +362,9 @@
         {
             isBusy = true;
             lastCreated = await Api.CreateCharacterAsync(newName, selectedProfession);
-            ResetBattleState(); // 创建时顺便清空旧战斗状态
+            ResetBattleState();
         }
-        finally
-        {
-            isBusy = false;
-        }
+        finally { isBusy = false; }
     }
 
     void ResetBattleState()
@@ -407,7 +387,6 @@
             summary = null;
             segments = null;
 
-            // 传入所选敌人
             var resp = await Api.StartBattleAsync(lastCreated.Id, battleSeconds, enemyId: selectedEnemyId);
             currentBattleId = resp.BattleId;
 
@@ -422,24 +401,15 @@
         }
     }
 
-    async Task StartAnotherBattle()
-    {
-        ResetBattleState();
-        await StartBattle();
-    }
-
     void StartPolling()
     {
         StopPolling();
         pollTimer = new System.Timers.Timer(1500);
-        pollTimer.Elapsed += async (_, _) =>
+        pollTimer.Elapsed += async (_, _) => await InvokeAsync(async () =>
         {
-            await InvokeAsync(async () =>
-            {
-                await RefreshSummary();
-                StateHasChanged();
-            });
-        };
+            await RefreshSummary();
+            StateHasChanged();
+        });
         pollTimer.AutoReset = true;
         pollTimer.Start();
     }
@@ -465,34 +435,17 @@
             segmentsLoading = true;
             segments = await Api.GetBattleSegmentsAsync(currentBattleId);
         }
-        finally
-        {
-            segmentsLoading = false;
-        }
+        finally { segmentsLoading = false; }
     }
 
     async Task ForceRefresh()
     {
         if (battleInProgress) return;
-        try
-        {
-            isBusy = true;
-            await RefreshSummary();
-        }
-        finally
-        {
-            isBusy = false;
-        }
+        try { isBusy = true; await RefreshSummary(); }
+        finally { isBusy = false; }
     }
 
-    public void Dispose()
-    {
-        StopPolling();
-        StopStepPolling();
-    }
-
-    // ===== 异步 Step 战斗（嵌入调试） =====
-
+    // ====== Step 战斗（含运行态调试）======
     Guid? stepBattleId;
     double stepSeconds = 20;
     int stepEnemyCount = 1;
@@ -508,6 +461,12 @@
     bool stepIsPolling;
     int _stepSinceIndex = 0;
     string? stepError;
+
+    // debug
+    StepBattleDebugDto? stepDebug;
+    bool stepAutoDebug = false;
+    int stepDebugPollMs = 1000;
+    CancellationTokenSource? _stepDebugCts;
 
     async Task StartStepBattle()
     {
@@ -537,18 +496,17 @@
             stepAggBySource.Clear();
             stepAggByType.Clear();
             stepStatus = null;
+            stepDebug = null;
 
             _ = StartStepPollingAsync();
+            if (stepAutoDebug) _ = StartDebugAutoPollingAsync();
             await InvokeAsync(StateHasChanged);
         }
         catch (Exception ex)
         {
             stepError = $"StartStep 异常: {ex.Message}";
         }
-        finally
-        {
-            isBusy = false;
-        }
+        finally { isBusy = false; }
     }
 
     async Task StartStepPollingAsync()
@@ -569,10 +527,7 @@
             }
         }
         catch (TaskCanceledException) { }
-        catch (Exception ex)
-        {
-            stepError = $"轮询异常: {ex.Message}";
-        }
+        catch (Exception ex) { stepError = $"轮询异常: {ex.Message}"; }
         finally
         {
             stepIsPolling = false;
@@ -585,8 +540,7 @@
         if (stepBattleId is null) return;
 
         var s = await Api.GetStepBattleStatusAsync(stepBattleId.Value, ct);
-        if (s is not null)
-            stepStatus = s;
+        if (s is not null) stepStatus = s;
 
         var segList = await Api.GetStepBattleSegmentsAsync(stepBattleId.Value, _stepSinceIndex, ct);
         if (segList is { Count: > 0 })
@@ -619,26 +573,39 @@
     void ResetStep()
     {
         StopStepPolling();
+        StopDebugAutoPolling();
         stepBattleId = null;
         stepStatus = null;
         stepSegments.Clear();
         stepAggBySource.Clear();
         stepAggByType.Clear();
+        stepDebug = null;
         stepError = null;
         _stepSinceIndex = 0;
+        StateHasChanged();
     }
-
+    void OnAutoDebugChanged()
+    {
+        if (stepAutoDebug)
+        {
+            // fire-and-forget，不阻塞 UI
+            _ = StartDebugAutoPollingAsync();
+        }
+        else
+        {
+            StopDebugAutoPolling();
+        }
+    }
     async Task StopAndSaveAsync()
     {
         if (stepBattleId is null) return;
         try
         {
             var resp = await Api.StopStepBattleAsync(stepBattleId.Value);
-            StopStepPolling(); // 停止轮询
-            // 更新状态中的 PersistedBattleId
+            StopStepPolling();
+            StopDebugAutoPolling();
             if (stepStatus is not null)
                 stepStatus.PersistedBattleId = resp.PersistedBattleId;
-
             await InvokeAsync(StateHasChanged);
         }
         catch (Exception ex)
@@ -646,9 +613,6 @@
             stepError = $"Stop & Save 异常: {ex.Message}";
         }
     }
-
-
-    StepBattleDebugDto? stepDebug;
 
     async Task RefreshRuntimeDebug()
     {
@@ -663,9 +627,53 @@
             stepError = $"Debug 异常: {ex.Message}";
         }
     }
-    void OpenSummary(Guid id)
+
+    void ToggleAutoDebug(ChangeEventArgs e)
     {
-        // 简化处理：直接打开 API summary（如果你有专门前端页面可改为导航）
-        //var url = $"/api/battles/{id}/summary";_ = Microsoft.JSInterop.JSHost.ImportAsync("open", "data:text/javascript,"); // 如果未引入 IJSRuntime 可忽略
+        if (stepAutoDebug)
+        {
+            // 启动后台轮询（fire-and-forget，不阻塞 UI）
+            _ = StartDebugAutoPollingAsync();
+        }
+        else
+        {
+            StopDebugAutoPolling();
+        }
+    }
+
+    async Task StartDebugAutoPollingAsync()
+    {
+        if (stepBattleId is null) return;
+        _stepDebugCts?.Cancel();
+        _stepDebugCts = new CancellationTokenSource();
+        try
+        {
+            while (!_stepDebugCts.IsCancellationRequested)
+            {
+                await RefreshRuntimeDebug();
+                if (stepStatus?.Completed == true) break;
+                await Task.Delay(stepDebugPollMs, _stepDebugCts.Token);
+            }
+        }
+        catch (TaskCanceledException) { }
+        catch (Exception ex) { stepError = $"Debug 轮询异常: {ex.Message}"; }
+    }
+
+    void StopDebugAutoPolling()
+    {
+        _stepDebugCts?.Cancel();
+    }
+
+    async Task OpenSummary(Guid id)
+    {
+        var url = $"/api/battles/{id}/summary";
+        await JS.InvokeVoidAsync("open", url, "_blank");
+    }
+
+    public void Dispose()
+    {
+        StopPolling();
+        StopStepPolling();
+        StopDebugAutoPolling();
     }
 }
