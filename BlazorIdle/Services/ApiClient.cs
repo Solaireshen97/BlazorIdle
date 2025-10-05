@@ -43,4 +43,74 @@ public class ApiClient
 
     public async Task<List<BattleSegmentDto>> GetBattleSegmentsAsync(Guid battleId, CancellationToken ct = default)
         => (await _http.GetFromJsonAsync<List<BattleSegmentDto>>($"/api/battles/{battleId}/segments", ct)) ?? new();
+
+    // ========= 异步 Step 战斗 API（最小调试） =========
+
+    public async Task<StartStepBattleResponse> StartStepBattleAsync(
+        Guid characterId,
+        double seconds = 30,
+        string? enemyId = null,
+        int enemyCount = 1,
+        ulong? seed = null,
+        CancellationToken ct = default)
+    {
+        var url = $"/api/battles/step/start?characterId={characterId}&seconds={seconds}&enemyCount={enemyCount}";
+        if (!string.IsNullOrWhiteSpace(enemyId))
+            url += $"&enemyId={Uri.EscapeDataString(enemyId)}";
+        if (seed.HasValue)
+            url += $"&seed={seed.Value}";
+
+        var resp = await _http.PostAsync(url, null, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<StartStepBattleResponse>(cancellationToken: ct))!;
+    }
+
+    public async Task<StepBattleStatusDto?> GetStepBattleStatusAsync(Guid battleId, CancellationToken ct = default)
+        => await _http.GetFromJsonAsync<StepBattleStatusDto>($"/api/battles/step/{battleId}/status", ct);
+
+    public async Task<List<StepBattleSegmentDto>> GetStepBattleSegmentsAsync(Guid battleId, int since = 0, CancellationToken ct = default)
+        => (await _http.GetFromJsonAsync<List<StepBattleSegmentDto>>($"/api/battles/step/{battleId}/segments?since={since}", ct)) ?? new();
+}
+
+// ========== Client 侧 DTO（对应 step 接口） ==========
+
+public sealed class StartStepBattleResponse
+{
+    public Guid BattleId { get; set; }
+    public ulong Seed { get; set; }
+    public string? EnemyId { get; set; }
+    public int EnemyCount { get; set; }
+}
+
+public sealed class StepBattleStatusDto
+{
+    public Guid Id { get; set; }
+    public Guid CharacterId { get; set; }
+    public Profession Profession { get; set; }
+    public string EnemyId { get; set; } = "dummy";
+    public int EnemyCount { get; set; }
+    public double SimulatedSeconds { get; set; }
+    public double TargetSeconds { get; set; }
+    public bool Completed { get; set; }
+    public int TotalDamage { get; set; }
+    public double Dps { get; set; }
+    public int SegmentCount { get; set; }
+    public string Seed { get; set; } = "0";
+    public long SeedIndexStart { get; set; }
+    public long SeedIndexEnd { get; set; }
+    public bool Killed { get; set; }
+    public double? KillTimeSeconds { get; set; }
+    public int OverkillDamage { get; set; }
+}
+
+public sealed class StepBattleSegmentDto
+{
+    public int Index { get; set; }
+    public double StartTime { get; set; }
+    public double EndTime { get; set; }
+    public int EventCount { get; set; }
+    public int TotalDamage { get; set; }
+    public Dictionary<string, int> DamageBySource { get; set; } = new();
+    public Dictionary<string, int> DamageByType { get; set; } = new();
+    public Dictionary<string, int> ResourceFlow { get; set; } = new();
 }

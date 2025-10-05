@@ -1,6 +1,7 @@
 ﻿@page "/"
 @using BlazorIdle.Shared.Models
-@inject BlazorIdle.Client.Services.ApiClient Api
+@using BlazorIdle.Client.Services
+@inject ApiClient Api
 @implements IDisposable
 
 <h3>角色 & 战斗测试</h3>
@@ -25,7 +26,7 @@
 @if (lastCreated is not null)
 {
     <div class="panel">
-        <h4>2. 发起战斗</h4>
+        <h4>2. 发起战斗（同步一次性）</h4>
         时长(s):
         <input type="number" min="1" max="120" @bind="battleSeconds" style="width:80px" />
 
@@ -89,6 +90,7 @@
                         <th>Events</th>
                         <th>Damage</th>
                         <th>Sources</th>
+                        <th>Resources</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -106,18 +108,138 @@
                                     <span>@kv.Key:@kv.Value </span>
                                 }
                             </td>
-                            <th>Resources</th>
-                            ...
                             <td>
                                 @foreach (var kv in s.ResourceFlow)
                                 {
-                                    <span>@kv.Key:+@kv.Value </span>
+                                    <span>@kv.Key:@(kv.Value >= 0 ? "+" : "")@kv.Value </span>
                                 }
                             </td>
                         </tr>
                     }
                 </tbody>
             </table>
+        }
+    </div>
+}
+
+@if (lastCreated is not null)
+{
+    <div class="panel" style="margin-top: 18px;">
+        <h4>4. 异步 Step 战斗（调试最小版）</h4>
+
+        <div class="row" style="gap:12px; align-items:end;">
+            <div>
+                <label>时长(s)</label>
+                <input type="number" min="1" step="1" class="form-control" style="width:100px" @bind="stepSeconds" />
+            </div>
+            <div>
+                <label>敌人数</label>
+                <input type="number" min="1" step="1" class="form-control" style="width:100px" @bind="stepEnemyCount" />
+            </div>
+            <div>
+                <label>Seed(可选)</label>
+                <input class="form-control" style="width:160px" @bind="stepSeedInput" />
+            </div>
+            <div>
+                <label>轮询(ms)</label>
+                <input type="number" min="100" step="100" class="form-control" style="width:120px" @bind="stepPollMs" />
+            </div>
+            <div>
+                <button class="btn btn-primary" @onclick="StartStepBattle" disabled="@isBusy">Start Step</button>
+                <button class="btn btn-secondary" @onclick="StopStepPolling" disabled="@(!stepIsPolling)">Stop Poll</button>
+                <button class="btn btn-outline-danger" @onclick="ResetStep" disabled="@isBusy">Reset</button>
+            </div>
+        </div>
+
+        <div style="margin-top:8px;color:#666;">
+            <small>说明：使用 /api/battles/step/* 接口，后台每帧推进。前端按间隔轮询状态与增量段。</small>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(stepError))
+        {
+            <div class="alert alert-danger" style="margin-top:8px">@stepError</div>
+        }
+
+        @if (stepStatus is not null)
+        {
+            <div class="card" style="padding: 12px; margin-top: 12px;">
+                <h5>Status</h5>
+                <div class="row">
+                    <div class="col-md-3"><b>BattleId:</b> @stepBattleId</div>
+                    <div class="col-md-3"><b>SimSec:</b> @stepStatus.SimulatedSeconds.ToString("0.00")</div>
+                    <div class="col-md-2"><b>DPS:</b> @stepStatus.Dps.ToString("0.00")</div>
+                    <div class="col-md-2"><b>Segments:</b> @stepStatus.SegmentCount</div>
+                    <div class="col-md-2"><b>Completed:</b> @(stepStatus.Completed ? "Yes" : "No")</div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4"><b>Seed:</b> @stepStatus.Seed</div>
+                    <div class="col-md-4"><b>SeedIdx:</b> @stepStatus.SeedIndexStart - @stepStatus.SeedIndexEnd</div>
+                    <div class="col-md-2"><b>Killed:</b> @(stepStatus.Killed ? "Yes" : "No")</div>
+                    <div class="col-md-2"><b>KillTime:</b> @(stepStatus.KillTimeSeconds?.ToString("0.00") ?? "-")</div>
+                </div>
+            </div>
+
+            <div class="card" style="padding: 12px; margin-top: 12px;">
+                <h5>Segments (@stepSegments.Count)</h5>
+                <table class="table table-sm table-striped">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Time</th>
+                            <th>Events</th>
+                            <th>Total</th>
+                            <th>Top Source</th>
+                            <th>Phys/Magic/True</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var s in stepSegments)
+                        {
+                            var topSrc = s.DamageBySource.OrderByDescending(kv => kv.Value).FirstOrDefault();
+                            var phys = s.DamageByType.TryGetValue("physical", out var pv) ? pv : 0;
+                            var magic = s.DamageByType.TryGetValue("magic", out var mv) ? mv : 0;
+                            var tru = s.DamageByType.TryGetValue("true", out var tv) ? tv : 0;
+                            <tr>
+                                <td>@s.Index</td>
+                                <td>@s.StartTime.ToString("0.00") - @s.EndTime.ToString("0.00")</td>
+                                <td>@s.EventCount</td>
+                                <td>@s.TotalDamage</td>
+                                <td>@(string.IsNullOrEmpty(topSrc.Key) ? "-" : $"{topSrc.Key}:{topSrc.Value}")</td>
+                                <td>@phys / @magic / @tru</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="card" style="padding: 12px; margin-top: 12px;">
+                <h5>Aggregates</h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <b>DamageBySource (sum across segments)</b>
+                        <table class="table table-sm table-bordered">
+                            <thead><tr><th>Source</th><th>Damage</th></tr></thead>
+                            <tbody>
+                                @foreach (var kv in stepAggBySource.OrderByDescending(x => x.Value))
+                                {
+                                    <tr><td>@kv.Key</td><td>@kv.Value</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <b>DamageByType (sum across segments)</b>
+                        <table class="table table-sm table-bordered">
+                            <thead><tr><th>Type</th><th>Damage</th></tr></thead>
+                            <tbody>
+                                <tr><td>physical</td><td>@(stepAggByType.TryGetValue("physical", out var p) ? p : 0)</td></tr>
+                                <tr><td>magic</td><td>@(stepAggByType.TryGetValue("magic", out var m) ? m : 0)</td></tr>
+                                <tr><td>true</td><td>@(stepAggByType.TryGetValue("true", out var t) ? t : 0)</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         }
     </div>
 }
@@ -264,5 +386,147 @@
     public void Dispose()
     {
         StopPolling();
+        StopStepPolling();
+    }
+
+    // ===== 异步 Step 战斗（嵌入调试） =====
+
+    Guid? stepBattleId;
+    double stepSeconds = 20;
+    int stepEnemyCount = 1;
+    string? stepSeedInput = null;
+    int stepPollMs = 500;
+
+    StepBattleStatusDto? stepStatus;
+    List<StepBattleSegmentDto> stepSegments = new();
+    Dictionary<string, int> stepAggBySource = new();
+    Dictionary<string, int> stepAggByType = new();
+
+    CancellationTokenSource? _stepPollCts;
+    bool stepIsPolling;
+    int _stepSinceIndex = 0;
+    string? stepError;
+    async Task StartStepBattle()
+    {
+        stepError = null;
+        if (lastCreated is null) { stepError = "请先创建角色"; return; }
+        if (stepSeconds <= 0) stepSeconds = 1;
+        if (stepEnemyCount < 1) stepEnemyCount = 1;
+
+        try
+        {
+            isBusy = true;
+
+            ulong? seed = null;
+            if (ulong.TryParse(stepSeedInput, out var seedVal))
+                seed = seedVal;
+
+            var resp = await Api.StartStepBattleAsync(
+                lastCreated.Id,
+                seconds: stepSeconds,
+                enemyId: selectedEnemyId,
+                enemyCount: stepEnemyCount,
+                seed: seed);
+
+            stepBattleId = resp.BattleId;
+            _stepSinceIndex = 0;
+            stepSegments.Clear();
+            stepAggBySource.Clear();
+            stepAggByType.Clear();
+            stepStatus = null;
+
+            // 关键：不要等待轮询，启动后立即返回，避免阻塞事件
+            _ = StartStepPollingAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            stepError = $"StartStep 异常: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+
+    async Task StartStepPollingAsync()
+    {
+        if (stepBattleId is null) return;
+        _stepPollCts?.Cancel();
+        _stepPollCts = new CancellationTokenSource();
+        stepIsPolling = true;
+
+        try
+        {
+            while (!_stepPollCts.IsCancellationRequested)
+            {
+                await PollStepOnceAsync(_stepPollCts.Token);
+
+                // 关键：每次轮询后刷新 UI
+                await InvokeAsync(StateHasChanged);
+
+                if (stepStatus?.Completed == true) break;
+                await Task.Delay(stepPollMs, _stepPollCts.Token);
+            }
+        }
+        catch (TaskCanceledException) { }
+        catch (Exception ex)
+        {
+            stepError = $"轮询异常: {ex.Message}";
+        }
+        finally
+        {
+            stepIsPolling = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    async Task PollStepOnceAsync(CancellationToken ct)
+    {
+        if (stepBattleId is null) return;
+
+        var s = await Api.GetStepBattleStatusAsync(stepBattleId.Value, ct);
+        if (s is not null)
+            stepStatus = s;
+
+        var segList = await Api.GetStepBattleSegmentsAsync(stepBattleId.Value, _stepSinceIndex, ct);
+        if (segList is { Count: > 0 })
+        {
+            foreach (var seg in segList)
+            {
+                stepSegments.Add(seg);
+                foreach (var kv in seg.DamageBySource)
+                {
+                    if (!stepAggBySource.ContainsKey(kv.Key)) stepAggBySource[kv.Key] = 0;
+                    stepAggBySource[kv.Key] += kv.Value;
+                }
+                foreach (var kv in seg.DamageByType)
+                {
+                    if (!stepAggByType.ContainsKey(kv.Key)) stepAggByType[kv.Key] = 0;
+                    stepAggByType[kv.Key] += kv.Value;
+                }
+            }
+            _stepSinceIndex = stepSegments.Count;
+        }
+    }
+
+    void StopStepPolling()
+    {
+        _stepPollCts?.Cancel();
+        stepIsPolling = false;
+        StateHasChanged();
+    }
+
+    void ResetStep()
+    {
+        StopStepPolling();
+        stepBattleId = null;
+        stepStatus = null;
+        stepSegments.Clear();
+        stepAggBySource.Clear();
+        stepAggByType.Clear();
+        stepError = null;
+        _stepSinceIndex = 0;
     }
 }
