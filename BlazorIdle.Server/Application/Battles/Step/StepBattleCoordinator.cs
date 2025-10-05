@@ -23,7 +23,10 @@ public sealed class StepBattleCoordinator
         _finalizer = finalizer;
     }
 
-    public Guid Start(Guid characterId, Profession profession, CharacterStats stats, double seconds, ulong seed, string? enemyId, int enemyCount, StepBattleMode mode = StepBattleMode.Duration, string? dungeonId = null)
+    // 新增覆盖：continuousRespawnDelaySeconds / dungeonWaveDelaySeconds / dungeonRunDelaySeconds
+    public Guid Start(Guid characterId, Profession profession, CharacterStats stats, double seconds, ulong seed, string? enemyId, int enemyCount,
+        StepBattleMode mode = StepBattleMode.Duration, string? dungeonId = null,
+        double? continuousRespawnDelaySeconds = null, double? dungeonWaveDelaySeconds = null, double? dungeonRunDelaySeconds = null)
     {
         var eid = EnemyRegistry.Resolve(enemyId).Id;
         var enemy = EnemyRegistry.Resolve(eid);
@@ -39,7 +42,10 @@ public sealed class StepBattleCoordinator
             enemyCount: enemyCount,
             stats: stats,
             mode: mode,
-            dungeonId: dungeonId
+            dungeonId: dungeonId,
+            continuousRespawnDelaySeconds: continuousRespawnDelaySeconds,
+            dungeonWaveDelaySeconds: dungeonWaveDelaySeconds,
+            dungeonRunDelaySeconds: dungeonRunDelaySeconds
         );
 
         if (!_running.TryAdd(id, rb))

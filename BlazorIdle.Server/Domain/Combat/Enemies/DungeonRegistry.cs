@@ -6,7 +6,7 @@ public static class DungeonRegistry
 {
     private static readonly Dictionary<string, DungeonDefinition> _defs = new()
     {
-        // 示例地城：两波
+        // 示例：两波；波次刷新 3s；整轮刷新 10s
         ["intro_cave"] = new DungeonDefinition(
             id: "intro_cave",
             name: "Intro Cave",
@@ -21,7 +21,9 @@ public static class DungeonRegistry
                 {
                     ("tank", 1)
                 })
-            }
+            },
+            waveRespawnDelaySeconds: 3.0,
+            runRespawnDelaySeconds: 10.0
         )
     };
 

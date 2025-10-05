@@ -20,10 +20,21 @@ public class StepBattlesController : ControllerBase
         _characters = characters;
     }
 
-    // 新增支持：mode 与 dungeonId
-    // mode: duration|continuous|dungeon|dungeonLoop（默认 duration）
+    // 支持刷新等待参数：
+    // continuous: respawnDelay
+    // dungeon: waveDelay / runDelay
     [HttpPost("start")]
-    public async Task<IActionResult> Start([FromQuery] Guid characterId, [FromQuery] double seconds = 30, [FromQuery] ulong? seed = null, [FromQuery] string? enemyId = null, [FromQuery] int enemyCount = 1, [FromQuery] string? mode = null, [FromQuery] string? dungeonId = null)
+    public async Task<IActionResult> Start(
+        [FromQuery] Guid characterId,
+        [FromQuery] double seconds = 30,
+        [FromQuery] ulong? seed = null,
+        [FromQuery] string? enemyId = null,
+        [FromQuery] int enemyCount = 1,
+        [FromQuery] string? mode = null,
+        [FromQuery] string? dungeonId = null,
+        [FromQuery] double? respawnDelay = null,
+        [FromQuery] double? waveDelay = null,
+        [FromQuery] double? runDelay = null)
     {
         var c = await _characters.GetAsync(characterId);
         if (c is null) return NotFound("Character not found.");
@@ -52,8 +63,26 @@ public class StepBattlesController : ControllerBase
         if ((parsedMode == StepBattleMode.DungeonSingle || parsedMode == StepBattleMode.DungeonLoop) && string.IsNullOrWhiteSpace(dungeonId))
             return BadRequest("dungeonId is required for dungeon modes.");
 
-        var id = _coord.Start(characterId, profession, stats, seconds, finalSeed, enemyId, enemyCount, parsedMode, dungeonId);
-        return Ok(new { battleId = id, seed = finalSeed, enemyId = enemyId ?? "dummy", enemyCount, mode = parsedMode.ToString().ToLowerInvariant(), dungeonId });
+        var id = _coord.Start(
+            characterId, profession, stats, seconds, finalSeed, enemyId, enemyCount,
+            parsedMode, dungeonId,
+            continuousRespawnDelaySeconds: respawnDelay,
+            dungeonWaveDelaySeconds: waveDelay,
+            dungeonRunDelaySeconds: runDelay
+        );
+
+        return Ok(new
+        {
+            battleId = id,
+            seed = finalSeed,
+            enemyId = enemyId ?? "dummy",
+            enemyCount,
+            mode = parsedMode.ToString().ToLowerInvariant(),
+            dungeonId,
+            respawnDelay,
+            waveDelay,
+            runDelay
+        });
     }
 
     [HttpGet("{id:guid}/status")]

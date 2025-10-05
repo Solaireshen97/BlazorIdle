@@ -14,10 +14,10 @@ namespace BlazorIdle.Server.Application.Battles.Step;
 
 public enum StepBattleMode
 {
-    Duration = 0,      // 原有：按目标秒数结束
-    Continuous = 1,    // 持续：怪死就重生，同配置
-    DungeonSingle = 2, // 地城：按波完成一次后结束
-    DungeonLoop = 3    // 地城循环：完成后重置第一波继续
+    Duration = 0,
+    Continuous = 1,
+    DungeonSingle = 2,
+    DungeonLoop = 3
 }
 
 public sealed class RunningBattle
@@ -59,6 +59,10 @@ public sealed class RunningBattle
 
     private readonly IEncounterProvider _provider;
 
+    // 刷新等待状态
+    private EncounterGroup? _pendingNextGroup;
+    private double? _pendingSpawnAt;
+    private bool _waitingSpawn; // 新增：已安排刷新但尚未执行
     public RunningBattle(
         Guid id,
         Guid characterId,
@@ -70,6 +74,9 @@ public sealed class RunningBattle
         CharacterStats stats,
         StepBattleMode mode = StepBattleMode.Duration,
         string? dungeonId = null,
+        double? continuousRespawnDelaySeconds = null,
+        double? dungeonWaveDelaySeconds = null,
+        double? dungeonRunDelaySeconds = null,
         IProfessionModule? module = null)
     {
         Id = id;
@@ -85,15 +92,19 @@ public sealed class RunningBattle
         var rng = new RngContext(seed);
         SeedIndexStart = rng.Index;
 
-        // Provider & 初始敌群
         if (mode == StepBattleMode.DungeonSingle || mode == StepBattleMode.DungeonLoop)
         {
             var dungeon = DungeonRegistry.Resolve(dungeonId ?? "intro_cave");
-            _provider = new DungeonEncounterProvider(dungeon, loop: mode == StepBattleMode.DungeonLoop);
+            _provider = new DungeonEncounterProvider(
+                dungeon,
+                loop: mode == StepBattleMode.DungeonLoop,
+                waveDelayOverride: dungeonWaveDelaySeconds,
+                runDelayOverride: dungeonRunDelaySeconds
+            );
         }
         else
         {
-            _provider = new ContinuousEncounterProvider(enemyDef, EnemyCount);
+            _provider = new ContinuousEncounterProvider(enemyDef, EnemyCount, respawnDelaySeconds: continuousRespawnDelaySeconds ?? 3.0);
         }
 
         var encounterGroup = _provider.CurrentGroup;
@@ -140,34 +151,58 @@ public sealed class RunningBattle
         var wallDelta = (wallNow - _lastAdvanceWallUtc).TotalSeconds;
         if (wallDelta <= 0.0005) return;
 
+        // 入口补救：若错过了刷新点，立即执行刷新
+        if (_waitingSpawn && _pendingSpawnAt.HasValue && Clock.CurrentTime + 1e-9 >= _pendingSpawnAt.Value)
+            TryPerformPendingSpawn();
+
         var allowedDelta = Math.Min(wallDelta * SimSpeed, Math.Max(0.001, maxSimSecondsSlice));
-        var sliceEnd = (Mode == StepBattleMode.Duration)
+        var desiredSliceEnd = (Mode == StepBattleMode.Duration)
             ? Math.Min(TargetDurationSeconds, Clock.CurrentTime + allowedDelta)
             : (Clock.CurrentTime + allowedDelta);
 
+        // 切片上限不能回退；若在等待刷新，则卡到 spawnAt
+        double effectiveSliceEnd = desiredSliceEnd;
+        if (_waitingSpawn && _pendingSpawnAt.HasValue)
+        {
+            var spawnAt = Math.Max(_pendingSpawnAt.Value, Clock.CurrentTime);
+            effectiveSliceEnd = Math.Min(desiredSliceEnd, spawnAt);
+        }
+
         int safety = 0;
+
+        // 队列为空但有待刷新：推进到刷新时刻并执行
+        if (Scheduler.Count == 0 && _waitingSpawn && _pendingSpawnAt.HasValue)
+        {
+            var to = Math.Min(effectiveSliceEnd, Math.Max(_pendingSpawnAt.Value, Clock.CurrentTime));
+            if (to > Clock.CurrentTime + 1e-9)
+            {
+                Clock.AdvanceTo(to);
+                Collector.Tick(Clock.CurrentTime);
+                TryFlushSegment();
+            }
+            TryPerformPendingSpawn();
+        }
 
         while (Scheduler.Count > 0 && safety++ < maxEvents)
         {
+            var peek = Scheduler.PeekNext();
+            if (peek is not null && peek.ExecuteAt > effectiveSliceEnd)
+            {
+                if (effectiveSliceEnd > Clock.CurrentTime + 1e-9)
+                {
+                    Clock.AdvanceTo(effectiveSliceEnd);
+                    Collector.Tick(Clock.CurrentTime);
+                    TryFlushSegment();
+                }
+                TryPerformPendingSpawn();
+                break;
+            }
+
             Context.Buffs.Tick(Clock.CurrentTime);
             SyncTrackHaste(Context);
 
             var ev = Scheduler.PopNext();
             if (ev is null) break;
-
-            if (ev.ExecuteAt > sliceEnd)
-            {
-                Scheduler.Schedule(ev);
-
-                if (sliceEnd > Clock.CurrentTime)
-                {
-                    Clock.AdvanceTo(sliceEnd);
-                    Collector.Tick(Clock.CurrentTime);
-                    if (Collector.ShouldFlush(Clock.CurrentTime))
-                        Segments.Add(Collector.Flush(Clock.CurrentTime));
-                }
-                break;
-            }
 
             if (Mode == StepBattleMode.Duration && ev.ExecuteAt > TargetDurationSeconds)
             {
@@ -177,78 +212,74 @@ public sealed class RunningBattle
 
             Clock.AdvanceTo(ev.ExecuteAt);
 
-            // 段级 RNG 记录
             Collector.OnRngIndex(Context.Rng.Index);
             ev.Execute(Context);
             Collector.OnRngIndex(Context.Rng.Index);
 
             Collector.Tick(Clock.CurrentTime);
+            TryFlushSegment();
 
-            if (Collector.ShouldFlush(Clock.CurrentTime))
-                Segments.Add(Collector.Flush(Clock.CurrentTime));
-
-            // 死亡处理：根据模式切波/循环/结束
+            // 击杀 → 仅首次安排刷新（避免每个后续事件重置刷新时刻）
             if (Context.Encounter?.IsDead == true)
             {
-                Killed = true;
-                KillTime = Context.Encounter.KillTime;
-                Overkill = Context.Encounter.Overkill;
-
-                Collector.OnTag("encounter_cleared", 1);
-
                 if (Mode == StepBattleMode.Duration)
                 {
                     Battle.Finish(Clock.CurrentTime);
                     Completed = true;
-
-                    if (Collector.EventCount > 0)
-                        Segments.Add(Collector.Flush(Clock.CurrentTime));
+                    TryFlushSegment(force: true);
                     _lastAdvanceWallUtc = wallNow;
                     return;
                 }
                 else
                 {
-                    // 尝试获取下一波/下一轮
-                    if (_provider.TryAdvance(out var nextGroup, out var runCompleted) && nextGroup is not null)
+                    if (!_waitingSpawn) // 关键：只安排一次
                     {
-                        if (runCompleted)
-                            Collector.OnTag("dungeon_run_complete", 1);
+                        if (_provider.TryAdvance(out var nextGroup, out var runCompleted) && nextGroup is not null)
+                        {
+                            var delay = Math.Max(0.0, _provider.GetRespawnDelaySeconds(runCompleted));
+                            _pendingNextGroup = nextGroup;
+                            _pendingSpawnAt = Clock.CurrentTime + delay;
+                            _waitingSpawn = true;
 
-                        Context.ResetEncounterGroup(nextGroup);
-                        // 切换主目标
-                        Context.RefreshPrimaryEncounter();
+                            if (runCompleted) Collector.OnTag("dungeon_run_complete", 1);
+                            Collector.OnTag("spawn_scheduled", 1);
 
-                        // 重置“本次击杀状态”标志，仅用于状态展示（可选）
-                        Killed = false;
-                        KillTime = null;
-                        Overkill = 0;
+                            // UI 清瞬时标记
+                            Killed = false; KillTime = null; Overkill = 0;
 
-                        // 继续 while 循环，战斗不停
-                        continue;
-                    }
-                    else
-                    {
-                        // 非循环地城：完成一次后结束
-                        Battle.Finish(Clock.CurrentTime);
-                        Completed = true;
-
-                        if (Collector.EventCount > 0)
-                            Segments.Add(Collector.Flush(Clock.CurrentTime));
-                        _lastAdvanceWallUtc = wallNow;
-                        return;
+                            var spawnAt = Math.Max(_pendingSpawnAt.Value, Clock.CurrentTime);
+                            effectiveSliceEnd = Math.Min(desiredSliceEnd, spawnAt);
+                        }
+                        else
+                        {
+                            // 非循环地城：完成一次后结束
+                            Battle.Finish(Clock.CurrentTime);
+                            Completed = true;
+                            TryFlushSegment(force: true);
+                            _lastAdvanceWallUtc = wallNow;
+                            return;
+                        }
                     }
                 }
             }
+
+            // 到点刷新
+            if (_waitingSpawn && _pendingSpawnAt.HasValue && Clock.CurrentTime + 1e-9 >= _pendingSpawnAt.Value)
+            {
+                TryPerformPendingSpawn();
+            }
+
+            if (Clock.CurrentTime + 1e-9 >= effectiveSliceEnd) break;
         }
 
-        // 仅在 Duration 模式下因时间达标结束；其他模式不因时间自然结束
-        if ((Mode == StepBattleMode.Duration && Clock.CurrentTime >= TargetDurationSeconds) || Scheduler.Count == 0)
+        if (Mode == StepBattleMode.Duration)
         {
-            if (Collector.EventCount > 0)
-                Segments.Add(Collector.Flush(Clock.CurrentTime));
-
-            Completed = true;
-            Battle.Finish(Clock.CurrentTime);
+            if (Clock.CurrentTime >= TargetDurationSeconds || Scheduler.Count == 0)
+            {
+                TryFlushSegment(force: true);
+                Completed = true;
+                Battle.Finish(Clock.CurrentTime);
+            }
         }
 
         _lastAdvanceWallUtc = wallNow;
@@ -257,13 +288,37 @@ public sealed class RunningBattle
     public void ForceStopAndSeal()
     {
         if (Completed) return;
-
-        if (Collector.EventCount > 0)
-            Segments.Add(Collector.Flush(Clock.CurrentTime));
-
-        // 持续/地城模式：Stop 时强制封盘
+        TryFlushSegment(force: true);
         Completed = true;
         Battle.Finish(Clock.CurrentTime);
+    }
+
+    private void TryPerformPendingSpawn()
+    {
+        if (_waitingSpawn && _pendingSpawnAt.HasValue && _pendingNextGroup is not null && Clock.CurrentTime + 1e-9 >= _pendingSpawnAt.Value)
+        {
+            Context.ResetEncounterGroup(_pendingNextGroup);
+            Context.RefreshPrimaryEncounter();
+
+            _pendingNextGroup = null;
+            _pendingSpawnAt = null;
+            _waitingSpawn = false; // 关键：允许下一次安排
+
+            Collector.OnTag("spawn_performed", 1);
+        }
+    }
+
+    private void TryFlushSegment(bool force = false)
+    {
+        if (force)
+        {
+            if (Collector.EventCount > 0)
+                Segments.Add(Collector.Flush(Clock.CurrentTime));
+            return;
+        }
+
+        if (Collector.ShouldFlush(Clock.CurrentTime))
+            Segments.Add(Collector.Flush(Clock.CurrentTime));
     }
 
     private static void SyncTrackHaste(BattleContext context)

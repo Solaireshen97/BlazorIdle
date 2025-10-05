@@ -7,13 +7,17 @@ public interface IEncounterProvider
     // 当前敌群
     EncounterGroup CurrentGroup { get; }
 
-    // 当前波次（连续模式固定为 1）
+    // 当前波次（持续模式固定为 1）
     int CurrentWaveIndex { get; }
 
-    // 已完成的地城轮次（连续模式为 0）
+    // 已完成的地城轮次（持续模式为 0）
     int CompletedRunCount { get; }
 
     // 当一波敌群被清空时调用，返回是否还有下一波/下一轮
     // nextGroup: 下一波的敌群；runCompleted: 刚刚是否完成了一整轮地城
     bool TryAdvance(out EncounterGroup? nextGroup, out bool runCompleted);
+
+    // 返回在“清空一波/一轮”后，下一波/下一轮刷新前需要等待的秒数
+    // runJustCompleted = true 表示刚完成一整轮（仅对地城循环有意义）
+    double GetRespawnDelaySeconds(bool runJustCompleted);
 }

@@ -23,7 +23,7 @@ public class StartBattleService
         _runner = runner;
     }
 
-    // 新增: mode/dungeonId，mode: duration(默认) | continuous | dungeon | dungeonloop
+    // 新增：mode/dungeonId + 刷新等待覆盖（可选）
     public async Task<Guid> StartAsync(
         Guid characterId,
         double simulateSeconds = 15,
@@ -32,6 +32,9 @@ public class StartBattleService
         int enemyCount = 1,
         string? mode = null,
         string? dungeonId = null,
+        double? respawnDelay = null,
+        double? waveDelay = null,
+        double? runDelay = null,
         CancellationToken ct = default)
     {
         var c = await _characters.GetAsync(characterId, ct);
@@ -50,7 +53,6 @@ public class StartBattleService
             StartedAt = 0
         };
 
-        // 职业基础 + 主属性转换
         var baseStats = ProfessionBaseStatsRegistry.Resolve(c.Profession);
         var attrs = new PrimaryAttributes(c.Strength, c.Agility, c.Intellect, c.Stamina);
         var derived = StatsBuilder.BuildDerived(c.Profession, attrs);
@@ -58,7 +60,6 @@ public class StartBattleService
 
         ulong finalSeed = seed ?? DeriveSeed(characterId);
 
-        // 解析 mode
         var m = (mode ?? "duration").Trim().ToLowerInvariant();
 
         List<CombatSegment> segments;
@@ -70,7 +71,6 @@ public class StartBattleService
 
         if (m == "continuous" || m == "dungeon" || m == "dungeonloop")
         {
-            // 复用 Step 的 RunningBattle，同步快进到 simulateSeconds
             var stepMode = m switch
             {
                 "continuous" => StepBattleMode.Continuous,
@@ -92,10 +92,12 @@ public class StartBattleService
                 enemyCount: enemyCount,
                 stats: stats,
                 mode: stepMode,
-                dungeonId: dungeonId
+                dungeonId: dungeonId,
+                continuousRespawnDelaySeconds: respawnDelay,
+                dungeonWaveDelaySeconds: waveDelay,
+                dungeonRunDelaySeconds: runDelay
             );
 
-            // 快进至目标秒数（非持续模式也会完成提前结束）
             rb.FastForwardTo(simulateSeconds);
 
             segments = rb.Segments.ToList();
@@ -106,11 +108,9 @@ public class StartBattleService
         }
         else
         {
-            // 原有一次性时长模式
             var rng = new RngContext(finalSeed);
             seedIndexStart = rng.Index;
 
-            // 构造 EncounterGroup（单波）
             var groupDefs = Enumerable.Range(0, enemyCount).Select(_ => enemyDef).ToList();
             var encounterGroup = new EncounterGroup(groupDefs);
 

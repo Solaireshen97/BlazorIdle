@@ -10,7 +10,7 @@ public static class EnemyRegistry
             id: "dummy",
             name: "Training Dummy",
             level: 1,
-            maxHp: 1500,
+            maxHp: 150,
             armor: 50,
             magicResist: 0.1
         ),
@@ -18,7 +18,7 @@ public static class EnemyRegistry
             id: "tank",
             name: "Armored Golem",
             level: 10,
-            maxHp: 5000,
+            maxHp: 500,
             armor: 400,
             magicResist: 0.15
         ),
@@ -26,7 +26,7 @@ public static class EnemyRegistry
             id: "magebane",
             name: "Magebane Warden",
             level: 10,
-            maxHp: 3800,
+            maxHp: 380,
             armor: 120,
             magicResist: 0.35
         ),
@@ -34,7 +34,7 @@ public static class EnemyRegistry
             id: "paper",
             name: "Paper Slime",
             level: 1,
-            maxHp: 800,
+            maxHp: 80,
             armor: 0,
             magicResist: 0.0,
             vulnPhys: 0.1,
