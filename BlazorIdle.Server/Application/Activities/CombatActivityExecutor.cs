@@ -4,6 +4,7 @@ using BlazorIdle.Server.Domain.Activity;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Professions;
 using BlazorIdle.Server.Domain.Combat.Rng;
+using Microsoft.Extensions.DependencyInjection;
 using System.Text.Json;
 
 namespace BlazorIdle.Server.Application.Activities;
@@ -14,14 +15,14 @@ namespace BlazorIdle.Server.Application.Activities;
 public sealed class CombatActivityExecutor : IActivityExecutor
 {
     private readonly StepBattleCoordinator _battleCoordinator;
-    private readonly ICharacterRepository _characters;
+    private readonly IServiceScopeFactory _scopeFactory;
     
     public ActivityType SupportedType => ActivityType.Combat;
     
-    public CombatActivityExecutor(StepBattleCoordinator battleCoordinator, ICharacterRepository characters)
+    public CombatActivityExecutor(StepBattleCoordinator battleCoordinator, IServiceScopeFactory scopeFactory)
     {
         _battleCoordinator = battleCoordinator;
-        _characters = characters;
+        _scopeFactory = scopeFactory;
     }
     
     public async Task<ActivityExecutionContext> StartAsync(ActivityPlan plan, CancellationToken ct = default)
@@ -33,8 +34,12 @@ public sealed class CombatActivityExecutor : IActivityExecutor
         var payload = JsonSerializer.Deserialize<CombatPayload>(plan.PayloadJson) 
             ?? throw new InvalidOperationException("Invalid combat payload");
         
+        // 创建临时 Scope 并获取 Repository
+        using var scope = _scopeFactory.CreateScope();
+        var characters = scope.ServiceProvider.GetRequiredService<ICharacterRepository>();
+        
         // 获取角色信息
-        var character = await _characters.GetAsync(plan.CharacterId, ct) 
+        var character = await characters.GetAsync(plan.CharacterId, ct) 
             ?? throw new InvalidOperationException($"Character {plan.CharacterId} not found");
         
         // 构建角色属性

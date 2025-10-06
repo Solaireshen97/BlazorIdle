@@ -58,6 +58,8 @@ public sealed class ActivityCoordinator
         if (slot.IsIdle)
         {
             slot.StartPlan(plan.Id);
+            // 异步启动计划执行（不等待，让后台服务处理）
+            _ = Task.Run(() => TryStartPlanAsync(plan.Id, CancellationToken.None));
         }
         else
         {
