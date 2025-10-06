@@ -31,6 +31,131 @@
     <InventoryPanel CharacterId="@lastCreated.Id" CharacterName="@lastCreated.Name" />
 }
 
+<!-- 1.6) 活动计划管理 -->
+@if (lastCreated is not null)
+{
+    <div class="panel">
+        <h4>1.6. 活动计划管理 (Activity Plans)</h4>
+        
+        <div class="row" style="gap:12px; margin-bottom:12px;">
+            <button class="btn btn-primary" @onclick="RefreshSlots" disabled="@isBusy">刷新槽位</button>
+            <div class="form-check" style="display:flex;align-items:center;gap:6px;">
+                <input class="form-check-input" type="checkbox" id="chkAutoSlots" @bind="activityAutoRefresh" @bind:after="OnActivityAutoRefreshChanged" />
+                <label class="form-check-label" for="chkAutoSlots">自动刷新 (每2秒)</label>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(activityError))
+        {
+            <div class="alert alert-danger">@activityError</div>
+        }
+
+        @if (activitySlots is not null && activitySlots.Count > 0)
+        {
+            @foreach (var slot in activitySlots.OrderBy(s => s.SlotIndex))
+            {
+                <div class="card" style="padding: 12px; margin-bottom: 12px; border: 1px solid #dee2e6;">
+                    <h5>槽位 @slot.SlotIndex @GetSlotStatusIcon(slot)</h5>
+                    
+                    @if (slot.CurrentPlan is not null)
+                    {
+                        var plan = slot.CurrentPlan;
+                        <div style="background: #f8f9fa; padding: 8px; border-radius: 4px; margin-bottom: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong>@GetStateIcon(plan.State) @plan.Type.ToUpper()</strong>
+                                    <span style="margin-left: 8px; color: #666;">ID: @plan.Id.ToString().Substring(0, 8)...</span>
+                                </div>
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => CancelPlan(plan.Id)" disabled="@isBusy">取消</button>
+                            </div>
+                            <div style="margin-top: 8px;">
+                                <div><strong>限制:</strong> @plan.LimitType (@GetLimitDisplay(plan))</div>
+                                <div><strong>进度:</strong> @GetProgressDisplay(plan)</div>
+                                <div style="margin-top: 4px;">
+                                    <div style="background: #e9ecef; height: 20px; border-radius: 4px; overflow: hidden;">
+                                        <div style="background: @GetProgressColor(plan); height: 100%; width: @(GetProgressPercentage(plan))%; transition: width 0.3s;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div style="color: #999; font-style: italic;">空闲</div>
+                    }
+
+                    @if (slot.QueuedPlans?.Count > 0)
+                    {
+                        <div style="margin-top: 8px;">
+                            <strong>队列中 (@slot.QueuedPlans.Count):</strong>
+                            @foreach (var qp in slot.QueuedPlans)
+                            {
+                                <div style="padding: 6px; background: #fff3cd; border-radius: 4px; margin-top: 4px; display: flex; justify-content: space-between; align-items: center;">
+                                    <span>⏳ @qp.Type - @qp.LimitType (@GetLimitDisplay(qp))</span>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => CancelPlan(qp.Id)" disabled="@isBusy">移除</button>
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #dee2e6;">
+                        <strong>创建新计划:</strong>
+                        <div class="row" style="gap: 8px; margin-top: 8px; align-items: end;">
+                            <div>
+                                <label style="font-size: 0.9em;">限制类型</label>
+                                <select class="form-control form-control-sm" style="width:120px" @bind="newPlanLimitType">
+                                    <option value="duration">时长(秒)</option>
+                                    <option value="count">计数</option>
+                                    <option value="infinite">无限</option>
+                                </select>
+                            </div>
+                            @if (newPlanLimitType != "infinite")
+                            {
+                                <div>
+                                    <label style="font-size: 0.9em;">@(newPlanLimitType == "duration" ? "时长(秒)" : "数量")</label>
+                                    <input type="number" min="1" class="form-control form-control-sm" style="width:100px" @bind="newPlanLimitValue" />
+                                </div>
+                            }
+                            <div>
+                                <label style="font-size: 0.9em;">战斗模式</label>
+                                <select class="form-control form-control-sm" style="width:140px" @bind="newPlanBattleMode">
+                                    <option value="duration">Duration</option>
+                                    <option value="continuous">Continuous</option>
+                                    <option value="dungeonsingle">Dungeon单次</option>
+                                    <option value="dungeonloop">Dungeon循环</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size: 0.9em;">敌人</label>
+                                <select class="form-control form-control-sm" style="width:200px" @bind="selectedEnemyId">
+                                    @if (enemies?.Count > 0)
+                                    {
+                                        @foreach (var e in enemies)
+                                        {
+                                            <option value="@e.Id">@e.Name</option>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <option value="dummy">Training Dummy</option>
+                                    }
+                                </select>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-success" @onclick="() => CreateCombatPlan(slot.SlotIndex)" disabled="@isBusy">添加到槽位</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <div style="color: #999; font-style: italic;">加载中或无槽位数据...</div>
+        }
+    </div>
+}
+
 <!-- 2) 同步战斗 -->
 @if (lastCreated is not null)
 {
@@ -776,7 +901,221 @@
 
     async Task OpenSummary(Guid id) { var url = $"/api/battles/{id}/summary"; await JS.InvokeVoidAsync("open", url, "_blank"); }
 
-    public void Dispose() { StopPolling(); StopStepPolling(); StopDebugAutoPolling(); }
+    public void Dispose() 
+    { 
+        StopPolling(); 
+        StopStepPolling(); 
+        StopDebugAutoPolling(); 
+        StopActivityAutoRefresh(); 
+    }
+
+    // ====== 活动计划管理 ======
+    List<ActivitySlotDto>? activitySlots;
+    string? activityError;
+    bool activityAutoRefresh = false;
+    CancellationTokenSource? _activityRefreshCts;
+    
+    string newPlanLimitType = "duration";
+    double newPlanLimitValue = 60;
+    string newPlanBattleMode = "duration";
+
+    async Task RefreshSlots()
+    {
+        if (lastCreated is null) return;
+        try
+        {
+            activityError = null;
+            activitySlots = await Api.GetCharacterSlotsAsync(lastCreated.Id);
+        }
+        catch (Exception ex)
+        {
+            activityError = $"刷新槽位失败: {ex.Message}";
+        }
+    }
+
+    void OnActivityAutoRefreshChanged()
+    {
+        if (activityAutoRefresh)
+        {
+            _ = StartActivityAutoRefreshAsync();
+        }
+        else
+        {
+            StopActivityAutoRefresh();
+        }
+    }
+
+    async Task StartActivityAutoRefreshAsync()
+    {
+        if (lastCreated is null) return;
+        _activityRefreshCts?.Cancel();
+        _activityRefreshCts = new CancellationTokenSource();
+        
+        try
+        {
+            while (!_activityRefreshCts.IsCancellationRequested)
+            {
+                await RefreshSlots();
+                await InvokeAsync(StateHasChanged);
+                await Task.Delay(2000, _activityRefreshCts.Token);
+            }
+        }
+        catch (TaskCanceledException) { }
+        catch (Exception ex)
+        {
+            activityError = $"自动刷新异常: {ex.Message}";
+        }
+    }
+
+    void StopActivityAutoRefresh()
+    {
+        _activityRefreshCts?.Cancel();
+    }
+
+    async Task CreateCombatPlan(int slotIndex)
+    {
+        if (lastCreated is null) return;
+        
+        try
+        {
+            isBusy = true;
+            activityError = null;
+
+            // 构建战斗载荷
+            var payload = new
+            {
+                enemyId = selectedEnemyId,
+                enemyCount = 1,
+                mode = newPlanBattleMode,
+                dungeonId = (string?)null,
+                respawnDelay = (double?)null,
+                waveDelay = (double?)null,
+                runDelay = (double?)null,
+                seed = (ulong?)null
+            };
+
+            var request = new CreateActivityPlanRequest
+            {
+                CharacterId = lastCreated.Id,
+                SlotIndex = slotIndex,
+                Type = "combat",
+                LimitType = newPlanLimitType,
+                LimitValue = newPlanLimitType == "infinite" ? null : newPlanLimitValue,
+                PayloadJson = System.Text.Json.JsonSerializer.Serialize(payload)
+            };
+
+            var plan = await Api.CreateActivityPlanAsync(request);
+            await RefreshSlots();
+        }
+        catch (Exception ex)
+        {
+            activityError = $"创建计划失败: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    async Task CancelPlan(Guid planId)
+    {
+        try
+        {
+            isBusy = true;
+            activityError = null;
+            var success = await Api.CancelActivityPlanAsync(planId);
+            if (!success)
+            {
+                activityError = "取消计划失败";
+            }
+            await RefreshSlots();
+        }
+        catch (Exception ex)
+        {
+            activityError = $"取消计划异常: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    string GetStateIcon(string state) => state switch
+    {
+        "pending" => "⏳",
+        "running" => "▶️",
+        "completed" => "✅",
+        "cancelled" => "❌",
+        _ => "❓"
+    };
+
+    string GetSlotStatusIcon(ActivitySlotDto slot)
+    {
+        if (slot.CurrentPlan is null) return "💤";
+        return slot.CurrentPlan.State == "running" ? "🔥" : "⏸️";
+    }
+
+    string GetLimitDisplay(ActivityPlanDto plan)
+    {
+        if (plan.LimitType == "duration")
+        {
+            // 从 payloadJson 中获取目标时长，这里简化处理
+            return "按时长";
+        }
+        else if (plan.LimitType == "count")
+        {
+            return "按计数";
+        }
+        else
+        {
+            return "无限制";
+        }
+    }
+
+    string GetProgressDisplay(ActivityPlanDto plan)
+    {
+        if (plan.LimitType == "duration")
+        {
+            return $"{plan.Progress.SimulatedSeconds:0.0}秒";
+        }
+        else if (plan.LimitType == "count")
+        {
+            return $"{plan.Progress.CompletedCount}次";
+        }
+        else
+        {
+            return $"{plan.Progress.SimulatedSeconds:0.0}秒 / {plan.Progress.CompletedCount}次";
+        }
+    }
+
+    double GetProgressPercentage(ActivityPlanDto plan)
+    {
+        if (plan.State == "completed") return 100;
+        if (plan.State == "cancelled") return 0;
+        
+        // 这里简化处理，实际应该从 limit 中获取目标值
+        if (plan.LimitType == "duration")
+        {
+            // 假设默认目标是 60 秒，实际应该解析 limit
+            var target = newPlanLimitValue > 0 ? newPlanLimitValue : 60;
+            return Math.Min(100, (plan.Progress.SimulatedSeconds / target) * 100);
+        }
+        else if (plan.LimitType == "count")
+        {
+            var target = newPlanLimitValue > 0 ? newPlanLimitValue : 10;
+            return Math.Min(100, (plan.Progress.CompletedCount / target) * 100);
+        }
+        
+        return 0;
+    }
+
+    string GetProgressColor(ActivityPlanDto plan) => plan.State switch
+    {
+        "running" => "#28a745",
+        "completed" => "#007bff",
+        "cancelled" => "#6c757d",
+        _ => "#ffc107"
+    };
 
     // 批量模拟器
     SimulateMode simMode = SimulateMode.Kills;

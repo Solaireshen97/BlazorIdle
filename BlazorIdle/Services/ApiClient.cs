@@ -110,6 +110,41 @@ public class ApiClient
     // ===== 背包 =====
     public Task<InventoryResponse?> GetInventoryAsync(Guid characterId, CancellationToken ct = default)
         => _http.GetFromJsonAsync<InventoryResponse>($"/api/inventory/{characterId}", ct);
+    
+    // ===== 活动计划 =====
+    /// <summary>
+    /// 创建活动计划
+    /// </summary>
+    public async Task<ActivityPlanDto> CreateActivityPlanAsync(CreateActivityPlanRequest request, CancellationToken ct = default)
+    {
+        var resp = await _http.PostAsJsonAsync("/api/activities/plans", request, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<ActivityPlanDto>(cancellationToken: ct))!;
+    }
+    
+    /// <summary>
+    /// 获取活动计划详情
+    /// </summary>
+    public Task<ActivityPlanDto?> GetActivityPlanAsync(Guid planId, CancellationToken ct = default)
+        => _http.GetFromJsonAsync<ActivityPlanDto>($"/api/activities/plans/{planId}", ct);
+    
+    /// <summary>
+    /// 获取角色的所有槽位信息
+    /// </summary>
+    public Task<List<ActivitySlotDto>?> GetCharacterSlotsAsync(Guid characterId, CancellationToken ct = default)
+        => _http.GetFromJsonAsync<List<ActivitySlotDto>>($"/api/activities/characters/{characterId}/slots", ct);
+    
+    /// <summary>
+    /// 取消活动计划
+    /// </summary>
+    public async Task<bool> CancelActivityPlanAsync(Guid planId, CancellationToken ct = default)
+    {
+        using var content = new StringContent("{}", Encoding.UTF8, "application/json");
+        var resp = await _http.PostAsync($"/api/activities/plans/{planId}/cancel", content, ct);
+        if (!resp.IsSuccessStatusCode) return false;
+        var result = await resp.Content.ReadFromJsonAsync<CancelActivityPlanResponse>(cancellationToken: ct);
+        return result?.Success ?? false;
+    }
 }
 
 // ====== Step DTOs（保留运行中需要的） ======
@@ -181,4 +216,49 @@ public sealed class SimulateResponse
     public double? TtkP90 { get; set; }
     public double? TtkP95 { get; set; }
     public double? TtkP99 { get; set; }
+}
+
+// ====== Activity Plan DTOs ======
+public sealed class CreateActivityPlanRequest
+{
+    public Guid CharacterId { get; set; }
+    public int SlotIndex { get; set; }
+    public string Type { get; set; } = "combat";
+    public string LimitType { get; set; } = "duration";
+    public double? LimitValue { get; set; }
+    public string PayloadJson { get; set; } = "{}";
+}
+
+public sealed class ActivityPlanDto
+{
+    public Guid Id { get; set; }
+    public Guid CharacterId { get; set; }
+    public int SlotIndex { get; set; }
+    public string Type { get; set; } = "combat";
+    public string State { get; set; } = "pending";
+    public string LimitType { get; set; } = "duration";
+    public string PayloadJson { get; set; } = "{}";
+    public DateTime CreatedAtUtc { get; set; }
+    public DateTime? StartedAtUtc { get; set; }
+    public DateTime? EndedAtUtc { get; set; }
+    public ActivityProgressDto Progress { get; set; } = new();
+}
+
+public sealed class ActivityProgressDto
+{
+    public double SimulatedSeconds { get; set; }
+    public int CompletedCount { get; set; }
+}
+
+public sealed class ActivitySlotDto
+{
+    public int SlotIndex { get; set; }
+    public Guid CharacterId { get; set; }
+    public ActivityPlanDto? CurrentPlan { get; set; }
+    public List<ActivityPlanDto> QueuedPlans { get; set; } = new();
+}
+
+public sealed class CancelActivityPlanResponse
+{
+    public bool Success { get; set; }
 }
