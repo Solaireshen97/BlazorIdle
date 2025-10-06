@@ -16,13 +16,15 @@ public class StartBattleService
     private readonly ICharacterRepository _characters;
     private readonly IBattleRepository _battles;
     private readonly BattleRunner _runner;
+    private readonly BattleSimulator _simulator;
     private readonly string _defaultDropMode; // "expected" | "sampled"
 
-    public StartBattleService(ICharacterRepository characters, IBattleRepository battles, BattleRunner runner, IConfiguration cfg)
+    public StartBattleService(ICharacterRepository characters, IBattleRepository battles, BattleRunner runner, BattleSimulator simulator, IConfiguration cfg)
     {
         _characters = characters;
         _battles = battles;
         _runner = runner;
+        _simulator = simulator;
         _defaultDropMode = cfg.GetValue<string>("Economy:DefaultDropMode")?.Trim().ToLowerInvariant() == "sampled"
             ? "sampled" : "expected";
     }
@@ -74,33 +76,28 @@ public class StartBattleService
 
         if (m == "continuous" || m == "dungeon" || m == "dungeonloop")
         {
-            var stepMode = m switch
-            {
-                "continuous" => StepBattleMode.Continuous,
-                "dungeon" => StepBattleMode.DungeonSingle,
-                "dungeonloop" => StepBattleMode.DungeonLoop,
-                _ => StepBattleMode.Duration
-            };
-
             var rng = new RngContext(finalSeed);
             seedIndexStart = rng.Index;
 
-            var rb = new RunningBattle(
-                id: battleDomain.Id,
-                characterId: characterId,
-                profession: c.Profession,
-                seed: finalSeed,
-                targetSeconds: simulateSeconds,
-                enemyDef: enemyDef,
-                enemyCount: enemyCount,
-                stats: stats,
-                mode: stepMode,
-                dungeonId: dungeonId,
-                continuousRespawnDelaySeconds: respawnDelay,
-                dungeonWaveDelaySeconds: waveDelay,
-                dungeonRunDelaySeconds: runDelay
-            );
+            // 使用 BattleSimulator 统一创建
+            var config = new BattleSimulator.BattleConfig
+            {
+                BattleId = battleDomain.Id,
+                CharacterId = characterId,
+                Profession = c.Profession,
+                Stats = stats,
+                Seed = finalSeed,
+                EnemyDef = enemyDef,
+                EnemyCount = enemyCount,
+                Mode = m,
+                DungeonId = dungeonId,
+                ContinuousRespawnDelaySeconds = respawnDelay,
+                DungeonWaveDelaySeconds = waveDelay,
+                DungeonRunDelaySeconds = runDelay,
+                Module = module
+            };
 
+            var rb = _simulator.CreateRunningBattle(config, simulateSeconds);
             rb.FastForwardTo(simulateSeconds);
 
             segments = rb.Segments.ToList();

@@ -1,5 +1,4 @@
 ﻿using BlazorIdle.Server.Application.Abstractions;
-using BlazorIdle.Server.Application.Battles.Step;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Enemies;
 using BlazorIdle.Server.Domain.Combat.Rng;
@@ -33,8 +32,13 @@ public sealed class OfflineSettleResult
 public sealed class OfflineSettlementService
 {
     private readonly ICharacterRepository _characters;
+    private readonly BattleSimulator _simulator;
 
-    public OfflineSettlementService(ICharacterRepository characters) => _characters = characters;
+    public OfflineSettlementService(ICharacterRepository characters, BattleSimulator simulator)
+    {
+        _characters = characters;
+        _simulator = simulator;
+    }
 
     // 新增 dropMode: "expected" | "sampled"
     public async Task<OfflineSettleResult> SimulateAsync(
@@ -58,29 +62,23 @@ public sealed class OfflineSettlementService
 
         var enemyDef = EnemyRegistry.Resolve(enemyId);
         var seconds = Math.Max(1.0, offlineDuration.TotalSeconds);
+        ulong finalSeed = seed ?? DeriveSeed(characterId);
 
-        var stepMode = (mode ?? "continuous").ToLowerInvariant() switch
+        // 使用 BattleSimulator 统一创建和执行
+        var config = new BattleSimulator.BattleConfig
         {
-            "continuous" => StepBattleMode.Continuous,
-            "dungeon" => StepBattleMode.DungeonSingle,
-            "dungeonloop" => StepBattleMode.DungeonLoop,
-            _ => StepBattleMode.Continuous
+            BattleId = Guid.NewGuid(),
+            CharacterId = characterId,
+            Profession = profession,
+            Stats = stats,
+            Seed = finalSeed,
+            EnemyDef = enemyDef,
+            EnemyCount = Math.Max(1, enemyCount),
+            Mode = mode ?? "continuous",
+            DungeonId = dungeonId
         };
 
-        ulong finalSeed = seed ?? DeriveSeed(characterId);
-        var rb = new RunningBattle(
-            id: Guid.NewGuid(),
-            characterId: characterId,
-            profession: profession,
-            seed: finalSeed,
-            targetSeconds: seconds,
-            enemyDef: enemyDef,
-            enemyCount: Math.Max(1, enemyCount),
-            stats: stats,
-            mode: stepMode,
-            dungeonId: dungeonId
-        );
-
+        var rb = _simulator.CreateRunningBattle(config, seconds);
         rb.FastForwardTo(seconds);
 
         long totalDamage = 0;

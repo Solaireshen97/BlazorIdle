@@ -67,7 +67,8 @@ public class ProcAoeTests
     [Fact]
     public void Proc_DealDamage_AoE_CleaveFull_Hits_Multiple_Targets()
     {
-        var runner = new BattleRunner();
+        var simulator = new BattleSimulator();
+        var runner = new BattleRunner(simulator);
         // 将普攻频率设超大，避免普攻伤害干扰；只检查技能触发的 Proc
         var battle = new Battle { CharacterId = Guid.NewGuid(), AttackIntervalSeconds = 999, SpecialIntervalSeconds = 999, StartedAt = 0 };
         var rng = new RngContext(20251004);

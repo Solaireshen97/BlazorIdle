@@ -24,6 +24,12 @@ public static class ApplicationDI
         //  - 如果未来改造成“可配置策略 + 缓存”或带内部状态，就需要改为 Scoped 或 Singleton（视内部是否无共享可变数据）。
         services.AddTransient<BattleRunner>();
 
+        // BattleSimulator:
+        //  - 统一的战斗模拟组件，封装 BattleEngine 创建和配置逻辑
+        //  - 无状态，线程安全
+        //  - 使用 Singleton：可被多个服务复用，无共享可变状态
+        services.AddSingleton<BattleSimulator>();
+
         // StartBattleService:
         //  - 典型“用例服务”（Application Service），组合：仓储接口 + BattleRunner。
         //  - 使用 Scoped：与请求生命周期绑定（同一个 HTTP 请求内只创建一次）。
