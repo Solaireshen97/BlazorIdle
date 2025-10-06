@@ -521,10 +521,7 @@
     CharacterCreated? lastCreated;
     Guid currentBattleId;
     double battleSeconds = 10;
-
-    // 将类型从 BattleSummaryDto? 改为 BattleSummaryResponse?
     BattleSummaryResponse? summary;
-
     List<BattleSegmentDto>? segments;
     System.Timers.Timer? pollTimer;
 
@@ -613,6 +610,7 @@
     string? stepSeedInput = null;
     int stepPollMs = 500;
 
+    // 新：掉落模式（透传到 /status）
     string stepDropMode = "expected"; // expected | sampled
 
     StepStatusResponse? stepStatus;
