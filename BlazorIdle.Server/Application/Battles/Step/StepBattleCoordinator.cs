@@ -1,13 +1,14 @@
-﻿using System;
+﻿using BlazorIdle.Server.Domain.Characters;
+using BlazorIdle.Server.Domain.Combat.Enemies;
+using BlazorIdle.Server.Domain.Combat.Professions;
+using BlazorIdle.Server.Domain.Economy;
+using BlazorIdle.Shared.Models;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using BlazorIdle.Server.Domain.Characters;
-using BlazorIdle.Server.Domain.Combat.Enemies;
-using BlazorIdle.Server.Domain.Combat.Professions;
-using BlazorIdle.Shared.Models;
 
 namespace BlazorIdle.Server.Application.Battles.Step;
 
@@ -70,6 +71,19 @@ public sealed class StepBattleCoordinator
 
         var dps = totalDamage / Math.Max(0.0001, effectiveDuration);
 
+        // 新增：聚合 kill.* 标签 → 期望值奖励
+        var killCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var seg in rb.Segments)
+        {
+            foreach (var (tag, val) in seg.TagCounters)
+            {
+                if (!tag.StartsWith("kill.", StringComparison.Ordinal)) continue;
+                if (!killCounts.ContainsKey(tag)) killCounts[tag] = 0;
+                killCounts[tag] += val;
+            }
+        }
+        var reward = EconomyCalculator.ComputeExpected(killCounts);
+
         return (true, new StepBattleStatusDto
         {
             Id = rb.Id,
@@ -90,11 +104,15 @@ public sealed class StepBattleCoordinator
             KillTimeSeconds = rb.KillTime,
             OverkillDamage = rb.Overkill,
             PersistedBattleId = rb.PersistedBattleId,
-            // 新增附加信息（前端可忽略）
             Mode = rb.Mode.ToString().ToLowerInvariant(),
             WaveIndex = rb.WaveIndex,
             RunCount = rb.RunCount,
-            DungeonId = rb.DungeonId
+            DungeonId = rb.DungeonId,
+
+            // 新增：奖励展示（前端可先忽略）
+            Gold = reward.Gold,
+            Exp = reward.Exp,
+            LootExpected = reward.Items
         });
     }
 
@@ -231,6 +249,11 @@ public sealed class StepBattleStatusDto
     public int? WaveIndex { get; set; }
     public int? RunCount { get; set; }
     public string? DungeonId { get; set; }
+
+    // 新增：期望值奖励
+    public long Gold { get; set; }
+    public long Exp { get; set; }
+    public Dictionary<string, double> LootExpected { get; set; } = new();
 }
 
 public sealed class StepBattleSegmentDto

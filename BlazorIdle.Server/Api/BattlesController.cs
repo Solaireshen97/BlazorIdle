@@ -1,5 +1,6 @@
-﻿using BlazorIdle.Server.Application.Battles;
-using BlazorIdle.Server.Application.Abstractions;
+﻿using BlazorIdle.Server.Application.Abstractions;
+using BlazorIdle.Server.Application.Battles;
+using BlazorIdle.Server.Domain.Economy;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 
@@ -43,6 +44,21 @@ public class BattlesController : ControllerBase
 
         var dps = battle.TotalDamage / Math.Max(0.0001, battle.DurationSeconds);
 
+        // 新增：从段 TagCountersJson 聚合 kill.* → 奖励
+        var killCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var s in battle.Segments)
+        {
+            var tags = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int>>(s.TagCountersJson ?? "{}")
+                       ?? new Dictionary<string, int>();
+            foreach (var (tag, val) in tags)
+            {
+                if (!tag.StartsWith("kill.", StringComparison.Ordinal)) continue;
+                if (!killCounts.ContainsKey(tag)) killCounts[tag] = 0;
+                killCounts[tag] += val;
+            }
+        }
+        var reward = EconomyCalculator.ComputeExpected(killCounts);
+
         return Ok(new
         {
             battle.Id,
@@ -64,7 +80,12 @@ public class BattlesController : ControllerBase
             battle.OverkillDamage,
             battle.Seed,
             battle.SeedIndexStart,
-            battle.SeedIndexEnd
+            battle.SeedIndexEnd,
+
+            // 新增：奖励输出
+            Gold = reward.Gold,
+            Exp = reward.Exp,
+            LootExpected = reward.Items
         });
     }
 

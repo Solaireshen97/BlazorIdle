@@ -36,7 +36,11 @@ public class OfflineController : ControllerBase
             res.Mode,
             res.EnemyId,
             res.EnemyCount,
-            res.DungeonId
+            res.DungeonId,
+            // 新增
+            res.Gold,
+            res.Exp,
+            res.LootExpected
         });
     }
 }
