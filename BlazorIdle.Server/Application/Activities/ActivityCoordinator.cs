@@ -1,4 +1,5 @@
 using BlazorIdle.Server.Domain.Activity;
+using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 
 namespace BlazorIdle.Server.Application.Activities;
@@ -13,11 +14,13 @@ public sealed class ActivityCoordinator
     private readonly ConcurrentDictionary<Guid, List<ActivitySlot>> _characterSlots = new();
     
     private readonly Dictionary<ActivityType, IActivityExecutor> _executors = new();
+    private readonly ILogger<ActivityCoordinator> _logger;
     
     private readonly int _slotsPerCharacter;
     
-    public ActivityCoordinator(IEnumerable<IActivityExecutor> executors, int slotsPerCharacter = 3)
+    public ActivityCoordinator(IEnumerable<IActivityExecutor> executors, ILogger<ActivityCoordinator> logger, int slotsPerCharacter = 3)
     {
+        _logger = logger;
         _slotsPerCharacter = Math.Max(1, Math.Min(5, slotsPerCharacter));
         
         foreach (var executor in executors)
@@ -59,7 +62,8 @@ public sealed class ActivityCoordinator
         {
             slot.StartPlan(plan.Id);
             // 异步启动计划执行（不等待，让后台服务处理）
-            _ = Task.Run(() => TryStartPlanAsync(plan.Id, CancellationToken.None));
+            // 修复：直接调用异步方法，不使用 Task.Run 避免线程池饥饿
+            _ = TryStartPlanAsync(plan.Id, CancellationToken.None);
         }
         else
         {
@@ -140,7 +144,8 @@ public sealed class ActivityCoordinator
                 var nextId = slot.FinishCurrentAndGetNext();
                 if (nextId.HasValue)
                 {
-                    _ = Task.Run(() => TryStartPlanAsync(nextId.Value, ct), ct);
+                    // 修复：直接调用异步方法，不使用 Task.Run 避免线程池饥饿
+                    _ = TryStartPlanAsync(nextId.Value, ct);
                 }
             }
         }
@@ -172,9 +177,10 @@ public sealed class ActivityCoordinator
             {
                 await AdvancePlanAsync(plan, ct);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // TODO: 记录日志
+                _logger.LogError(ex, "Error advancing activity plan {PlanId} (Type: {Type}, State: {State})", 
+                    plan.Id, plan.Type, plan.State);
                 // 继续处理其他活动
             }
         }
@@ -216,7 +222,8 @@ public sealed class ActivityCoordinator
                 var nextId = slot.FinishCurrentAndGetNext();
                 if (nextId.HasValue)
                 {
-                    await TryStartPlanAsync(nextId.Value, ct);
+                    // 不等待下一个计划的启动，让后台服务处理
+                    _ = TryStartPlanAsync(nextId.Value, ct);
                 }
             }
         }
@@ -265,9 +272,10 @@ public sealed class ActivityCoordinator
             
             plan.Start();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // TODO: 记录日志
+            _logger.LogError(ex, "Failed to start activity plan {PlanId} (Type: {Type}, Character: {CharacterId})", 
+                planId, plan.Type, plan.CharacterId);
             // 如果启动失败，标记为取消
             plan.Cancel();
             
@@ -280,7 +288,9 @@ public sealed class ActivityCoordinator
                 var nextId = slot.FinishCurrentAndGetNext();
                 if (nextId.HasValue)
                 {
-                    await TryStartPlanAsync(nextId.Value, ct);
+                    _logger.LogInformation("Starting next queued plan {NextPlanId} after failed plan {PlanId}", nextId.Value, planId);
+                    // 不等待下一个计划的启动，让后台服务处理
+                    _ = TryStartPlanAsync(nextId.Value, ct);
                 }
             }
         }
