@@ -106,6 +106,10 @@ public class ApiClient
                     resp.EnsureSuccessStatusCode();
                     return await resp.Content.ReadFromJsonAsync<SimulateResponse>(cancellationToken: ct);
                 }).Unwrap();
+
+    // ===== 背包 =====
+    public Task<InventoryResponse?> GetInventoryAsync(Guid characterId, CancellationToken ct = default)
+        => _http.GetFromJsonAsync<InventoryResponse>($"/api/inventory/{characterId}", ct);
 }
 
 // ====== Step DTOs（保留运行中需要的） ======
