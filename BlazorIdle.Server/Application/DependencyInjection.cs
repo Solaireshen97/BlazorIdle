@@ -1,4 +1,6 @@
-﻿using BlazorIdle.Server.Application.Battles;
+﻿using BlazorIdle.Server.Application.Abstractions;
+using BlazorIdle.Server.Application.Battles;
+using BlazorIdle.Server.Application.Economy;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BlazorIdle.Server.Application;
@@ -28,6 +30,11 @@ public static class ApplicationDI
         //  - 如果后续需要在一个请求中复用其内部缓存或跟踪信息，Scoped 是合适的。
         //  - 不适合 Singleton（依赖的仓储是 Scoped，提升会导致“捕获 Scoped 依赖”错误）。
         services.AddScoped<StartBattleService>();
+
+        // RewardGrantService:
+        //  - 负责奖励发放，带幂等性检查
+        //  - 使用 Scoped：与请求生命周期绑定
+        services.AddScoped<IRewardGrantService, RewardGrantService>();
 
         return services;
     }

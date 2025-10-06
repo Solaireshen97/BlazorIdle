@@ -61,6 +61,10 @@ public sealed class RunningBattle
     private DateTime _lastAdvanceWallUtc;
     public double SimSpeed { get; } = 1.0;
 
+    // 边打边发：周期奖励发放追踪
+    public double LastRewardFlushSimTime { get; internal set; } = 0.0;
+    public int LastFlushedSegmentIndex { get; internal set; } = -1;
+
     public RunningBattle(
         Guid id,
         Guid characterId,

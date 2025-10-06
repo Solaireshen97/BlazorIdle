@@ -1,8 +1,11 @@
-﻿using BlazorIdle.Server.Domain.Characters;
+﻿using BlazorIdle.Server.Application.Abstractions;
+using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Enemies;
 using BlazorIdle.Server.Domain.Combat.Professions;
 using BlazorIdle.Server.Domain.Economy;
 using BlazorIdle.Shared.Models;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -19,10 +22,16 @@ public sealed class StepBattleCoordinator
     private readonly ConcurrentDictionary<Guid, DateTime> _completedAtUtc = new();
 
     private readonly IServiceScopeFactory _scopeFactory; // 改为作用域工厂
+    
+    // 边打边发配置：奖励发放间隔（模拟时间）
+    private readonly double _rewardFlushIntervalSimSeconds;
+    private readonly bool _enablePeriodicRewards;
 
-    public StepBattleCoordinator(IServiceScopeFactory scopeFactory)
+    public StepBattleCoordinator(IServiceScopeFactory scopeFactory, IConfiguration config)
     {
         _scopeFactory = scopeFactory;
+        _rewardFlushIntervalSimSeconds = config.GetValue<double>("Combat:RewardFlushIntervalSeconds", 10.0);
+        _enablePeriodicRewards = config.GetValue<bool>("Combat:EnablePeriodicRewards", true);
     }
 
     // 新增覆盖：continuousRespawnDelaySeconds / dungeonWaveDelaySeconds / dungeonRunDelaySeconds
@@ -195,6 +204,12 @@ public sealed class StepBattleCoordinator
                 {
                     _completedAtUtc.TryAdd(rb.Id, DateTime.UtcNow);
                 }
+                
+                // 边打边发：周期性发放奖励（仅 sampled 模式）
+                if (_enablePeriodicRewards)
+                {
+                    TryFlushPeriodicRewards(rb, ct);
+                }
             }
 
             if (rb.Completed && !rb.Persisted)
@@ -267,6 +282,108 @@ public sealed class StepBattleCoordinator
 
         _completedAtUtc.TryAdd(rb.Id, DateTime.UtcNow);
         return (true, rb.PersistedBattleId!.Value);
+    }
+    
+    /// <summary>
+    /// 周期性发放奖励（边打边发）。
+    /// 仅对 sampled 模式有效，每隔 rewardFlushIntervalSimSeconds 检查一次新 segments。
+    /// </summary>
+    private void TryFlushPeriodicRewards(RunningBattle rb, CancellationToken ct)
+    {
+        var currentSimTime = rb.Clock.CurrentTime;
+        
+        // 检查是否到达下一个发放周期
+        if (currentSimTime - rb.LastRewardFlushSimTime < _rewardFlushIntervalSimSeconds)
+            return;
+        
+        // 检查是否有新 segments 需要发放
+        var segmentCount = rb.Segments.Count;
+        if (segmentCount <= rb.LastFlushedSegmentIndex + 1)
+            return;
+        
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var rewardService = scope.ServiceProvider.GetRequiredService<IRewardGrantService>();
+            
+            // 计算当前周期内新增的 segments 的奖励
+            var killCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+            int runCompleted = 0;
+            
+            for (int i = rb.LastFlushedSegmentIndex + 1; i < segmentCount; i++)
+            {
+                var seg = rb.Segments[i];
+                if (seg.TagCounters.TryGetValue("dungeon_run_complete", out var rc))
+                    runCompleted += rc;
+                
+                foreach (var (tag, val) in seg.TagCounters)
+                {
+                    if (tag.StartsWith("kill.", StringComparison.Ordinal))
+                    {
+                        if (!killCounts.ContainsKey(tag)) killCounts[tag] = 0;
+                        killCounts[tag] += val;
+                    }
+                }
+            }
+            
+            // 只有当有实际击杀或完成副本轮次时才发放
+            if (killCounts.Count == 0 && runCompleted == 0)
+            {
+                rb.LastRewardFlushSimTime = currentSimTime;
+                rb.LastFlushedSegmentIndex = segmentCount - 1;
+                return;
+            }
+            
+            // 构建经济上下文
+            var ctx = new EconomyContext { Seed = rb.Seed };
+            if (!string.IsNullOrWhiteSpace(rb.DungeonId))
+            {
+                var d = DungeonRegistry.Resolve(rb.DungeonId!);
+                ctx = new EconomyContext
+                {
+                    GoldMultiplier = d.GoldMultiplier,
+                    ExpMultiplier = d.ExpMultiplier,
+                    DropChanceMultiplier = d.DropChanceMultiplier,
+                    RunCompletedCount = runCompleted,
+                    RunRewardGold = d.RunRewardGold,
+                    RunRewardExp = d.RunRewardExp,
+                    RunRewardLootTableId = d.RunRewardLootTableId,
+                    RunRewardLootRolls = d.RunRewardLootRolls,
+                    Seed = rb.Seed
+                };
+            }
+            else
+            {
+                ctx.RunCompletedCount = runCompleted;
+            }
+            
+            // 计算奖励（使用 sampled 模式）
+            var reward = EconomyCalculator.ComputeSampledWithContext(killCounts, ctx);
+            
+            // 构建幂等键
+            var idempotencyKey = $"battle:{rb.Id}:periodic:sim{currentSimTime:F2}:seg{rb.LastFlushedSegmentIndex + 1}-{segmentCount - 1}";
+            
+            // 发放奖励
+            var granted = rewardService.GrantRewardsAsync(
+                rb.CharacterId,
+                reward.Gold,
+                reward.Exp,
+                reward.Items.ToDictionary(kv => kv.Key, kv => (int)Math.Round(kv.Value)),
+                idempotencyKey,
+                "battle_periodic_reward",
+                rb.Id,
+                ct
+            ).GetAwaiter().GetResult();
+            
+            // 更新发放状态
+            rb.LastRewardFlushSimTime = currentSimTime;
+            rb.LastFlushedSegmentIndex = segmentCount - 1;
+        }
+        catch (Exception)
+        {
+            // 静默失败，避免影响战斗推进
+            // TODO: 可以考虑记录日志
+        }
     }
 }
 
