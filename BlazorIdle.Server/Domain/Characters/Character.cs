@@ -18,6 +18,10 @@ public class Character
     public int Intellect { get; set; } = 10;
     public int Stamina { get; set; } = 10;
 
+    // 经济属性
+    public long Gold { get; set; } = 0;
+    public long Experience { get; set; } = 0;
+
     // 新增：离线相关打点（可选）
     public DateTime? LastSeenAtUtc { get; set; }          // 最近在线心跳/登出时间
     public DateTime? LastOfflineSettledAtUtc { get; set; } // 最近一次离线结算时间

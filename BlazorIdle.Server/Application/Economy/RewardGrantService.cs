@@ -55,7 +55,7 @@ public class RewardGrantService : IRewardGrantService
         await using var transaction = await _db.Database.BeginTransactionAsync(ct);
         try
         {
-            // 1. 更新角色金币和经验（假设 Character 实体有 Gold 和 Experience 字段）
+            // 1. 更新角色金币和经验
             var character = await _db.Characters.FindAsync(new object[] { characterId }, ct);
             if (character == null)
             {
@@ -63,9 +63,8 @@ public class RewardGrantService : IRewardGrantService
                 return false;
             }
 
-            // 注意：当前 Character 模型没有 Gold/Experience 字段，这里先注释
-            // character.Gold += gold;
-            // character.Experience += exp;
+            character.Gold += gold;
+            character.Experience += exp;
 
             // 2. 更新背包物品
             foreach (var (itemId, quantity) in items.Where(kv => kv.Value > 0))
