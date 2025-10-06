@@ -1,0 +1,77 @@
+# BlazorIdle 项目状态（常青页）
+更新时间（UTC）：2025-10-06 11:41:14  
+维护者：@Solaireshen97
+
+## 1. 当前能力（已实现）
+- 战斗引擎与循环
+  - 事件驱动：普攻轨道 / 特殊脉冲 / 施法事件 / 打断 / GCD 结束 / RPPM 脉冲
+  - 双轨：普攻与特殊（含 GCD/Haste 缩放）
+  - RNG 可重放：段级 RngIndexStart/End，回放一致
+- Buff/DoT
+  - Haste 快照、Pandemic 刷新、DoT Tick 吃 AP/SP（快照），叠层
+  - 默认 DoT 不触发 Proc（可配置 AllowFromDot）
+- 技能系统
+  - 单槽队列（QueuedSlot）、Off-GCD 编织、充能/冷却/打断/暴击、技能/AP/SP 系数
+- Proc 系统
+  - On-Hit/On-Crit/RPPM、ICD、来源过滤（不含 DoT）、AoE Proc（CleaveFull/SplitEven）
+- AoE/多目标
+  - EncounterGroup、主目标重选、分摊策略（SplitEven 余数策略可配）
+- Stats（Phase 1）
+  - AP/SP、CritChance/CritMultiplier、HastePercent、Armor/Magic 穿透（含 Buff 合并）
+- 同步/异步/回放/批量
+  - 同步：一次性推进（/start → /summary, /segments）
+  - Step：墙钟切片推进（start/status/segments/stop/debug），快照恢复、幂等 Finalizer
+  - 回放：基于 BattleRecord 启动 Step 回放
+  - 批量模拟：Kills/Hrs，返回 AvgDPS、Kills/h、TTK 分布
+- 经济收益（展示）
+  - BattleRecord 含 RewardType/Gold/Exp/LootJson/DungeonId/DungeonRuns
+  - Summary 支持 dropMode=expected|sampled（记录一致则直读，否则动态重算）
+  - 前端 Step 支持选择 dropMode，展示 Gold/Exp/Loot（期望或采样）
+
+## 2. API 摘要
+- 同步战斗
+  - POST /api/battles/start?characterId&seconds=&seed?=&enemyId?=&enemyCount?
+  - GET /api/battles/{id}/summary?dropMode=expected|sampled
+  - GET /api/battles/{id}/segments
+- Step 战斗
+  - POST /api/battles/step/start?characterId&seconds=&mode=duration|continuous|dungeonsingle|dungeonloop&enemyId?&enemyCount?&dungeonId?
+  - GET /api/battles/step/{id}/status?dropMode=expected|sampled
+  - GET /api/battles/step/{id}/segments?since=0
+  - POST /api/battles/step/{id}/stop（幂等，已落库则直接返回）
+  - GET /api/battles/step/{id}/debug
+- 敌人
+  - GET /api/enemies, /api/enemies/{id}
+- 批量模拟（不落库）
+  - POST /api/simulation（Kills|Hours）
+
+## 3. 重要实现与依赖注入
+- StepBattleCoordinator：Singleton（通过 IServiceScopeFactory 获取 Scoped Finalizer）
+- StepBattleFinalizer：Scoped（Stop & Save 时落库；若未计算经济，将由 /summary 动态重算）
+- StepBattleHostedService：Singleton（推进、快照与恢复）
+- 设计时 DbContext 工厂：建议启用（避免 EF 工具启动 HostedService/Coordinator）
+
+## 4. 配置与迁移
+- Economy:DefaultDropMode: expected|sampled（默认 expected）
+- BattleSegmentRecord：含 RngIndexStart/End（已迁移）
+- RunningBattleSnapshots：Step 快照表（已迁移）
+
+## 5. 前端（Blazor WASM）
+- Characters.razor
+  - 同步战斗面板：Summary/Segments/一键回放
+  - Step 面板：mode（duration/continuous/dungeonsingle/dungeonloop）、dropMode（expected/sample）、收益展示、Stop & Save、Debug
+  - 批量模拟器：Kills/Hrs + 敌人选择
+- ApiClient：统一 PostAsync + ReadFromJsonAsync；StepStatusResponse.Profession 使用共享枚举 Profession
+
+## 6. 已知限制/风险
+- “边打边发”未落地（仅 sampled 实际入库）— 需要 Inventory/EconomyEvent/RewardGrantService、Flush 机制、EF 迁移
+- Step Finalizer 是否持久化奖励：若未对齐“带经济计算”版本，历史读取仍依赖 Summary 动态计算
+- 敌人/地图数据源未标准化输出；条件 DSL、装备生态、Config VersionPin 均待后续阶段
+
+## 7. 下一步（候选）
+- A：边打边发（仅 sampled 入库，周期/整轮发放，幂等）
+- B：Finalizer 持久化奖励（Stop 即算并写库）
+- C：前端背包面板（展示 itemId:qty）
+- D：SimSpeed 倍速（回放/验证提效）
+
+---
+备注：每次更新本页，请仅修改“更新时间”和发生变化的小节，以减少传播成本。
