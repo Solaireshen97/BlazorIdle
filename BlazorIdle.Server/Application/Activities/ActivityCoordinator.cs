@@ -54,16 +54,21 @@ public sealed class ActivityCoordinator
         var slots = EnsureCharacterSlots(characterId);
         var slot = slots[slotIndex];
         
-        // 如果槽位空闲，立即设为当前计划；否则加入队列
-        if (slot.IsIdle)
+        // 使用锁确保槽位状态检查和修改的原子性，防止并发问题
+        lock (slot)
         {
-            slot.StartPlan(plan.Id);
-            // 异步启动计划执行（不等待，让后台服务处理）
-            _ = Task.Run(() => TryStartPlanAsync(plan.Id, CancellationToken.None));
-        }
-        else
-        {
-            slot.EnqueuePlan(plan.Id);
+            // 如果槽位空闲，立即设为当前计划；否则加入队列
+            if (slot.IsIdle)
+            {
+                slot.StartPlan(plan.Id);
+                // 异步启动计划执行（不等待，让后台服务处理）
+                _ = Task.Run(() => TryStartPlanAsync(plan.Id, CancellationToken.None));
+            }
+            else
+            {
+                // 槽位正在运行其他计划，将新计划加入队列等待
+                slot.EnqueuePlan(plan.Id);
+            }
         }
         
         return plan;
@@ -134,14 +139,23 @@ public sealed class ActivityCoordinator
             // 从槽位移除
             var slots = EnsureCharacterSlots(plan.CharacterId);
             var slot = slots[plan.SlotIndex];
-            if (slot.CurrentPlanId == planId)
+            
+            Guid? nextId = null;
+            
+            // 使用锁确保槽位状态检查和修改的原子性
+            lock (slot)
             {
-                // 完成当前计划并尝试启动下一个
-                var nextId = slot.FinishCurrentAndGetNext();
-                if (nextId.HasValue)
+                if (slot.CurrentPlanId == planId)
                 {
-                    _ = Task.Run(() => TryStartPlanAsync(nextId.Value, ct), ct);
+                    // 完成当前计划并尝试启动下一个
+                    nextId = slot.FinishCurrentAndGetNext();
                 }
+            }
+            
+            // 在锁外启动下一个计划，避免长时间持有锁
+            if (nextId.HasValue)
+            {
+                _ = Task.Run(() => TryStartPlanAsync(nextId.Value, ct), ct);
             }
         }
         else if (plan.State == ActivityState.Pending)
@@ -149,7 +163,12 @@ public sealed class ActivityCoordinator
             // 从队列移除
             var slots = EnsureCharacterSlots(plan.CharacterId);
             var slot = slots[plan.SlotIndex];
-            slot.RemovePlan(planId);
+            
+            // 使用锁确保队列操作的原子性
+            lock (slot)
+            {
+                slot.RemovePlan(planId);
+            }
         }
         
         plan.Cancel();
@@ -211,13 +230,21 @@ public sealed class ActivityCoordinator
             var slots = EnsureCharacterSlots(plan.CharacterId);
             var slot = slots[plan.SlotIndex];
             
-            if (slot.CurrentPlanId == plan.Id)
+            Guid? nextId = null;
+            
+            // 使用锁确保槽位状态检查和修改的原子性
+            lock (slot)
             {
-                var nextId = slot.FinishCurrentAndGetNext();
-                if (nextId.HasValue)
+                if (slot.CurrentPlanId == plan.Id)
                 {
-                    await TryStartPlanAsync(nextId.Value, ct);
+                    nextId = slot.FinishCurrentAndGetNext();
                 }
+            }
+            
+            // 在锁外启动下一个计划，避免长时间持有锁
+            if (nextId.HasValue)
+            {
+                await TryStartPlanAsync(nextId.Value, ct);
             }
         }
     }
@@ -231,13 +258,23 @@ public sealed class ActivityCoordinator
         {
             foreach (var slot in slots)
             {
-                if (slot.IsIdle && slot.QueuedPlanIds.Count > 0)
+                Guid? nextId = null;
+                
+                // 使用锁确保槽位状态检查和修改的原子性
+                lock (slot)
                 {
-                    var nextId = slot.QueuedPlanIds[0];
-                    slot.QueuedPlanIds.RemoveAt(0);
-                    slot.StartPlan(nextId);
-                    
-                    await TryStartPlanAsync(nextId, ct);
+                    if (slot.IsIdle && slot.QueuedPlanIds.Count > 0)
+                    {
+                        nextId = slot.QueuedPlanIds[0];
+                        slot.QueuedPlanIds.RemoveAt(0);
+                        slot.StartPlan(nextId.Value);
+                    }
+                }
+                
+                // 在锁外启动计划，避免长时间持有锁
+                if (nextId.HasValue)
+                {
+                    await TryStartPlanAsync(nextId.Value, ct);
                 }
             }
         }
@@ -275,13 +312,21 @@ public sealed class ActivityCoordinator
             var slots = EnsureCharacterSlots(plan.CharacterId);
             var slot = slots[plan.SlotIndex];
             
-            if (slot.CurrentPlanId == planId)
+            Guid? nextId = null;
+            
+            // 使用锁确保槽位状态检查和修改的原子性
+            lock (slot)
             {
-                var nextId = slot.FinishCurrentAndGetNext();
-                if (nextId.HasValue)
+                if (slot.CurrentPlanId == planId)
                 {
-                    await TryStartPlanAsync(nextId.Value, ct);
+                    nextId = slot.FinishCurrentAndGetNext();
                 }
+            }
+            
+            // 在锁外启动下一个计划，避免长时间持有锁
+            if (nextId.HasValue)
+            {
+                await TryStartPlanAsync(nextId.Value, ct);
             }
         }
     }

@@ -130,11 +130,12 @@ public sealed class CombatActivityExecutor : IActivityExecutor
         if (!_battleCoordinator.TryGet(battleId, out var battle) || battle is null)
             return true; // 战斗已不在内存，认为已完成
         
-        // 如果战斗已完成，检查限制
+        // 战斗已完成则活动也完成
         if (battle.Completed)
             return true;
         
-        // 检查是否达到限制
+        // 检查活动计划的限制是否达到
+        // 注意：即使战斗未完成，如果活动限制已达到，也应该停止活动
         return plan.IsLimitReached();
     }
     
