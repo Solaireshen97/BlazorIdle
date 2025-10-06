@@ -25,6 +25,12 @@
     }
 </div>
 
+<!-- 1.5) 背包界面 -->
+@if (lastCreated is not null)
+{
+    <InventoryPanel CharacterId="@lastCreated.Id" CharacterName="@lastCreated.Name" />
+}
+
 <!-- 2) 同步战斗 -->
 @if (lastCreated is not null)
 {

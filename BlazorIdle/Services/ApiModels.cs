@@ -96,3 +96,20 @@ public sealed class OfflineSettleResponse
     public Dictionary<string, double> LootExpected { get; set; } = new();
     public Dictionary<string, int> LootSampled { get; set; } = new();
 }
+
+// 背包物品（/api/inventory/{characterId}）
+public sealed class InventoryItemDto
+{
+    public string ItemId { get; set; } = "";
+    public int Quantity { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}
+
+public sealed class InventoryResponse
+{
+    public Guid CharacterId { get; set; }
+    public string CharacterName { get; set; } = "";
+    public long Gold { get; set; }
+    public long Experience { get; set; }
+    public List<InventoryItemDto> Items { get; set; } = new();
+}
