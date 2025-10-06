@@ -1,4 +1,5 @@
 ﻿using BlazorIdle.Server.Application.Abstractions;
+using BlazorIdle.Server.Application.Activities;
 using BlazorIdle.Server.Application.Battles;
 using BlazorIdle.Server.Application.Economy;
 using Microsoft.Extensions.DependencyInjection;
@@ -41,6 +42,21 @@ public static class ApplicationDI
         //  - 负责奖励发放，带幂等性检查
         //  - 使用 Scoped：与请求生命周期绑定
         services.AddScoped<IRewardGrantService, RewardGrantService>();
+
+        // ActivityCoordinator:
+        //  - 活动计划协调器，管理所有活动的执行和状态
+        //  - 使用 Singleton：全局单例，内部使用 ConcurrentDictionary 保证线程安全
+        services.AddSingleton<ActivityCoordinator>();
+
+        // Activity Executors:
+        //  - 不同类型活动的执行器
+        //  - 使用 Singleton：无状态，可全局复用
+        services.AddSingleton<IActivityExecutor, CombatActivityExecutor>();
+
+        // ActivityHostedService:
+        //  - 后台服务，周期性推进活动执行
+        //  - 使用 AddHostedService：由框架管理生命周期
+        services.AddHostedService<ActivityHostedService>();
 
         return services;
     }
