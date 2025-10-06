@@ -11,9 +11,7 @@ public class OfflineController : ControllerBase
 
     public OfflineController(OfflineSettlementService offline) => _offline = offline;
 
-    // 最小版离线结算：直接传 seconds（或由客户端根据下线时刻计算）
-    // mode: continuous|dungeon|dungeonloop
-    // 示例：POST /api/offline/settle?characterId=...&seconds=7200&mode=continuous&enemyId=dummy&enemyCount=1
+    // 示例：POST /api/offline/settle?characterId=...&seconds=7200&mode=continuous&enemyId=dummy&enemyCount=1&dropMode=sampled
     [HttpPost("settle")]
     public async Task<ActionResult<object>> Settle(
         [FromQuery] Guid characterId,
@@ -23,10 +21,11 @@ public class OfflineController : ControllerBase
         [FromQuery] int enemyCount = 1,
         [FromQuery] string? dungeonId = null,
         [FromQuery] ulong? seed = null,
+        [FromQuery] string? dropMode = "expected",
         CancellationToken ct = default)
     {
         if (seconds <= 0) return BadRequest("seconds must be positive.");
-        var res = await _offline.SimulateAsync(characterId, TimeSpan.FromSeconds(seconds), mode, enemyId, enemyCount, dungeonId, seed, ct);
+        var res = await _offline.SimulateAsync(characterId, TimeSpan.FromSeconds(seconds), mode, enemyId, enemyCount, dungeonId, seed, dropMode, ct);
         return Ok(new
         {
             res.CharacterId,
@@ -37,10 +36,11 @@ public class OfflineController : ControllerBase
             res.EnemyId,
             res.EnemyCount,
             res.DungeonId,
-            // 新增
+            res.DropMode,
             res.Gold,
             res.Exp,
-            res.LootExpected
+            res.LootExpected,
+            res.LootSampled
         });
     }
 }

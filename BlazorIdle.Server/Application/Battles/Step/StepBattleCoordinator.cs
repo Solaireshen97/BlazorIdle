@@ -57,13 +57,12 @@ public sealed class StepBattleCoordinator
 
     internal IEnumerable<Guid> InternalIdsSnapshot() => _running.Keys.ToArray();
 
-    public (bool found, StepBattleStatusDto status) GetStatus(Guid id)
+    public (bool found, StepBattleStatusDto status) GetStatus(Guid id, string? dropMode = null)
     {
         if (!_running.TryGetValue(id, out var rb))
             return (false, default!);
 
         var totalDamage = rb.Segments.Sum(s => s.TotalDamage);
-
         var simulated = rb.Clock.CurrentTime;
         var effectiveDuration = rb.Completed
             ? Math.Min(rb.TargetDurationSeconds, rb.Battle.EndedAt ?? (rb.KillTime ?? simulated))
@@ -71,7 +70,7 @@ public sealed class StepBattleCoordinator
 
         var dps = totalDamage / Math.Max(0.0001, effectiveDuration);
 
-        // 新增：聚合 kill.* 标签 → 期望值奖励
+        // 聚合 kill.* → 奖励（按 requested dropMode）
         var killCounts = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var seg in rb.Segments)
         {
@@ -82,7 +81,22 @@ public sealed class StepBattleCoordinator
                 killCounts[tag] += val;
             }
         }
-        var reward = EconomyCalculator.ComputeExpected(killCounts);
+
+        var mode = (dropMode ?? "expected").Trim().ToLowerInvariant();
+        long gold; long exp; Dictionary<string, double>? lootExp = null; Dictionary<string, int>? lootSampled = null;
+        if (mode == "sampled")
+        {
+            var r = EconomyCalculator.ComputeSampled(killCounts, rb.Seed);
+            gold = r.Gold; exp = r.Exp;
+            lootSampled = r.Items.ToDictionary(kv => kv.Key, kv => (int)Math.Round(kv.Value));
+        }
+        else
+        {
+            var r = EconomyCalculator.ComputeExpected(killCounts);
+            gold = r.Gold; exp = r.Exp;
+            lootExp = r.Items;
+            mode = "expected";
+        }
 
         return (true, new StepBattleStatusDto
         {
@@ -109,10 +123,12 @@ public sealed class StepBattleCoordinator
             RunCount = rb.RunCount,
             DungeonId = rb.DungeonId,
 
-            // 新增：奖励展示（前端可先忽略）
-            Gold = reward.Gold,
-            Exp = reward.Exp,
-            LootExpected = reward.Items
+            // 奖励
+            DropMode = mode,
+            Gold = gold,
+            Exp = exp,
+            LootExpected = lootExp ?? new(),
+            LootSampled = lootSampled ?? new()
         });
     }
 
@@ -251,9 +267,11 @@ public sealed class StepBattleStatusDto
     public string? DungeonId { get; set; }
 
     // 新增：期望值奖励
+    public string? DropMode { get; set; } // "expected" | "sampled"
     public long Gold { get; set; }
     public long Exp { get; set; }
     public Dictionary<string, double> LootExpected { get; set; } = new();
+    public Dictionary<string, int> LootSampled { get; set; } = new();
 }
 
 public sealed class StepBattleSegmentDto

@@ -37,18 +37,17 @@ public class BattlesController : ControllerBase
 
     // GET /api/battles/{id}/summary
     [HttpGet("{id:guid}/summary")]
-    public async Task<ActionResult<object>> Summary(Guid id)
+    public async Task<ActionResult<object>> Summary(Guid id, [FromQuery] string? dropMode = null)
     {
         var battle = await _battleRepo.GetWithSegmentsAsync(id);
         if (battle == null) return NotFound();
 
         var dps = battle.TotalDamage / Math.Max(0.0001, battle.DurationSeconds);
 
-        // 新增：从段 TagCountersJson 聚合 kill.* → 奖励
         var killCounts = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var s in battle.Segments)
         {
-            var tags = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int>>(s.TagCountersJson ?? "{}")
+            var tags = JsonSerializer.Deserialize<Dictionary<string, int>>(s.TagCountersJson ?? "{}")
                        ?? new Dictionary<string, int>();
             foreach (var (tag, val) in tags)
             {
@@ -57,7 +56,26 @@ public class BattlesController : ControllerBase
                 killCounts[tag] += val;
             }
         }
-        var reward = EconomyCalculator.ComputeExpected(killCounts);
+
+        var mode = (dropMode ?? "expected").Trim().ToLowerInvariant();
+        long gold; long exp; Dictionary<string, double>? lootExp = null; Dictionary<string, int>? lootSampled = null;
+
+        if (mode == "sampled")
+        {
+            // 从记录的 seed 派生（record.Seed 是字符串）
+            ulong seed = 0;
+            _ = ulong.TryParse(battle.Seed ?? "0", out seed);
+            var r = EconomyCalculator.ComputeSampled(killCounts, seed);
+            gold = r.Gold; exp = r.Exp;
+            lootSampled = r.Items.ToDictionary(kv => kv.Key, kv => (int)Math.Round(kv.Value));
+        }
+        else
+        {
+            var r = EconomyCalculator.ComputeExpected(killCounts);
+            gold = r.Gold; exp = r.Exp;
+            lootExp = r.Items;
+            mode = "expected";
+        }
 
         return Ok(new
         {
@@ -82,10 +100,11 @@ public class BattlesController : ControllerBase
             battle.SeedIndexStart,
             battle.SeedIndexEnd,
 
-            // 新增：奖励输出
-            Gold = reward.Gold,
-            Exp = reward.Exp,
-            LootExpected = reward.Items
+            DropMode = mode,
+            Gold = gold,
+            Exp = exp,
+            LootExpected = lootExp ?? new Dictionary<string, double>(),
+            LootSampled = lootSampled ?? new Dictionary<string, int>()
         });
     }
 

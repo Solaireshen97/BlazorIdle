@@ -36,7 +36,7 @@ public static class EconomyCalculator
         return sum;
     }
 
-    // 采样掉落（未来用）：考虑 Rolls，用独立 RNG
+    // 抽样掉落：考虑 Rolls，用经济专用 RNG（由 battleSeed 派生），不影响战斗 RNG
     public static RewardSummary ComputeSampled(IDictionary<string, int> killCounts, ulong battleSeed, ulong salt = 0xEC00_1234UL)
     {
         var sum = new RewardSummary();

@@ -86,9 +86,9 @@ public class StepBattlesController : ControllerBase
     }
 
     [HttpGet("{id:guid}/status")]
-    public ActionResult<object> Status(Guid id)
+    public ActionResult<object> Status(Guid id, [FromQuery] string? dropMode = null)
     {
-        var (found, s) = _coord.GetStatus(id);
+        var (found, s) = _coord.GetStatus(id, dropMode);
         if (!found) return NotFound();
         return Ok(s);
     }

@@ -4,6 +4,11 @@ using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Enemies;
 using BlazorIdle.Server.Domain.Combat.Rng;
 using BlazorIdle.Server.Domain.Economy;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace BlazorIdle.Server.Application.Battles.Offline;
 
@@ -18,10 +23,11 @@ public sealed class OfflineSettleResult
     public int EnemyCount { get; init; } = 1;
     public string? DungeonId { get; init; }
 
-    // 新增：经济收益
+    public string DropMode { get; init; } = "expected";
     public long Gold { get; init; }
     public long Exp { get; init; }
     public Dictionary<string, double> LootExpected { get; init; } = new();
+    public Dictionary<string, int> LootSampled { get; init; } = new();
 }
 
 public sealed class OfflineSettlementService
@@ -30,6 +36,7 @@ public sealed class OfflineSettlementService
 
     public OfflineSettlementService(ICharacterRepository characters) => _characters = characters;
 
+    // 新增 dropMode: "expected" | "sampled"
     public async Task<OfflineSettleResult> SimulateAsync(
         Guid characterId,
         TimeSpan offlineDuration,
@@ -38,6 +45,7 @@ public sealed class OfflineSettlementService
         int enemyCount = 1,
         string? dungeonId = null,
         ulong? seed = null,
+        string? dropMode = "expected",
         CancellationToken ct = default)
     {
         var c = await _characters.GetAsync(characterId, ct) ?? throw new InvalidOperationException("Character not found");
@@ -75,7 +83,6 @@ public sealed class OfflineSettlementService
 
         rb.FastForwardTo(seconds);
 
-        // 聚合：总伤害 + 击杀 + 经济
         long totalDamage = 0;
         int kills = 0;
         var killCount = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -83,8 +90,7 @@ public sealed class OfflineSettlementService
         foreach (var s in rb.Segments)
         {
             totalDamage += s.TotalDamage;
-            if (s.TagCounters.TryGetValue("encounter_cleared", out var kc))
-                kills += kc;
+            if (s.TagCounters.TryGetValue("encounter_cleared", out var kc)) kills += kc;
 
             foreach (var (tag, val) in s.TagCounters)
             {
@@ -94,7 +100,22 @@ public sealed class OfflineSettlementService
             }
         }
 
-        var reward = EconomyCalculator.ComputeExpected(killCount);
+        var dm = (dropMode ?? "expected").Trim().ToLowerInvariant();
+        long gold; long exp; Dictionary<string, double> lootExp = new(); Dictionary<string, int> lootSmp = new();
+        if (dm == "sampled")
+        {
+            var r = EconomyCalculator.ComputeSampled(killCount, finalSeed);
+            gold = r.Gold; exp = r.Exp;
+            lootSmp = r.Items.ToDictionary(kv => kv.Key, kv => (int)Math.Round(kv.Value));
+            dm = "sampled";
+        }
+        else
+        {
+            var r = EconomyCalculator.ComputeExpected(killCount);
+            gold = r.Gold; exp = r.Exp;
+            lootExp = r.Items;
+            dm = "expected";
+        }
 
         return new OfflineSettleResult
         {
@@ -106,9 +127,11 @@ public sealed class OfflineSettlementService
             EnemyId = enemyDef.Id,
             EnemyCount = Math.Max(1, enemyCount),
             DungeonId = dungeonId,
-            Gold = reward.Gold,
-            Exp = reward.Exp,
-            LootExpected = reward.Items
+            DropMode = dm,
+            Gold = gold,
+            Exp = exp,
+            LootExpected = lootExp,
+            LootSampled = lootSmp
         };
     }
 
