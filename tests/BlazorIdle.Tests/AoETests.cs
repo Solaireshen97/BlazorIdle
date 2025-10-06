@@ -44,7 +44,8 @@ public class AoETests
     [Fact]
     public void CleaveFull_Hits_Multiple_Targets()
     {
-        var runner = new BattleRunner();
+        var simulator = new BattleSimulator();
+        var runner = new BattleRunner(simulator);
         var battle = new Battle { CharacterId = Guid.NewGuid(), AttackIntervalSeconds = 999, SpecialIntervalSeconds = 999, StartedAt = 0 };
         var rng = new RngContext(123);
         var group = new EncounterGroup(new[]

@@ -32,7 +32,8 @@ public class ProcOnCritTests
     [Fact]
     public void ExplosiveArrow_OnCrit_Increases_Damage_And_Tags_Proc()
     {
-        var runner = new BattleRunner();
+        var simulator = new BattleSimulator();
+        var runner = new BattleRunner(simulator);
         var seed = 987654UL;
 
         var battleA = new Battle { CharacterId = Guid.NewGuid(), AttackIntervalSeconds = 1.4, SpecialIntervalSeconds = 4.0, StartedAt = 0 };

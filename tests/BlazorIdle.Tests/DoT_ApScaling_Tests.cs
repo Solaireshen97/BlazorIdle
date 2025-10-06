@@ -54,7 +54,8 @@ public class DoT_ApScaling_Tests
     [Fact]
     public void Dot_Deals_More_Total_Damage_With_Higher_AP_But_Same_Tick_Count()
     {
-        var runner = new BattleRunner();
+        var simulator = new BattleSimulator();
+        var runner = new BattleRunner(simulator);
         var seed = new RngContext(20251004);
 
         // A: AP = 0
