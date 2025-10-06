@@ -94,11 +94,15 @@ public class StepBattlesController : ControllerBase
     }
 
     [HttpGet("{id:guid}/segments")]
-    public ActionResult<IEnumerable<object>> Segments(Guid id, [FromQuery] int since = 0)
+    [ProducesResponseType(typeof(List<StepBattleSegmentDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public ActionResult<List<StepBattleSegmentDto>> Segments(Guid id, [FromQuery] int since = 0)
     {
         var (found, segments) = _coord.GetSegments(id, since);
         if (!found) return NotFound();
-        return Ok(segments);
+
+        // 明确保证返回 [] 而不是 null，避免客户端拿到 null
+        return Ok(segments ?? new List<StepBattleSegmentDto>());
     }
 
     [HttpPost("{id:guid}/stop")]

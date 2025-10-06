@@ -85,13 +85,11 @@ public sealed class OfflineSettlementService
 
         long totalDamage = 0;
         int kills = 0;
+        int runCompleted = 0;
         var killCount = new Dictionary<string, int>(StringComparer.Ordinal);
-
         foreach (var s in rb.Segments)
         {
-            totalDamage += s.TotalDamage;
-            if (s.TagCounters.TryGetValue("encounter_cleared", out var kc)) kills += kc;
-
+            if (s.TagCounters.TryGetValue("dungeon_run_complete", out var rc)) runCompleted += rc;
             foreach (var (tag, val) in s.TagCounters)
             {
                 if (!tag.StartsWith("kill.", StringComparison.Ordinal)) continue;
@@ -100,18 +98,45 @@ public sealed class OfflineSettlementService
             }
         }
 
+        // 构建 ctx
+        var ctx = new EconomyContext
+        {
+            GoldMultiplier = 1.0,
+            ExpMultiplier = 1.0,
+            DropChanceMultiplier = 1.0,
+            RunCompletedCount = runCompleted,
+            Seed = finalSeed
+        };
+
+        if (!string.IsNullOrWhiteSpace(dungeonId))
+        {
+            var d = DungeonRegistry.Resolve(dungeonId!);
+            ctx = new EconomyContext
+            {
+                GoldMultiplier = d.GoldMultiplier,
+                ExpMultiplier = d.ExpMultiplier,
+                DropChanceMultiplier = d.DropChanceMultiplier,
+                RunCompletedCount = runCompleted,
+                RunRewardGold = d.RunRewardGold,
+                RunRewardExp = d.RunRewardExp,
+                RunRewardLootTableId = d.RunRewardLootTableId,
+                RunRewardLootRolls = d.RunRewardLootRolls,
+                Seed = finalSeed
+            };
+        }
+
         var dm = (dropMode ?? "expected").Trim().ToLowerInvariant();
         long gold; long exp; Dictionary<string, double> lootExp = new(); Dictionary<string, int> lootSmp = new();
         if (dm == "sampled")
         {
-            var r = EconomyCalculator.ComputeSampled(killCount, finalSeed);
+            var r = EconomyCalculator.ComputeSampledWithContext(killCount, ctx);
             gold = r.Gold; exp = r.Exp;
             lootSmp = r.Items.ToDictionary(kv => kv.Key, kv => (int)Math.Round(kv.Value));
             dm = "sampled";
         }
         else
         {
-            var r = EconomyCalculator.ComputeExpected(killCount);
+            var r = EconomyCalculator.ComputeExpectedWithContext(killCount, ctx);
             gold = r.Gold; exp = r.Exp;
             lootExp = r.Items;
             dm = "expected";

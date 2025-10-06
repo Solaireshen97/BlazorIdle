@@ -1,5 +1,6 @@
 ﻿using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Application.Battles;
+using BlazorIdle.Server.Domain.Combat.Enemies;
 using BlazorIdle.Server.Domain.Economy;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
@@ -35,7 +36,6 @@ public class BattlesController : ControllerBase
         return Ok(new { battleId = id, seed, enemyId, enemyCount, mode = mode ?? "duration", dungeonId });
     }
 
-    // GET /api/battles/{id}/summary
     [HttpGet("{id:guid}/summary")]
     public async Task<ActionResult<object>> Summary(Guid id, [FromQuery] string? dropMode = null)
     {
@@ -45,33 +45,76 @@ public class BattlesController : ControllerBase
         var dps = battle.TotalDamage / Math.Max(0.0001, battle.DurationSeconds);
 
         var killCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+        int runCompleted = 0;
+        string? dungeonId = null;
+
         foreach (var s in battle.Segments)
         {
-            var tags = JsonSerializer.Deserialize<Dictionary<string, int>>(s.TagCountersJson ?? "{}")
+            var tags = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int>>(s.TagCountersJson ?? "{}")
                        ?? new Dictionary<string, int>();
+
             foreach (var (tag, val) in tags)
             {
-                if (!tag.StartsWith("kill.", StringComparison.Ordinal)) continue;
-                if (!killCounts.ContainsKey(tag)) killCounts[tag] = 0;
-                killCounts[tag] += val;
+                if (tag.StartsWith("kill.", StringComparison.Ordinal))
+                {
+                    if (!killCounts.ContainsKey(tag)) killCounts[tag] = 0;
+                    killCounts[tag] += val;
+                }
+                else if (tag == "dungeon_run_complete")
+                {
+                    runCompleted += val;
+                }
+                else if (tag.StartsWith("ctx.dungeonId.", StringComparison.Ordinal))
+                {
+                    // 取第一次出现的 dungeonId
+                    dungeonId ??= tag.Substring("ctx.dungeonId.".Length);
+                }
             }
+        }
+
+        // 构建经济上下文（若有 dungeonId 则应用）
+        var ctx = new EconomyContext();
+        if (!string.IsNullOrWhiteSpace(dungeonId))
+        {
+            var d = DungeonRegistry.Resolve(dungeonId!);
+            ctx = new EconomyContext
+            {
+                GoldMultiplier = d.GoldMultiplier,
+                ExpMultiplier = d.ExpMultiplier,
+                DropChanceMultiplier = d.DropChanceMultiplier,
+                RunCompletedCount = runCompleted,
+                RunRewardGold = d.RunRewardGold,
+                RunRewardExp = d.RunRewardExp,
+                RunRewardLootTableId = d.RunRewardLootTableId,
+                RunRewardLootRolls = d.RunRewardLootRolls,
+                // seed 来自记录（字符串），解析不成功则走期望值
+                Seed = ulong.TryParse(battle.Seed ?? "0", out var parsed) ? parsed : null
+            };
+        }
+        else
+        {
+            ctx = new EconomyContext
+            {
+                GoldMultiplier = 1.0,
+                ExpMultiplier = 1.0,
+                DropChanceMultiplier = 1.0,
+                RunCompletedCount = runCompleted,
+                Seed = ulong.TryParse(battle.Seed ?? "0", out var parsed) ? parsed : null
+            };
         }
 
         var mode = (dropMode ?? "expected").Trim().ToLowerInvariant();
         long gold; long exp; Dictionary<string, double>? lootExp = null; Dictionary<string, int>? lootSampled = null;
 
-        if (mode == "sampled")
+        if (mode == "sampled" && ctx.Seed is not null)
         {
-            // 从记录的 seed 派生（record.Seed 是字符串）
-            ulong seed = 0;
-            _ = ulong.TryParse(battle.Seed ?? "0", out seed);
-            var r = EconomyCalculator.ComputeSampled(killCounts, seed);
+            var r = EconomyCalculator.ComputeSampledWithContext(killCounts, ctx);
             gold = r.Gold; exp = r.Exp;
             lootSampled = r.Items.ToDictionary(kv => kv.Key, kv => (int)Math.Round(kv.Value));
         }
         else
         {
-            var r = EconomyCalculator.ComputeExpected(killCounts);
+            var r = EconomyCalculator.ComputeExpectedWithContext(killCounts, ctx);
             gold = r.Gold; exp = r.Exp;
             lootExp = r.Items;
             mode = "expected";
@@ -104,7 +147,9 @@ public class BattlesController : ControllerBase
             Gold = gold,
             Exp = exp,
             LootExpected = lootExp ?? new Dictionary<string, double>(),
-            LootSampled = lootSampled ?? new Dictionary<string, int>()
+            LootSampled = lootSampled ?? new Dictionary<string, int>(),
+            DungeonId = dungeonId,
+            DungeonRuns = runCompleted
         });
     }
 

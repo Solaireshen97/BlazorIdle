@@ -8,17 +8,51 @@ public sealed class DungeonDefinition
     public string Name { get; }
     public IReadOnlyList<Wave> Waves { get; }
 
-    // 新增：波次刷新与整轮刷新等待
+    // 现有：波次/整轮刷新延迟
     public double WaveRespawnDelaySeconds { get; }
     public double RunRespawnDelaySeconds { get; }
 
-    public DungeonDefinition(string id, string name, IReadOnlyList<Wave> waves, double waveRespawnDelaySeconds = 3.0, double runRespawnDelaySeconds = 10.0)
+    // 新增：经济倍率（默认 1.0）
+    public double GoldMultiplier { get; }
+    public double ExpMultiplier { get; }
+    public double DropChanceMultiplier { get; }
+
+    // 新增：整轮完成奖励（固定 + 掉落表按 rolls）
+    public int RunRewardGold { get; }
+    public int RunRewardExp { get; }
+    public string? RunRewardLootTableId { get; }
+    public int RunRewardLootRolls { get; }
+
+    public DungeonDefinition(
+        string id,
+        string name,
+        IReadOnlyList<Wave> waves,
+        double waveRespawnDelaySeconds = 3.0,
+        double runRespawnDelaySeconds = 10.0,
+        // 经济：默认 1 倍
+        double goldMultiplier = 1.0,
+        double expMultiplier = 1.0,
+        double dropChanceMultiplier = 1.0,
+        // 整轮奖励（默认无）
+        int runRewardGold = 0,
+        int runRewardExp = 0,
+        string? runRewardLootTableId = null,
+        int runRewardLootRolls = 0)
     {
         Id = id;
         Name = name;
         Waves = waves;
         WaveRespawnDelaySeconds = waveRespawnDelaySeconds <= 0 ? 0 : waveRespawnDelaySeconds;
         RunRespawnDelaySeconds = runRespawnDelaySeconds <= 0 ? 0 : runRespawnDelaySeconds;
+
+        GoldMultiplier = goldMultiplier <= 0 ? 1.0 : goldMultiplier;
+        ExpMultiplier = expMultiplier <= 0 ? 1.0 : expMultiplier;
+        DropChanceMultiplier = dropChanceMultiplier <= 0 ? 1.0 : dropChanceMultiplier;
+
+        RunRewardGold = runRewardGold < 0 ? 0 : runRewardGold;
+        RunRewardExp = runRewardExp < 0 ? 0 : runRewardExp;
+        RunRewardLootTableId = runRewardLootTableId;
+        RunRewardLootRolls = runRewardLootRolls < 0 ? 0 : runRewardLootRolls;
     }
 
     public sealed class Wave

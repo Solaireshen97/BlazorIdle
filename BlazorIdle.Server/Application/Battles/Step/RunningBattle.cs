@@ -126,6 +126,10 @@ public sealed class RunningBattle
                 enemyCount: EnemyCount,
                 module: module);
 
+        if (mode == StepBattleMode.DungeonSingle || mode == StepBattleMode.DungeonLoop)
+        {
+            Engine.Collector.OnTag($"ctx.dungeonId.{(dungeonId ?? "intro_cave")}", 1);
+        }
         StartedWallUtc = DateTime.UtcNow;
         _lastAdvanceWallUtc = StartedWallUtc;
     }

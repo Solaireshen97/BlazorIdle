@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using static BlazorIdle.Server.Domain.Economy.EconomyCalculator;
 
 namespace BlazorIdle.Server.Application.Battles.Step;
 
@@ -70,10 +71,14 @@ public sealed class StepBattleCoordinator
 
         var dps = totalDamage / Math.Max(0.0001, effectiveDuration);
 
-        // 聚合 kill.* → 奖励（按 requested dropMode）
+        // 聚合 kill.* 与 dungeon_run_complete
         var killCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+        int runCompleted = 0;
         foreach (var seg in rb.Segments)
         {
+            if (seg.TagCounters.TryGetValue("dungeon_run_complete", out var rc))
+                runCompleted += rc;
+
             foreach (var (tag, val) in seg.TagCounters)
             {
                 if (!tag.StartsWith("kill.", StringComparison.Ordinal)) continue;
@@ -82,17 +87,36 @@ public sealed class StepBattleCoordinator
             }
         }
 
+        // 构建经济上下文（若是地城模式，读取 dungeon 配置；否则倍率=1）
+        var ctx = new EconomyContext { Seed = rb.Seed };
+        if (!string.IsNullOrWhiteSpace(rb.DungeonId))
+        {
+            var d = DungeonRegistry.Resolve(rb.DungeonId!);
+            ctx = new EconomyContext
+            {
+                GoldMultiplier = d.GoldMultiplier,
+                ExpMultiplier = d.ExpMultiplier,
+                DropChanceMultiplier = d.DropChanceMultiplier,
+                RunCompletedCount = runCompleted,
+                RunRewardGold = d.RunRewardGold,
+                RunRewardExp = d.RunRewardExp,
+                RunRewardLootTableId = d.RunRewardLootTableId,
+                RunRewardLootRolls = d.RunRewardLootRolls,
+                Seed = rb.Seed
+            };
+        }
+
         var mode = (dropMode ?? "expected").Trim().ToLowerInvariant();
         long gold; long exp; Dictionary<string, double>? lootExp = null; Dictionary<string, int>? lootSampled = null;
         if (mode == "sampled")
         {
-            var r = EconomyCalculator.ComputeSampled(killCounts, rb.Seed);
+            var r = EconomyCalculator.ComputeSampledWithContext(killCounts, ctx);
             gold = r.Gold; exp = r.Exp;
             lootSampled = r.Items.ToDictionary(kv => kv.Key, kv => (int)Math.Round(kv.Value));
         }
         else
         {
-            var r = EconomyCalculator.ComputeExpected(killCounts);
+            var r = EconomyCalculator.ComputeExpectedWithContext(killCounts, ctx);
             gold = r.Gold; exp = r.Exp;
             lootExp = r.Items;
             mode = "expected";
