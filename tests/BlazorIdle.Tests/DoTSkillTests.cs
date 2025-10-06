@@ -13,7 +13,8 @@ public class DoTSkillTests
     [Fact]
     public void BleedShot_Applies_RangerBleed_And_Ticks_Damage()
     {
-        var runner = new BattleRunner();
+        var simulator = new BattleSimulator();
+        var runner = new BattleRunner(simulator);
         var seed = 1234UL;
         var duration = 50.0;
 

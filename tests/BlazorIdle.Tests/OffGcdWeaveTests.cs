@@ -57,7 +57,8 @@ public class OffGcdWeaveTests
     [Fact]
     public void OffGcd_Skill_Can_Weave_During_Casting_And_Basic_Attack_Remains_Paused()
     {
-        var runner = new BattleRunner();
+        var simulator = new BattleSimulator();
+        var runner = new BattleRunner(simulator);
         var battle = new Battle { CharacterId = Guid.NewGuid(), AttackIntervalSeconds = 1.0, SpecialIntervalSeconds = 0.5, StartedAt = 0 };
         var rng = new RngContext(42);
 
