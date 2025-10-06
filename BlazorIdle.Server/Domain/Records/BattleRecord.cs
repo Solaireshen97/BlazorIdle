@@ -15,6 +15,18 @@ public class BattleRecord
     public long SeedIndexStart { get; set; }
     public long SeedIndexEnd { get; set; }
 
+    // 新增：经济与地城持久化
+    // RewardType: "expected" | "sampled"
+    public string? RewardType { get; set; }
+    public long? Gold { get; set; }
+    public long? Exp { get; set; }
+    // LootJson: JSON(map) itemId -> number（expected 用 double，sampled 用 int 也可序列化为 double）
+    public string? LootJson { get; set; }
+
+    // 便于统计/查询
+    public string? DungeonId { get; set; }
+    public int? DungeonRuns { get; set; }
+
     // 敌人与击杀信息
     public string EnemyId { get; set; } = "dummy";
     public string EnemyName { get; set; } = "Training Dummy";

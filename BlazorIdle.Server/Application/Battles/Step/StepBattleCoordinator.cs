@@ -18,11 +18,11 @@ public sealed class StepBattleCoordinator
     private readonly ConcurrentDictionary<Guid, RunningBattle> _running = new();
     private readonly ConcurrentDictionary<Guid, DateTime> _completedAtUtc = new();
 
-    private readonly StepBattleFinalizer _finalizer;
+    private readonly IServiceScopeFactory _scopeFactory; // 改为作用域工厂
 
-    public StepBattleCoordinator(StepBattleFinalizer finalizer)
+    public StepBattleCoordinator(IServiceScopeFactory scopeFactory)
     {
-        _finalizer = finalizer;
+        _scopeFactory = scopeFactory;
     }
 
     // 新增覆盖：continuousRespawnDelaySeconds / dungeonWaveDelaySeconds / dungeonRunDelaySeconds
@@ -201,7 +201,11 @@ public sealed class StepBattleCoordinator
             {
                 try
                 {
-                    var persistedId = _finalizer.FinalizeAsync(rb, ct).GetAwaiter().GetResult();
+                    // 在需要用到仓储/Finalizer 时，临时创建一个作用域，解析 Scoped 的 Finalizer
+                    using var scope = _scopeFactory.CreateScope();
+                    var finalizer = scope.ServiceProvider.GetRequiredService<StepBattleFinalizer>();
+                    var persistedId = finalizer.FinalizeAsync(rb, ct).GetAwaiter().GetResult();
+
                     rb.Persisted = true;
                     rb.PersistedBattleId = persistedId;
                 }
@@ -248,7 +252,10 @@ public sealed class StepBattleCoordinator
         {
             try
             {
-                var persistedId = await _finalizer.FinalizeAsync(rb, ct);
+                using var scope = _scopeFactory.CreateScope();
+                var finalizer = scope.ServiceProvider.GetRequiredService<StepBattleFinalizer>();
+                var persistedId = await finalizer.FinalizeAsync(rb, ct);
+
                 rb.Persisted = true;
                 rb.PersistedBattleId = persistedId;
             }

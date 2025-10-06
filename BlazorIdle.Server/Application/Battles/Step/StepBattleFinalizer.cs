@@ -3,17 +3,19 @@ using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Domain.Combat.Enemies;
 using BlazorIdle.Server.Domain.Records;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace BlazorIdle.Server.Application.Battles.Step;
 
 public sealed class StepBattleFinalizer
 {
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IBattleRepository _repo;
+    private readonly string _defaultDropMode; // "expected" | "sampled"
 
-    public StepBattleFinalizer(IServiceScopeFactory scopeFactory)
+    public StepBattleFinalizer(IBattleRepository repo, IConfiguration cfg)
     {
-        _scopeFactory = scopeFactory;
+        _repo = repo;
+        _defaultDropMode = cfg.GetValue<string>("Economy:DefaultDropMode")?.Trim().ToLowerInvariant() == "sampled"
+            ? "sampled" : "expected";
     }
 
     public async Task<Guid> FinalizeAsync(RunningBattle rb, CancellationToken ct = default)
@@ -22,11 +24,8 @@ public sealed class StepBattleFinalizer
         if (rb.Persisted && rb.PersistedBattleId.HasValue)
             return rb.PersistedBattleId.Value;
 
-        using var scope = _scopeFactory.CreateScope();
-        var repo = scope.ServiceProvider.GetRequiredService<IBattleRepository>();
-
         // 幂等保护 1：DB 是否已存在（可能是此前自动完成或并发）
-        if (await repo.ExistsAsync(rb.Battle.Id, ct))
+        if (await _repo.ExistsAsync(rb.Battle.Id, ct))
         {
             rb.Persisted = true;
             rb.PersistedBattleId = rb.Battle.Id;
@@ -43,7 +42,7 @@ public sealed class StepBattleFinalizer
 
         var record = new BattleRecord
         {
-            Id = rb.Battle.Id, // 使用运行时 BattleId，保证同一场仗只有一条记录
+            Id = rb.Battle.Id,
             CharacterId = rb.CharacterId,
             StartedAt = DateTime.UtcNow,
             EndedAt = DateTime.UtcNow,
@@ -67,6 +66,7 @@ public sealed class StepBattleFinalizer
             KillTimeSeconds = rb.KillTime,
             OverkillDamage = rb.Overkill,
 
+            // 奖励字段先不在 Finalizer 里计算，保持最小改动（同步路径已持久化；Step 的 summary 会动态算）
             Segments = rb.Segments.Select(s => new BattleSegmentRecord
             {
                 Id = Guid.NewGuid(),
@@ -79,7 +79,6 @@ public sealed class StepBattleFinalizer
                 TagCountersJson = JsonSerializer.Serialize(s.TagCounters),
                 ResourceFlowJson = JsonSerializer.Serialize(s.ResourceFlow),
                 DamageByTypeJson = JsonSerializer.Serialize(s.DamageByType),
-                // 若你还未迁移段级 RNG 列，则去掉下面两行
                 RngIndexStart = s.RngIndexStart,
                 RngIndexEnd = s.RngIndexEnd
             }).ToList()
@@ -87,14 +86,13 @@ public sealed class StepBattleFinalizer
 
         try
         {
-            await repo.AddAsync(record, ct);
+            await _repo.AddAsync(record, ct);
             rb.Persisted = true;
             rb.PersistedBattleId = record.Id;
             return record.Id;
         }
         catch (DbUpdateException ex) when (IsUniqueViolation(ex))
         {
-            // 幂等保护 2：并发重复插入 -> 当作已存在处理
             rb.Persisted = true;
             rb.PersistedBattleId = rb.Battle.Id;
             return rb.Battle.Id;

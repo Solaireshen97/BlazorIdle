@@ -20,8 +20,6 @@ public class BattlesController : ControllerBase
         _battleRepo = battleRepo;
     }
 
-    // POST /api/battles/start?characterId=...&seconds=...&seed=...&enemyId=...&enemyCount=...&mode=...&dungeonId=...
-    // mode: duration(默认) | continuous | dungeon | dungeonloop
     [HttpPost("start")]
     public async Task<IActionResult> Start(
         [FromQuery] Guid characterId,
@@ -43,16 +41,60 @@ public class BattlesController : ControllerBase
         if (battle == null) return NotFound();
 
         var dps = battle.TotalDamage / Math.Max(0.0001, battle.DurationSeconds);
+        var requested = (dropMode ?? "expected").Trim().ToLowerInvariant();
+        if (requested != "expected" && requested != "sampled") requested = "expected";
 
+        // 1) 若记录已持久化该 dropMode 的收益，直接返回
+        if (!string.IsNullOrWhiteSpace(battle.RewardType)
+            && string.Equals(battle.RewardType, requested, StringComparison.OrdinalIgnoreCase))
+        {
+            var lootObj = string.IsNullOrWhiteSpace(battle.LootJson)
+                ? new Dictionary<string, double>()
+                : JsonSerializer.Deserialize<Dictionary<string, double>>(battle.LootJson!) ?? new();
+
+            return Ok(new
+            {
+                battle.Id,
+                battle.CharacterId,
+                battle.TotalDamage,
+                battle.DurationSeconds,
+                Dps = Math.Round(dps, 2),
+                SegmentCount = battle.Segments.Count,
+                battle.AttackIntervalSeconds,
+                battle.SpecialIntervalSeconds,
+                battle.EnemyId,
+                battle.EnemyName,
+                battle.EnemyLevel,
+                battle.EnemyMaxHp,
+                battle.EnemyArmor,
+                battle.EnemyMagicResist,
+                battle.Killed,
+                battle.KillTimeSeconds,
+                battle.OverkillDamage,
+                battle.Seed,
+                battle.SeedIndexStart,
+                battle.SeedIndexEnd,
+
+                DropMode = battle.RewardType,
+                Gold = battle.Gold ?? 0,
+                Exp = battle.Exp ?? 0,
+                LootExpected = battle.RewardType == "expected" ? lootObj : new Dictionary<string, double>(),
+                LootSampled = battle.RewardType == "sampled"
+                    ? lootObj.ToDictionary(kv => kv.Key, kv => (int)Math.Round(kv.Value))
+                    : new Dictionary<string, int>(),
+                DungeonId = battle.DungeonId,
+                DungeonRuns = battle.DungeonRuns ?? 0
+            });
+        }
+
+        // 2) 否则：从段动态重算
         var killCounts = new Dictionary<string, int>(StringComparer.Ordinal);
         int runCompleted = 0;
-        string? dungeonId = null;
+        string? dungeonId = battle.DungeonId;
 
         foreach (var s in battle.Segments)
         {
-            var tags = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int>>(s.TagCountersJson ?? "{}")
-                       ?? new Dictionary<string, int>();
-
+            var tags = JsonSerializer.Deserialize<Dictionary<string, int>>(s.TagCountersJson ?? "{}") ?? new();
             foreach (var (tag, val) in tags)
             {
                 if (tag.StartsWith("kill.", StringComparison.Ordinal))
@@ -60,53 +102,48 @@ public class BattlesController : ControllerBase
                     if (!killCounts.ContainsKey(tag)) killCounts[tag] = 0;
                     killCounts[tag] += val;
                 }
-                else if (tag == "dungeon_run_complete")
-                {
-                    runCompleted += val;
-                }
-                else if (tag.StartsWith("ctx.dungeonId.", StringComparison.Ordinal))
-                {
-                    // 取第一次出现的 dungeonId
-                    dungeonId ??= tag.Substring("ctx.dungeonId.".Length);
-                }
+                else if (tag == "dungeon_run_complete") runCompleted += val;
+                else if (dungeonId is null && tag.StartsWith("ctx.dungeonId.", StringComparison.Ordinal))
+                    dungeonId = tag.Substring("ctx.dungeonId.".Length);
             }
         }
 
-        // 构建经济上下文（若有 dungeonId 则应用）
-        var ctx = new EconomyContext();
+        // 解析 seed，避免在对象初始化器里重复 TryParse
+        ulong? seedValue = ulong.TryParse(battle.Seed ?? "0", out var parsedSeed) ? parsedSeed : null;
+
+        // 用对象初始化器一次性创建 EconomyContext（init-only 属性不可二次赋值）
+        EconomyContext ctx;
         if (!string.IsNullOrWhiteSpace(dungeonId))
         {
             var d = DungeonRegistry.Resolve(dungeonId!);
             ctx = new EconomyContext
             {
+                Seed = seedValue,
+                RunCompletedCount = runCompleted,
                 GoldMultiplier = d.GoldMultiplier,
                 ExpMultiplier = d.ExpMultiplier,
                 DropChanceMultiplier = d.DropChanceMultiplier,
-                RunCompletedCount = runCompleted,
                 RunRewardGold = d.RunRewardGold,
                 RunRewardExp = d.RunRewardExp,
                 RunRewardLootTableId = d.RunRewardLootTableId,
-                RunRewardLootRolls = d.RunRewardLootRolls,
-                // seed 来自记录（字符串），解析不成功则走期望值
-                Seed = ulong.TryParse(battle.Seed ?? "0", out var parsed) ? parsed : null
+                RunRewardLootRolls = d.RunRewardLootRolls
             };
         }
         else
         {
             ctx = new EconomyContext
             {
+                Seed = seedValue,
+                RunCompletedCount = runCompleted,
                 GoldMultiplier = 1.0,
                 ExpMultiplier = 1.0,
-                DropChanceMultiplier = 1.0,
-                RunCompletedCount = runCompleted,
-                Seed = ulong.TryParse(battle.Seed ?? "0", out var parsed) ? parsed : null
+                DropChanceMultiplier = 1.0
             };
         }
 
-        var mode = (dropMode ?? "expected").Trim().ToLowerInvariant();
         long gold; long exp; Dictionary<string, double>? lootExp = null; Dictionary<string, int>? lootSampled = null;
 
-        if (mode == "sampled" && ctx.Seed is not null)
+        if (requested == "sampled" && ctx.Seed is not null)
         {
             var r = EconomyCalculator.ComputeSampledWithContext(killCounts, ctx);
             gold = r.Gold; exp = r.Exp;
@@ -117,7 +154,7 @@ public class BattlesController : ControllerBase
             var r = EconomyCalculator.ComputeExpectedWithContext(killCounts, ctx);
             gold = r.Gold; exp = r.Exp;
             lootExp = r.Items;
-            mode = "expected";
+            requested = "expected";
         }
 
         return Ok(new
@@ -143,7 +180,7 @@ public class BattlesController : ControllerBase
             battle.SeedIndexStart,
             battle.SeedIndexEnd,
 
-            DropMode = mode,
+            DropMode = requested,
             Gold = gold,
             Exp = exp,
             LootExpected = lootExp ?? new Dictionary<string, double>(),
@@ -153,7 +190,6 @@ public class BattlesController : ControllerBase
         });
     }
 
-    // GET /api/battles/{id}/segments
     [HttpGet("{id:guid}/segments")]
     public async Task<ActionResult<IEnumerable<object>>> Segments(Guid id)
     {

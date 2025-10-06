@@ -7,7 +7,7 @@ using BlazorIdle.Server.Infrastructure.Persistence.Repositories;
 using BlazorIdle.Server.Application.Battles.Step;
 using BlazorIdle.Server.Application.Battles.Simulation;
 using BlazorIdle.Server.Application.Battles.Offline;
-using BlazorIdle.Server.Infrastructure.Startup; // 新增
+using BlazorIdle.Server.Infrastructure.Startup;
 
 namespace BlazorIdle.Server.Infrastructure;
 
@@ -22,9 +22,9 @@ public static class DependencyInjection
 
         // Step 异步战斗后台
         services.AddSingleton<StepBattleCoordinator>();
-        services.AddSingleton<StepBattleFinalizer>();
-        services.AddSingleton<StepBattleSnapshotService>();
-        services.AddHostedService<StepBattleHostedService>();
+        services.AddScoped<StepBattleFinalizer>();              // Scoped，避免 Singleton 依赖 Scoped
+        services.AddSingleton<StepBattleSnapshotService>();     // 恢复注册（HostedService 依赖它）
+        services.AddHostedService<StepBattleHostedService>();   // HostedService 为 Singleton
 
         // 批量模拟
         services.AddTransient<BatchSimulator>();
@@ -32,7 +32,7 @@ public static class DependencyInjection
         // 离线结算
         services.AddTransient<OfflineSettlementService>();
 
-        // 新增：经济数据校验（应用启动时执行）
+        // 经济数据校验（应用启动时执行）
         services.AddEconomyValidation(throwOnError: true);
 
         return services;

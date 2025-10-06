@@ -5,6 +5,7 @@ using BlazorIdle.Server.Domain.Combat;
 using BlazorIdle.Server.Domain.Combat.Enemies;
 using BlazorIdle.Server.Domain.Combat.Professions;
 using BlazorIdle.Server.Domain.Combat.Rng;
+using BlazorIdle.Server.Domain.Economy;
 using BlazorIdle.Server.Domain.Records;
 using System.Text.Json;
 
@@ -15,12 +16,15 @@ public class StartBattleService
     private readonly ICharacterRepository _characters;
     private readonly IBattleRepository _battles;
     private readonly BattleRunner _runner;
+    private readonly string _defaultDropMode; // "expected" | "sampled"
 
-    public StartBattleService(ICharacterRepository characters, IBattleRepository battles, BattleRunner runner)
+    public StartBattleService(ICharacterRepository characters, IBattleRepository battles, BattleRunner runner, IConfiguration cfg)
     {
         _characters = characters;
         _battles = battles;
         _runner = runner;
+        _defaultDropMode = cfg.GetValue<string>("Economy:DefaultDropMode")?.Trim().ToLowerInvariant() == "sampled"
+            ? "sampled" : "expected";
     }
 
     // 新增：mode/dungeonId + 刷新等待覆盖（可选）
@@ -37,9 +41,7 @@ public class StartBattleService
         double? runDelay = null,
         CancellationToken ct = default)
     {
-        var c = await _characters.GetAsync(characterId, ct);
-        if (c is null) throw new InvalidOperationException("Character not found");
-
+        var c = await _characters.GetAsync(characterId, ct) ?? throw new InvalidOperationException("Character not found");
         var module = ProfessionRegistry.Resolve(c.Profession);
 
         var enemyDef = EnemyRegistry.Resolve(enemyId);
@@ -59,7 +61,6 @@ public class StartBattleService
         var stats = StatsBuilder.Combine(baseStats, derived);
 
         ulong finalSeed = seed ?? DeriveSeed(characterId);
-
         var m = (mode ?? "duration").Trim().ToLowerInvariant();
 
         List<CombatSegment> segments;
@@ -68,6 +69,8 @@ public class StartBattleService
         int overkill;
         long seedIndexStart;
         long seedIndexEnd;
+
+        string? dungeonIdForRecord = null;
 
         if (m == "continuous" || m == "dungeon" || m == "dungeonloop")
         {
@@ -105,6 +108,7 @@ public class StartBattleService
             killTime = rb.KillTime;
             overkill = rb.Overkill;
             seedIndexEnd = rb.SeedIndexEnd;
+            dungeonIdForRecord = rb.DungeonId;
         }
         else
         {
@@ -128,6 +132,72 @@ public class StartBattleService
 
         var totalDamage = segments.Sum(s => s.TotalDamage);
 
+        // 1) 经济聚合：kill.* + run_complete
+        var killCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+        int runCompleted = 0;
+        foreach (var s in segments)
+        {
+            if (s.TagCounters.TryGetValue("dungeon_run_complete", out var rc))
+                runCompleted += rc;
+
+            foreach (var (tag, val) in s.TagCounters)
+            {
+                if (!tag.StartsWith("kill.", StringComparison.Ordinal)) continue;
+                if (!killCounts.ContainsKey(tag)) killCounts[tag] = 0;
+                killCounts[tag] += val;
+            }
+        }
+
+        // 2) 构建上下文（init-only 属性：分别用对象初始化器一次性构造）
+        EconomyContext ctx;
+        if (!string.IsNullOrWhiteSpace(dungeonIdForRecord))
+        {
+            var d = DungeonRegistry.Resolve(dungeonIdForRecord!);
+            ctx = new EconomyContext
+            {
+                GoldMultiplier = d.GoldMultiplier,
+                ExpMultiplier = d.ExpMultiplier,
+                DropChanceMultiplier = d.DropChanceMultiplier,
+                RunCompletedCount = runCompleted,
+                RunRewardGold = d.RunRewardGold,
+                RunRewardExp = d.RunRewardExp,
+                RunRewardLootTableId = d.RunRewardLootTableId,
+                RunRewardLootRolls = d.RunRewardLootRolls,
+                Seed = finalSeed
+            };
+        }
+        else
+        {
+            ctx = new EconomyContext
+            {
+                GoldMultiplier = 1.0,
+                ExpMultiplier = 1.0,
+                DropChanceMultiplier = 1.0,
+                RunCompletedCount = runCompleted,
+                Seed = finalSeed
+            };
+        }
+
+        // 3) 计算奖励（默认 dropMode）
+        string rewardType = _defaultDropMode;
+        long gold; long exp; string lootJson;
+
+        if (rewardType == "sampled")
+        {
+            var r = EconomyCalculator.ComputeSampledWithContext(killCounts, ctx);
+            gold = r.Gold; exp = r.Exp;
+            var items = r.Items.ToDictionary(kv => kv.Key, kv => (int)Math.Round(kv.Value));
+            lootJson = JsonSerializer.Serialize(items);
+        }
+        else
+        {
+            var r = EconomyCalculator.ComputeExpectedWithContext(killCounts, ctx);
+            gold = r.Gold; exp = r.Exp;
+            lootJson = JsonSerializer.Serialize(r.Items);
+            rewardType = "expected";
+        }
+
+        // 4) 记录并落库
         var record = new BattleRecord
         {
             Id = battleDomain.Id,
@@ -135,7 +205,7 @@ public class StartBattleService
             StartedAt = DateTime.UtcNow,
             EndedAt = DateTime.UtcNow,
             TotalDamage = totalDamage,
-            DurationSeconds = (killTime.HasValue ? killTime.Value : simulateSeconds),
+            DurationSeconds = (killTime ?? simulateSeconds),
             AttackIntervalSeconds = battleDomain.AttackIntervalSeconds,
             SpecialIntervalSeconds = battleDomain.SpecialIntervalSeconds,
             Seed = finalSeed.ToString(),
@@ -151,6 +221,14 @@ public class StartBattleService
             Killed = killed,
             KillTimeSeconds = killTime,
             OverkillDamage = overkill,
+
+            // 经济持久化
+            RewardType = rewardType,
+            Gold = gold,
+            Exp = exp,
+            LootJson = lootJson,
+            DungeonId = dungeonIdForRecord,
+            DungeonRuns = runCompleted,
 
             Segments = segments.Select(s => new BattleSegmentRecord
             {

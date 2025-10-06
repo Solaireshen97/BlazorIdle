@@ -24,4 +24,16 @@ public class BattleRepository : IBattleRepository
     // 新增：存在性检查（避免重复插入）
     public Task<bool> ExistsAsync(Guid id, CancellationToken ct = default) =>
         _db.Battles.AnyAsync(b => b.Id == id, ct);
+
+    public async Task UpdateRewardsAsync(Guid id, string rewardType, long gold, long exp, string lootJson, string? dungeonId, int runs, CancellationToken ct = default)
+    {
+        var rec = await _db.Battles.FirstAsync(b => b.Id == id, ct);
+        rec.RewardType = rewardType;
+        rec.Gold = gold;
+        rec.Exp = exp;
+        rec.LootJson = lootJson;
+        rec.DungeonId = dungeonId;
+        rec.DungeonRuns = runs;
+        await _db.SaveChangesAsync(ct);
+    }
 }

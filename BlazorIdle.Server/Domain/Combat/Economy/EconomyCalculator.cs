@@ -6,21 +6,19 @@ namespace BlazorIdle.Server.Domain.Economy;
 
 public sealed class EconomyContext
 {
-    // 倍率（默认 1）
-    public double GoldMultiplier { get; init; } = 1.0;
-    public double ExpMultiplier { get; init; } = 1.0;
-    public double DropChanceMultiplier { get; init; } = 1.0;
+    // 将 init 改为 set，避免到处调整调用点
+    public double GoldMultiplier { get; set; } = 1.0;
+    public double ExpMultiplier { get; set; } = 1.0;
+    public double DropChanceMultiplier { get; set; } = 1.0;
 
-    // 整轮完成奖励（每 run 叠加）
-    public int RunCompletedCount { get; init; } = 0;
-    public int RunRewardGold { get; init; } = 0;
-    public int RunRewardExp { get; init; } = 0;
-    public string? RunRewardLootTableId { get; init; }
-    public int RunRewardLootRolls { get; init; } = 0;
+    public int RunCompletedCount { get; set; } = 0;
+    public int RunRewardGold { get; set; } = 0;
+    public int RunRewardExp { get; set; } = 0;
+    public string? RunRewardLootTableId { get; set; }
+    public int RunRewardLootRolls { get; set; } = 0;
 
-    // 经济 RNG 用于 sampled
-    public ulong? Seed { get; init; }
-    public ulong Salt { get; init; } = 0xEC00_1234UL;
+    public ulong? Seed { get; set; }
+    public ulong Salt { get; set; } = 0xEC00_1234UL;
 }
 
 public static class EconomyCalculator
