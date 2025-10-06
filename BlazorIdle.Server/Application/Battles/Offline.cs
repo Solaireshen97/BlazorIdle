@@ -3,10 +3,10 @@ using BlazorIdle.Server.Application.Battles.Step;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Enemies;
 using BlazorIdle.Server.Domain.Combat.Rng;
+using BlazorIdle.Server.Domain.Economy;
 
 namespace BlazorIdle.Server.Application.Battles.Offline;
 
-// 离线结算结果（最小版）：聚合时长/伤害/击杀（基于 encounter_cleared Tag）
 public sealed class OfflineSettleResult
 {
     public Guid CharacterId { get; init; }
@@ -17,18 +17,19 @@ public sealed class OfflineSettleResult
     public string EnemyId { get; init; } = "dummy";
     public int EnemyCount { get; init; } = 1;
     public string? DungeonId { get; init; }
+
+    // 新增：经济收益
+    public long Gold { get; init; }
+    public long Exp { get; init; }
+    public Dictionary<string, double> LootExpected { get; init; } = new();
 }
 
 public sealed class OfflineSettlementService
 {
     private readonly ICharacterRepository _characters;
 
-    public OfflineSettlementService(ICharacterRepository characters)
-    {
-        _characters = characters;
-    }
+    public OfflineSettlementService(ICharacterRepository characters) => _characters = characters;
 
-    // mode: "continuous" | "dungeon" | "dungeonloop"
     public async Task<OfflineSettleResult> SimulateAsync(
         Guid characterId,
         TimeSpan offlineDuration,
@@ -72,18 +73,28 @@ public sealed class OfflineSettlementService
             dungeonId: dungeonId
         );
 
-        // 快速推进到离线秒数
         rb.FastForwardTo(seconds);
 
-        // 聚合：总伤害 + 基于 Tag 的击杀数（encounter_cleared）
+        // 聚合：总伤害 + 击杀 + 经济
         long totalDamage = 0;
         int kills = 0;
+        var killCount = new Dictionary<string, int>(StringComparer.Ordinal);
+
         foreach (var s in rb.Segments)
         {
             totalDamage += s.TotalDamage;
             if (s.TagCounters.TryGetValue("encounter_cleared", out var kc))
                 kills += kc;
+
+            foreach (var (tag, val) in s.TagCounters)
+            {
+                if (!tag.StartsWith("kill.", StringComparison.Ordinal)) continue;
+                if (!killCount.ContainsKey(tag)) killCount[tag] = 0;
+                killCount[tag] += val;
+            }
         }
+
+        var reward = EconomyCalculator.ComputeExpected(killCount);
 
         return new OfflineSettleResult
         {
@@ -94,7 +105,10 @@ public sealed class OfflineSettlementService
             Mode = mode ?? "continuous",
             EnemyId = enemyDef.Id,
             EnemyCount = Math.Max(1, enemyCount),
-            DungeonId = dungeonId
+            DungeonId = dungeonId,
+            Gold = reward.Gold,
+            Exp = reward.Exp,
+            LootExpected = reward.Items
         };
     }
 

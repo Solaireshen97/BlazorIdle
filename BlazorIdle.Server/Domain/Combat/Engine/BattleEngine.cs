@@ -40,6 +40,10 @@ public sealed class BattleEngine
 
     // 可选：用于持续/地城的提供器（为空则表示单波/单怪）
     private readonly IEncounterProvider? _provider;
+    // 新增：战斗内已记录死亡的单位，防重复打点
+    private readonly HashSet<Encounter> _markedDead = new();
+    // 在构造或 spawn 下一波时，应清空已标记集合
+    private void ClearDeathMarks() => _markedDead.Clear();
 
     // 刷新等待状态
     private EncounterGroup? _pendingNextGroup;
@@ -192,6 +196,31 @@ public sealed class BattleEngine
         }
     }
 
+    // 捕获新死亡并打 tag：kill.{enemyId} = 1
+    private void CaptureNewDeaths()
+    {
+        var grp = Context.EncounterGroup;
+        if (grp is not null)
+        {
+            foreach (var e in grp.All)
+            {
+                if (e.IsDead && !_markedDead.Contains(e))
+                {
+                    Collector.OnTag($"kill.{e.Enemy.Id}", 1);
+                    _markedDead.Add(e);
+                }
+            }
+        }
+        else
+        {
+            if (Context.Encounter is { IsDead: true } enc && !_markedDead.Contains(enc))
+            {
+                Collector.OnTag($"kill.{enc.Enemy.Id}", 1);
+                _markedDead.Add(enc);
+            }
+        }
+    }
+
     private void TryPerformPendingSpawn()
     {
         if (_waitingSpawn && _pendingSpawnAt.HasValue && _pendingNextGroup is not null && Clock.CurrentTime + 1e-9 >= _pendingSpawnAt.Value)
@@ -202,6 +231,9 @@ public sealed class BattleEngine
             _pendingNextGroup = null;
             _pendingSpawnAt = null;
             _waitingSpawn = false;
+
+            // 新一波开始：清理死亡标记，避免与新实例混淆
+            ClearDeathMarks();
 
             Collector.OnTag("spawn_performed", 1);
         }
@@ -288,6 +320,9 @@ public sealed class BattleEngine
             Collector.OnRngIndex(Context.Rng.Index);
             ev.Execute(Context);
             Collector.OnRngIndex(Context.Rng.Index);
+
+            // 新增：事件执行后捕获新死亡
+            CaptureNewDeaths();
 
             Collector.Tick(Clock.CurrentTime);
             TryFlushSegment();
