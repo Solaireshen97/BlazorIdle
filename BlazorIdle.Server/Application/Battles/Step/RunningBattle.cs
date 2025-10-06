@@ -90,7 +90,17 @@ public sealed class RunningBattle
         var rng = new RngContext(seed);
         SeedIndexStart = rng.Index;
 
+        // 构造 provider
         IEncounterProvider? provider = null;
+        string modeTag = mode switch
+        {
+            StepBattleMode.Duration => "duration",
+            StepBattleMode.Continuous => "continuous",
+            StepBattleMode.DungeonSingle => "dungeonsingle",
+            StepBattleMode.DungeonLoop => "dungeonloop",
+            _ => "duration"
+        };
+
         if (mode == StepBattleMode.DungeonSingle || mode == StepBattleMode.DungeonLoop)
         {
             var dungeon = DungeonRegistry.Resolve(dungeonId ?? "intro_cave");
@@ -106,6 +116,15 @@ public sealed class RunningBattle
             provider = new ContinuousEncounterProvider(enemyDef, EnemyCount, respawnDelaySeconds: continuousRespawnDelaySeconds ?? 3.0);
         }
 
+        // 统一构造 meta（无论同步/异步，均由引擎打标签）
+        var meta = new BattleMeta
+        {
+            ModeTag = modeTag,
+            EnemyId = EnemyId,
+            EnemyCount = EnemyCount,
+            DungeonId = (mode == StepBattleMode.DungeonSingle || mode == StepBattleMode.DungeonLoop) ? (dungeonId ?? "intro_cave") : null
+        };
+
         Engine =
             provider is not null
             ? new BattleEngine(
@@ -115,7 +134,8 @@ public sealed class RunningBattle
                 stats: stats,
                 rng: rng,
                 provider: provider,
-                module: module)
+                module: module,
+                meta: meta)
             : new BattleEngine(
                 battleId: id,
                 characterId: characterId,
@@ -124,12 +144,9 @@ public sealed class RunningBattle
                 rng: rng,
                 enemyDef: enemyDef,
                 enemyCount: EnemyCount,
-                module: module);
+                module: module,
+                meta: meta);
 
-        if (mode == StepBattleMode.DungeonSingle || mode == StepBattleMode.DungeonLoop)
-        {
-            Engine.Collector.OnTag($"ctx.dungeonId.{(dungeonId ?? "intro_cave")}", 1);
-        }
         StartedWallUtc = DateTime.UtcNow;
         _lastAdvanceWallUtc = StartedWallUtc;
     }

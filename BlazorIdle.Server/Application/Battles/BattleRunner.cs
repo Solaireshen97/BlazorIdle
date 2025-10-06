@@ -8,12 +8,6 @@ using BlazorIdle.Shared.Models;
 
 namespace BlazorIdle.Server.Application.Battles;
 
-/// <summary>
-/// 同步版战斗驱动：基于 BattleEngine 推进到目标时长并返回段聚合。
-/// 支持：
-/// - 传统单波（不刷新）
-/// - 持续/地城（通过 IEncounterProvider 实现刷新、波次、循环）
-/// </summary>
 public class BattleRunner
 {
     public IReadOnlyList<CombatSegment> RunForDuration(
@@ -25,11 +19,36 @@ public class BattleRunner
         out double? killTime,
         out int overkill,
         IProfessionModule? module = null,
-        Encounter? encounter = null,                  // 兼容旧签名
-        EncounterGroup? encounterGroup = null,        // 兼容旧签名
+        Encounter? encounter = null,
+        EncounterGroup? encounterGroup = null,
         CharacterStats? stats = null,
-        IEncounterProvider? provider = null)          // 新增：持续/地城
+        IEncounterProvider? provider = null)
     {
+        // 组装 meta：provider 区分 dungeon/continuous，缺省即 duration
+        string modeTag = "duration";
+        string enemyId = (encounterGroup?.All?.FirstOrDefault()?.Enemy?.Id)
+                         ?? (encounter?.Enemy?.Id ?? "dummy");
+        int enemyCount = encounterGroup?.All?.Count ?? 1;
+        string? dungeonId = null;
+
+        if (provider is DungeonEncounterProvider dprov)
+        {
+            modeTag = "dungeon";
+            dungeonId = dprov.DungeonId; // 见下方 provider 暴露属性
+        }
+        else if (provider is ContinuousEncounterProvider)
+        {
+            modeTag = "continuous";
+        }
+
+        var meta = new BattleMeta
+        {
+            ModeTag = modeTag,
+            EnemyId = enemyId,
+            EnemyCount = enemyCount,
+            DungeonId = dungeonId
+        };
+
         var engine =
             provider is not null
             ? new BattleEngine(
@@ -39,7 +58,8 @@ public class BattleRunner
                 stats: stats ?? new CharacterStats(),
                 rng: rng,
                 provider: provider,
-                module: module)
+                module: module,
+                meta: meta)
             : new BattleEngine(
                 battleId: battle.Id,
                 characterId: battle.CharacterId,
@@ -49,16 +69,15 @@ public class BattleRunner
                 enemyDef: (encounterGroup?.All?.FirstOrDefault()?.Enemy)
                           ?? (encounter is not null ? encounter.Enemy : EnemyRegistry.Resolve("dummy")),
                 enemyCount: encounterGroup?.All?.Count ?? (encounter is null ? 1 : 1),
-                module: module);
+                module: module,
+                meta: meta);
 
-        // 推进到目标时长（持续/地城将按 provider 内的 delay/波次自动刷新）
         engine.AdvanceUntil(durationSeconds);
 
         killed = engine.Killed;
         killTime = engine.KillTime;
         overkill = engine.Overkill;
 
-        // 结束时间/间隔回写（保持原行为）
         battle.Finish(engine.Battle.EndedAt ?? engine.Clock.CurrentTime);
         return engine.Segments;
     }

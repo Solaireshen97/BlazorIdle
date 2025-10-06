@@ -10,10 +10,12 @@ public sealed class DungeonEncounterProvider : IEncounterProvider
     private readonly double _runDelay;
 
     public EncounterGroup CurrentGroup { get; private set; }
-    public int CurrentWaveIndex { get; private set; } = 1; // 1-based
+    public int CurrentWaveIndex { get; private set; } = 1;
     public int CompletedRunCount { get; private set; } = 0;
 
-    // 可选覆盖：waveDelayOverride / runDelayOverride
+    // 新增：对外暴露 DungeonId，便于同步 Runner 打 ctx 标签
+    public string DungeonId => _dungeon.Id;
+
     public DungeonEncounterProvider(DungeonDefinition dungeon, bool loop, double? waveDelayOverride = null, double? runDelayOverride = null)
     {
         _dungeon = dungeon;
@@ -41,14 +43,12 @@ public sealed class DungeonEncounterProvider : IEncounterProvider
         runCompleted = false;
         if (CurrentWaveIndex < _dungeon.Waves.Count)
         {
-            // 下一波
             CurrentWaveIndex++;
             nextGroup = BuildGroupForWave(CurrentWaveIndex);
             CurrentGroup = nextGroup;
             return true;
         }
 
-        // 最后一波已清空
         runCompleted = true;
         CompletedRunCount++;
 
@@ -61,7 +61,7 @@ public sealed class DungeonEncounterProvider : IEncounterProvider
         }
 
         nextGroup = null;
-        return false; // 非循环：不再有下一波
+        return false;
     }
 
     public double GetRespawnDelaySeconds(bool runJustCompleted)

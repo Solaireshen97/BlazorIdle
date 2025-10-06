@@ -35,22 +35,20 @@ public sealed class BattleEngine
     public long SeedIndexStart { get; }
     public long SeedIndexEnd => Context.Rng.Index;
 
+    // 暴露 provider 信息（由 RunningBattle/Runner 透传）
     public int WaveIndex => _provider?.CurrentWaveIndex ?? 1;
     public int RunCount => _provider?.CompletedRunCount ?? 0;
 
-    // 可选：用于持续/地城的提供器（为空则表示单波/单怪）
     private readonly IEncounterProvider? _provider;
-    // 新增：战斗内已记录死亡的单位，防重复打点
-    private readonly HashSet<Encounter> _markedDead = new();
-    // 在构造或 spawn 下一波时，应清空已标记集合
-    private void ClearDeathMarks() => _markedDead.Clear();
 
-    // 刷新等待状态
+    // 刷新/击杀标记
     private EncounterGroup? _pendingNextGroup;
     private double? _pendingSpawnAt;
     private bool _waitingSpawn;
+    private readonly HashSet<Encounter> _markedDead = new();
 
-    // 仅单波构造（兼容旧逻辑：清场即结束）
+    private void ClearDeathMarks() => _markedDead.Clear();
+
     public BattleEngine(
         Guid battleId,
         Guid characterId,
@@ -59,14 +57,16 @@ public sealed class BattleEngine
         RngContext rng,
         EnemyDefinition enemyDef,
         int enemyCount,
-        IProfessionModule? module = null)
+        IProfessionModule? module = null,
+        BattleMeta? meta = null)                                      // 新增 meta
         : this(battleId, characterId, profession, stats, rng,
-               provider: null, initialGroup: new EncounterGroup(Enumerable.Range(0, Math.Max(1, enemyCount)).Select(_ => enemyDef).ToList()),
-               module: module)
+               provider: null,
+               initialGroup: new EncounterGroup(Enumerable.Range(0, Math.Max(1, enemyCount)).Select(_ => enemyDef).ToList()),
+               module: module,
+               meta: meta)
     {
     }
 
-    // 新增：使用 EncounterProvider（持续/地城/循环），并从 provider.CurrentGroup 开始
     public BattleEngine(
         Guid battleId,
         Guid characterId,
@@ -74,9 +74,13 @@ public sealed class BattleEngine
         CharacterStats stats,
         RngContext rng,
         IEncounterProvider provider,
-        IProfessionModule? module = null)
+        IProfessionModule? module = null,
+        BattleMeta? meta = null)                                      // 新增 meta
         : this(battleId, characterId, profession, stats, rng,
-               provider: provider, initialGroup: provider.CurrentGroup, module: module)
+               provider: provider,
+               initialGroup: provider.CurrentGroup,
+               module: module,
+               meta: meta)
     {
     }
 
@@ -89,7 +93,8 @@ public sealed class BattleEngine
         RngContext rng,
         IEncounterProvider? provider,
         EncounterGroup initialGroup,
-        IProfessionModule? module)
+        IProfessionModule? module,
+        BattleMeta? meta)                                             // 新增 meta
     {
         _provider = provider;
 
@@ -123,12 +128,10 @@ public sealed class BattleEngine
 
         SeedIndexStart = rng.Index;
 
-        // 职业钩子 + 技能
         professionModule.RegisterBuffDefinitions(Context);
         professionModule.OnBattleStart(Context);
         professionModule.BuildSkills(Context, Context.AutoCaster);
 
-        // 轨道与初始事件
         var attackTrack = new TrackState(TrackType.Attack, Battle.AttackIntervalSeconds, 0);
         var specialTrack = new TrackState(TrackType.Special, Battle.SpecialIntervalSeconds, Battle.SpecialIntervalSeconds);
         Context.Tracks.Add(attackTrack);
@@ -137,6 +140,31 @@ public sealed class BattleEngine
         Scheduler.Schedule(new AttackTickEvent(attackTrack.NextTriggerAt, attackTrack));
         Scheduler.Schedule(new SpecialPulseEvent(specialTrack.NextTriggerAt, specialTrack));
         Scheduler.Schedule(new ProcPulseEvent(Clock.CurrentTime + 1.0, 1.0));
+
+        // 统一：应用上下文标签（ctx.*）
+        ApplyMetaTags(meta);
+    }
+
+    private void ApplyMetaTags(BattleMeta? meta)
+    {
+        if (meta is null) return;
+
+        // 统一小写写入
+        var modeTag = string.IsNullOrWhiteSpace(meta.ModeTag) ? "duration" : meta.ModeTag.Trim().ToLowerInvariant();
+        Collector.OnTag($"ctx.mode.{modeTag}", 1);
+        Collector.OnTag($"ctx.enemyId.{(string.IsNullOrWhiteSpace(meta.EnemyId) ? "dummy" : meta.EnemyId)}", 1);
+        Collector.OnTag($"ctx.enemyCount.{Math.Max(1, meta.EnemyCount)}", 1);
+        if (!string.IsNullOrWhiteSpace(meta.DungeonId))
+            Collector.OnTag($"ctx.dungeonId.{meta.DungeonId}", 1);
+
+        if (meta.ExtraTags is not null)
+        {
+            foreach (var (tag, val) in meta.ExtraTags)
+            {
+                if (!string.IsNullOrWhiteSpace(tag))
+                    Collector.OnTag(tag, val);
+            }
+        }
     }
 
     // 波是否清空：整波全部死亡才算清场
