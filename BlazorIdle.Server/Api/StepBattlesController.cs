@@ -13,11 +13,13 @@ public class StepBattlesController : ControllerBase
 {
     private readonly StepBattleCoordinator _coord;
     private readonly ICharacterRepository _characters;
+    private readonly IBattleRepository _battles; // 新增：用于 Stop 的兜底查询
 
-    public StepBattlesController(StepBattleCoordinator coord, ICharacterRepository characters)
+    public StepBattlesController(StepBattleCoordinator coord, ICharacterRepository characters, IBattleRepository battles)
     {
         _coord = coord;
         _characters = characters;
+        _battles = battles;
     }
 
     // 支持刷新等待参数：
@@ -108,9 +110,22 @@ public class StepBattlesController : ControllerBase
     [HttpPost("{id:guid}/stop")]
     public async Task<IActionResult> Stop(Guid id, CancellationToken ct)
     {
-        var (ok, persistedId) = await _coord.StopAndFinalizeAsync(id, ct);
-        if (!ok) return NotFound();
-        return Ok(new { persistedBattleId = persistedId });
+        // 第一种：仍在内存中，正常走协调器的 Stop & Finalize
+        if (_coord.TryGet(id, out var rb) && rb is not null)
+        {
+            var (ok, persistedId) = await _coord.StopAndFinalizeAsync(id, ct);
+            if (!ok) return NotFound();
+            return Ok(new { persistedBattleId = persistedId });
+        }
+
+        // 第二种：已经被后台自动 Finalize，或重启后不在内存，尝试直接查库（幂等兜底）
+        var rec = await _battles.GetWithSegmentsAsync(id, ct);
+        if (rec is not null)
+        {
+            return Ok(new { persistedBattleId = rec.Id });
+        }
+
+        return NotFound();
     }
 
     [HttpGet("{id:guid}/debug")]

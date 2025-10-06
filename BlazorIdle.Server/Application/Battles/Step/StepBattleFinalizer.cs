@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Domain.Combat.Enemies;
+using BlazorIdle.Server.Domain.Economy;
 using BlazorIdle.Server.Domain.Records;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,11 +21,11 @@ public sealed class StepBattleFinalizer
 
     public async Task<Guid> FinalizeAsync(RunningBattle rb, CancellationToken ct = default)
     {
-        // 若内存标记已持久化，直接返回
+        // 幂等：内存标记
         if (rb.Persisted && rb.PersistedBattleId.HasValue)
             return rb.PersistedBattleId.Value;
 
-        // 幂等保护 1：DB 是否已存在（可能是此前自动完成或并发）
+        // 幂等：数据库已存在
         if (await _repo.ExistsAsync(rb.Battle.Id, ct))
         {
             rb.Persisted = true;
@@ -40,6 +41,80 @@ public sealed class StepBattleFinalizer
             ? Math.Min(rb.TargetDurationSeconds, rb.Battle.EndedAt ?? (rb.KillTime ?? simulated))
             : simulated;
 
+        // 1) 聚合经济相关计数
+        var killCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+        int runCompleted = 0;
+        string? dungeonId = rb.DungeonId;
+
+        foreach (var s in rb.Segments)
+        {
+            if (s.TagCounters.TryGetValue("dungeon_run_complete", out var rc))
+                runCompleted += rc;
+
+            foreach (var (tag, val) in s.TagCounters)
+            {
+                if (tag.StartsWith("kill.", StringComparison.Ordinal))
+                {
+                    if (!killCounts.ContainsKey(tag)) killCounts[tag] = 0;
+                    killCounts[tag] += val;
+                }
+                else if (dungeonId is null && tag.StartsWith("ctx.dungeonId.", StringComparison.Ordinal))
+                {
+                    dungeonId = tag.Substring("ctx.dungeonId.".Length);
+                }
+            }
+        }
+
+        // 2) 构建上下文（对象初始化器一次性赋值）
+        EconomyContext ctx;
+        if (!string.IsNullOrWhiteSpace(dungeonId))
+        {
+            var d = DungeonRegistry.Resolve(dungeonId!);
+            ctx = new EconomyContext
+            {
+                GoldMultiplier = d.GoldMultiplier,
+                ExpMultiplier = d.ExpMultiplier,
+                DropChanceMultiplier = d.DropChanceMultiplier,
+                RunCompletedCount = runCompleted,
+                RunRewardGold = d.RunRewardGold,
+                RunRewardExp = d.RunRewardExp,
+                RunRewardLootTableId = d.RunRewardLootTableId,
+                RunRewardLootRolls = d.RunRewardLootRolls,
+                Seed = rb.Seed
+            };
+        }
+        else
+        {
+            ctx = new EconomyContext
+            {
+                GoldMultiplier = 1.0,
+                ExpMultiplier = 1.0,
+                DropChanceMultiplier = 1.0,
+                RunCompletedCount = runCompleted,
+                Seed = rb.Seed
+            };
+        }
+
+        // 3) 计算奖励（默认 dropMode 来自配置）
+        string rewardType = _defaultDropMode;
+        long gold; long exp; string lootJson;
+
+        if (rewardType == "sampled")
+        {
+            var r = EconomyCalculator.ComputeSampledWithContext(killCounts, ctx);
+            gold = r.Gold; exp = r.Exp;
+            var items = r.Items.ToDictionary(kv => kv.Key, kv => (int)Math.Round(kv.Value));
+            lootJson = JsonSerializer.Serialize(items);
+        }
+        else
+        {
+            var r = EconomyCalculator.ComputeExpectedWithContext(killCounts, ctx);
+            gold = r.Gold; exp = r.Exp;
+            lootJson = JsonSerializer.Serialize(r.Items); // itemId -> double
+            rewardType = "expected";
+        }
+
+        // 4) 组装记录并落库（一次性包含奖励）
         var record = new BattleRecord
         {
             Id = rb.Battle.Id,
@@ -66,7 +141,13 @@ public sealed class StepBattleFinalizer
             KillTimeSeconds = rb.KillTime,
             OverkillDamage = rb.Overkill,
 
-            // 奖励字段先不在 Finalizer 里计算，保持最小改动（同步路径已持久化；Step 的 summary 会动态算）
+            RewardType = rewardType,
+            Gold = gold,
+            Exp = exp,
+            LootJson = lootJson,
+            DungeonId = dungeonId,
+            DungeonRuns = runCompleted,
+
             Segments = rb.Segments.Select(s => new BattleSegmentRecord
             {
                 Id = Guid.NewGuid(),
