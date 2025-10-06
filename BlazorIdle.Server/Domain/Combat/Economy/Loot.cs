@@ -1,4 +1,7 @@
-﻿namespace BlazorIdle.Server.Domain.Economy;
+﻿using System;
+using System.Collections.Generic;
+
+namespace BlazorIdle.Server.Domain.Economy;
 
 public sealed class LootEntry
 {
@@ -7,6 +10,12 @@ public sealed class LootEntry
     public string ItemId { get; init; } = "";
     public int QuantityMin { get; init; } = 1;
     public int QuantityMax { get; init; } = 1;
+
+    // 新增：每只怪要进行的 roll 次数（默认 1）
+    public int Rolls { get; init; } = 1;
+
+    // 预留：备注或来源（可选）
+    public string? Note { get; init; }
 }
 
 public sealed class LootTable
@@ -25,6 +34,6 @@ public sealed class RewardSummary
 {
     public long Gold { get; set; }
     public long Exp { get; set; }
-    // 期望件数（或抽样得到的件数），key=itemId
-    public Dictionary<string, double> Items { get; } = new();
+    // 期望件数（或抽样件数），key=itemId
+    public Dictionary<string, double> Items { get; } = new(StringComparer.Ordinal);
 }

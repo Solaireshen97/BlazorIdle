@@ -7,6 +7,7 @@ using BlazorIdle.Server.Infrastructure.Persistence.Repositories;
 using BlazorIdle.Server.Application.Battles.Step;
 using BlazorIdle.Server.Application.Battles.Simulation;
 using BlazorIdle.Server.Application.Battles.Offline;
+using BlazorIdle.Server.Infrastructure.Startup; // 新增
 
 namespace BlazorIdle.Server.Infrastructure;
 
@@ -30,6 +31,9 @@ public static class DependencyInjection
 
         // 离线结算
         services.AddTransient<OfflineSettlementService>();
+
+        // 新增：经济数据校验（应用启动时执行）
+        services.AddEconomyValidation(throwOnError: true);
 
         return services;
     }

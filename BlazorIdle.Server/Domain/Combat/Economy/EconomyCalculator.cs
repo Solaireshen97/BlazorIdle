@@ -1,19 +1,20 @@
-﻿using BlazorIdle.Server.Domain.Combat.Rng;
+﻿using System;
+using System.Collections.Generic;
+using BlazorIdle.Server.Domain.Combat.Rng;
 
 namespace BlazorIdle.Server.Domain.Economy;
 
 public static class EconomyCalculator
 {
-    // 期望值计算：不消耗 RNG，线性相加，稳定可复现
+    // 期望值：考虑 Rolls，且不消耗战斗 RNG
     public static RewardSummary ComputeExpected(IDictionary<string, int> killCounts)
     {
         var sum = new RewardSummary();
 
-        foreach (var (killKey, cnt) in killCounts)
+        foreach (var (tag, cnt) in killCounts)
         {
-            // 只处理 kill.{enemyId}
-            if (!killKey.StartsWith("kill.", StringComparison.Ordinal)) continue;
-            var enemyId = killKey.Substring("kill.".Length);
+            if (!tag.StartsWith("kill.", StringComparison.Ordinal)) continue;
+            var enemyId = tag["kill.".Length..];
             if (!EconomyRegistry.TryGetEnemyEconomy(enemyId, out var eco)) continue;
 
             sum.Gold += (long)eco.Gold * cnt;
@@ -23,11 +24,11 @@ public static class EconomyCalculator
             {
                 foreach (var e in table.Entries)
                 {
-                    // 期望件数 = 次数 * 掉落概率 * 平均数量
+                    var rolls = Math.Max(1, e.Rolls);
                     var avgQty = (e.QuantityMin + e.QuantityMax) / 2.0;
-                    var expected = cnt * e.DropChance * avgQty;
+                    var expectedPerKill = rolls * e.DropChance * avgQty;
                     if (!sum.Items.ContainsKey(e.ItemId)) sum.Items[e.ItemId] = 0;
-                    sum.Items[e.ItemId] += expected;
+                    sum.Items[e.ItemId] += cnt * expectedPerKill;
                 }
             }
         }
@@ -35,16 +36,16 @@ public static class EconomyCalculator
         return sum;
     }
 
-    // 可选：采样计算（如需实际掉落，使用经济 RNG：基于种子派生，避免污染战斗 RNG）
+    // 采样掉落（未来用）：考虑 Rolls，用独立 RNG
     public static RewardSummary ComputeSampled(IDictionary<string, int> killCounts, ulong battleSeed, ulong salt = 0xEC00_1234UL)
     {
         var sum = new RewardSummary();
         var rng = new RngContext(Hash64(battleSeed ^ salt));
 
-        foreach (var (killKey, cnt) in killCounts)
+        foreach (var (tag, cnt) in killCounts)
         {
-            if (!killKey.StartsWith("kill.", StringComparison.Ordinal)) continue;
-            var enemyId = killKey.Substring("kill.".Length);
+            if (!tag.StartsWith("kill.", StringComparison.Ordinal)) continue;
+            var enemyId = tag["kill.".Length..];
             if (!EconomyRegistry.TryGetEnemyEconomy(enemyId, out var eco)) continue;
 
             sum.Gold += (long)eco.Gold * cnt;
@@ -56,13 +57,16 @@ public static class EconomyCalculator
                 {
                     foreach (var e in table.Entries)
                     {
-                        if (rng.NextDouble() <= e.DropChance)
+                        var rolls = Math.Max(1, e.Rolls);
+                        for (int r = 0; r < rolls; r++)
                         {
-                            var qty = e.QuantityMin == e.QuantityMax
-                                ? e.QuantityMin
-                                : (int)(e.QuantityMin + rng.NextDouble() * (e.QuantityMax - e.QuantityMin + 1));
-                            if (!sum.Items.ContainsKey(e.ItemId)) sum.Items[e.ItemId] = 0;
-                            sum.Items[e.ItemId] += qty;
+                            if (rng.NextDouble() <= e.DropChance)
+                            {
+                                var maxInc = e.QuantityMax - e.QuantityMin + 1;
+                                var q = e.QuantityMin + (maxInc <= 1 ? 0 : (int)(rng.NextDouble() * maxInc));
+                                if (!sum.Items.ContainsKey(e.ItemId)) sum.Items[e.ItemId] = 0;
+                                sum.Items[e.ItemId] += q;
+                            }
                         }
                     }
                 }
@@ -74,7 +78,6 @@ public static class EconomyCalculator
 
     private static ulong Hash64(ulong x)
     {
-        // 简易 xorshift64* 派生
         x ^= x >> 12; x ^= x << 25; x ^= x >> 27;
         return x * 2685821657736338717UL;
     }
