@@ -143,7 +143,7 @@
                 <select class="form-control" style="width:160px" @bind="stepMode">
                     <option value="duration">Duration（按时长）</option>
                     <option value="continuous">Continuous（持续同怪）</option>
-                    <option value="dungeon">Dungeon（单次）</option>
+                    <option value="dungeonsingle">Dungeon（单次）</option>
                     <option value="dungeonloop">Dungeon Loop（循环）</option>
                 </select>
             </div>
@@ -181,6 +181,13 @@
             <div>
                 <label>DungeonId</label>
                 <input class="form-control" style="width:200px" @bind="stepDungeonId" placeholder="intro_cave" disabled="@(stepMode == "duration" || stepMode == "continuous")" />
+            </div>
+            <div>
+                <label>掉落模式</label>
+                <select class="form-control" style="width:140px" @bind="stepDropMode">
+                    <option value="expected">expected</option>
+                    <option value="sampled">sampled</option>
+                </select>
             </div>
             <div>
                 <label>状态轮询(ms)</label>
@@ -237,6 +244,36 @@
                             <b>Persisted BattleId:</b> @stepStatus.PersistedBattleId
                             <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenSummary(stepStatus.PersistedBattleId!.Value)">打开摘要</button>
                         </div>
+                    </div>
+                }
+            </div>
+
+            <div class="card" style="padding: 12px; margin-top: 12px;">
+                <h5>收益</h5>
+                <div><b>DropMode:</b> @stepDropMode</div>
+                <div><b>Gold:</b> @stepStatus.Gold, <b>Exp:</b> @stepStatus.Exp</div>
+                @if ((stepStatus.DropMode ?? stepDropMode) == "expected")
+                {
+                    <div>
+                        <b>Loot (expected):</b>
+                        <ul>
+                            @foreach (var kv in stepStatus.LootExpected.OrderByDescending(kv => kv.Value))
+                            {
+                                <li>@kv.Key: @kv.Value.ToString("0.##")</li>
+                            }
+                        </ul>
+                    </div>
+                }
+                else
+                {
+                    <div>
+                        <b>Loot (sampled):</b>
+                        <ul>
+                            @foreach (var kv in stepStatus.LootSampled.OrderByDescending(kv => kv.Value))
+                            {
+                                <li>@kv.Key: @kv.Value</li>
+                            }
+                        </ul>
                     </div>
                 }
             </div>
@@ -468,7 +505,6 @@
     // ====== 创建/同步战斗 ======
     protected override async Task OnInitializedAsync()
     {
-        // 动态加载敌人
         try { enemies = await Api.GetEnemiesAsync() ?? new(); }
         catch { enemies = new(); }
     }
@@ -485,7 +521,10 @@
     CharacterCreated? lastCreated;
     Guid currentBattleId;
     double battleSeconds = 10;
-    BattleSummaryDto? summary;
+
+    // 将类型从 BattleSummaryDto? 改为 BattleSummaryResponse?
+    BattleSummaryResponse? summary;
+
     List<BattleSegmentDto>? segments;
     System.Timers.Timer? pollTimer;
 
@@ -565,8 +604,8 @@
 
     // ====== Step 战斗（含运行态调试）======
     Guid? stepBattleId;
-    string stepMode = "duration";     // duration | continuous | dungeon | dungeonloop
-    bool IsDungeonMode => stepMode == "dungeon" || stepMode == "dungeonloop";
+    string stepMode = "duration";     // duration | continuous | dungeonsingle | dungeonloop
+    bool IsDungeonMode => stepMode == "dungeonsingle" || stepMode == "dungeonloop";
     string stepDungeonId = "intro_cave";
 
     double stepSeconds = 20;
@@ -574,7 +613,9 @@
     string? stepSeedInput = null;
     int stepPollMs = 500;
 
-    StepBattleStatusDto? stepStatus;
+    string stepDropMode = "expected"; // expected | sampled
+
+    StepStatusResponse? stepStatus;
     List<StepBattleSegmentDto> stepSegments = new();
     Dictionary<string, int> stepAggBySource = new();
     Dictionary<string, int> stepAggByType = new();
@@ -602,7 +643,7 @@
             ulong? seed = null;
             if (ulong.TryParse(stepSeedInput, out var seedVal)) seed = seedVal;
 
-            var secondsToSend = stepMode == "duration" ? stepSeconds : Math.Max(1, stepSeconds); // 服务端需要 seconds 参数，但非 duration 模式仅用于占位
+            var secondsToSend = stepMode == "duration" ? stepSeconds : Math.Max(1, stepSeconds); // 非 duration 仅占位
             string? enemyToSend = IsDungeonMode ? null : selectedEnemyId;
             int enemyCountToSend = IsDungeonMode ? 0 : stepEnemyCount;
 
@@ -639,7 +680,7 @@
             {
                 await PollStepOnceAsync(_stepPollCts.Token);
                 await InvokeAsync(StateHasChanged);
-                if (stepStatus?.Completed == true && stepMode != "continuous" && stepMode != "dungeonloop") break; // 持续/循环模式不中断轮询
+                if (stepStatus?.Completed == true && stepMode != "continuous" && stepMode != "dungeonloop") break; // 持续/循环不中断
                 await Task.Delay(stepPollMs, _stepPollCts.Token);
             }
         }
@@ -651,7 +692,7 @@
     async Task PollStepOnceAsync(CancellationToken ct)
     {
         if (stepBattleId is null) return;
-        var s = await Api.GetStepBattleStatusAsync(stepBattleId.Value, ct);
+        var s = await Api.GetStepBattleStatusAsync(stepBattleId.Value, stepDropMode, ct);
         if (s is not null) stepStatus = s;
 
         var segList = await Api.GetStepBattleSegmentsAsync(stepBattleId.Value, _stepSinceIndex, ct);

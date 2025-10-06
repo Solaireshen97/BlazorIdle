@@ -1,5 +1,6 @@
-﻿using System.Net.Http.Json;
-using BlazorIdle.Shared.Models;
+﻿using BlazorIdle.Shared.Models;
+using System.Net.Http.Json;
+using System.Text;
 
 namespace BlazorIdle.Client.Services;
 
@@ -25,8 +26,9 @@ public class ApiClient
         return (await resp.Content.ReadFromJsonAsync<BattleStartResponse>(cancellationToken: ct))!;
     }
 
-    public Task<BattleSummaryDto?> GetBattleSummaryAsync(Guid battleId, CancellationToken ct = default)
-        => _http.GetFromJsonAsync<BattleSummaryDto>($"/api/battles/{battleId}/summary", ct);
+    // 新：支持 dropMode
+    public Task<BattleSummaryResponse?> GetBattleSummaryAsync(Guid battleId, string dropMode = "expected", CancellationToken ct = default)
+        => _http.GetFromJsonAsync<BattleSummaryResponse>($"/api/battles/{battleId}/summary?dropMode={Uri.EscapeDataString(dropMode)}", ct);
 
     public async Task<List<BattleSegmentDto>> GetBattleSegmentsAsync(Guid battleId, CancellationToken ct = default)
         => (await _http.GetFromJsonAsync<List<BattleSegmentDto>>($"/api/battles/{battleId}/segments", ct)) ?? new();
@@ -50,8 +52,7 @@ public class ApiClient
     public async Task<StartStepBattleResponse> StartStepBattleAsync(Guid characterId, double seconds = 30, string? enemyId = null, int enemyCount = 1, ulong? seed = null, CancellationToken ct = default)
         => await StartStepBattleAsync(characterId, seconds, enemyId, enemyCount, seed, mode: null, dungeonId: null, ct: ct);
 
-    // 新增：支持 mode 与 dungeonId
-    // mode: "duration" | "continuous" | "dungeon" | "dungeonloop"
+    // mode: "duration" | "continuous" | "dungeonsingle" | "dungeonloop"
     public async Task<StartStepBattleResponse> StartStepBattleAsync(Guid characterId, double seconds, string? enemyId, int enemyCount, ulong? seed, string? mode, string? dungeonId, CancellationToken ct = default)
     {
         var url = $"/api/battles/step/start?characterId={characterId}&seconds={seconds}&enemyCount={enemyCount}";
@@ -60,20 +61,24 @@ public class ApiClient
         if (!string.IsNullOrWhiteSpace(mode)) url += $"&mode={Uri.EscapeDataString(mode)}";
         if (!string.IsNullOrWhiteSpace(dungeonId)) url += $"&dungeonId={Uri.EscapeDataString(dungeonId)}";
 
-        var resp = await _http.PostAsync(url, null, ct);
+        // 某些环境下 null content 会失败，这里发一个空 JSON
+        using var content = new StringContent("{}", Encoding.UTF8, "application/json");
+        var resp = await _http.PostAsync(url, content, ct);
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<StartStepBattleResponse>(cancellationToken: ct))!;
     }
 
-    public Task<StepBattleStatusDto?> GetStepBattleStatusAsync(Guid battleId, CancellationToken ct = default)
-        => _http.GetFromJsonAsync<StepBattleStatusDto>($"/api/battles/step/{battleId}/status", ct);
+    // 新：支持 dropMode
+    public Task<StepStatusResponse?> GetStepBattleStatusAsync(Guid battleId, string dropMode = "expected", CancellationToken ct = default)
+        => _http.GetFromJsonAsync<StepStatusResponse>($"/api/battles/step/{battleId}/status?dropMode={Uri.EscapeDataString(dropMode)}", ct);
 
     public async Task<List<StepBattleSegmentDto>> GetStepBattleSegmentsAsync(Guid battleId, int since = 0, CancellationToken ct = default)
         => (await _http.GetFromJsonAsync<List<StepBattleSegmentDto>>($"/api/battles/step/{battleId}/segments?since={since}", ct)) ?? new();
 
     public async Task<StopStepBattleResponse> StopStepBattleAsync(Guid battleId, CancellationToken ct = default)
     {
-        var resp = await _http.PostAsync($"/api/battles/step/{battleId}/stop", null, ct);
+        using var content = new StringContent("{}", Encoding.UTF8, "application/json");
+        var resp = await _http.PostAsync($"/api/battles/step/{battleId}/stop", content, ct);
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<StopStepBattleResponse>(cancellationToken: ct))!;
     }
@@ -86,7 +91,8 @@ public class ApiClient
     {
         var url = $"/api/battles/replay/{sourceBattleRecordId}/start?enemyCount={enemyCount}";
         if (seconds.HasValue) url += $"&seconds={seconds.Value}";
-        var resp = await _http.PostAsync(url, null, ct);
+        using var content = new StringContent("{}", Encoding.UTF8, "application/json");
+        var resp = await _http.PostAsync(url, content, ct);
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<StartStepBattleResponse>(cancellationToken: ct))!;
     }
@@ -102,36 +108,9 @@ public class ApiClient
                 }).Unwrap();
 }
 
-// ====== Step DTOs ======
+// ====== Step DTOs（保留运行中需要的） ======
 public sealed class StartStepBattleResponse { public Guid BattleId { get; set; } public ulong Seed { get; set; } public string? EnemyId { get; set; } public int EnemyCount { get; set; } }
 public sealed class StopStepBattleResponse { public Guid PersistedBattleId { get; set; } }
-public sealed class StepBattleStatusDto
-{
-    public Guid Id { get; set; }
-    public Guid CharacterId { get; set; }
-    public Profession Profession { get; set; }
-    public string EnemyId { get; set; } = "dummy";
-    public int EnemyCount { get; set; }
-    public double SimulatedSeconds { get; set; }
-    public double TargetSeconds { get; set; }
-    public bool Completed { get; set; }
-    public int TotalDamage { get; set; }
-    public double Dps { get; set; }
-    public int SegmentCount { get; set; }
-    public string Seed { get; set; } = "0";
-    public long SeedIndexStart { get; set; }
-    public long SeedIndexEnd { get; set; }
-    public bool Killed { get; set; }
-    public double? KillTimeSeconds { get; set; }
-    public int OverkillDamage { get; set; }
-    public Guid? PersistedBattleId { get; set; }
-
-    // 新增：持续/地城相关字段（服务端可能不返回时保留默认）
-    public string? Mode { get; set; }           // "duration"|"continuous"|"dungeonsingle"|"dungeonloop"
-    public int? WaveIndex { get; set; }
-    public int? RunCount { get; set; }
-    public string? DungeonId { get; set; }
-}
 public sealed class StepBattleSegmentDto
 {
     public int Index { get; set; }
