@@ -3,16 +3,19 @@ using System;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace BlazorIdle.Server.Migrations
+namespace BlazorIdle.Server.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(GameDbContext))]
-    partial class GameDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251006121856_AddInventoryAndEconomyEvents")]
+    partial class AddInventoryAndEconomyEvents
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.9");
@@ -30,12 +33,6 @@ namespace BlazorIdle.Server.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
-
-                    b.Property<long>("Experience")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<long>("Gold")
-                        .HasColumnType("INTEGER");
 
                     b.Property<int>("Intellect")
                         .ValueGeneratedOnAdd()

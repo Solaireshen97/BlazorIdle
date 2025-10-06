@@ -5,38 +5,41 @@ using Microsoft.EntityFrameworkCore;
 namespace BlazorIdle.Server.Infrastructure.Persistence;
 
 /// <summary>
-/// EF Core ÉÏÏÂÎÄ£º¾ÛºÏËùÓÐÊµÌå¼¯ºÏ (DbSet) ÓëÄ£ÐÍÅäÖÃ¡£
-/// ÔÚ Program.cs ÖÐ×¢²áÉúÃüÖÜÆÚ£¨Í¨³£Îª Scoped£©¡£
-/// Ö°Ôð£º
-///   * ±©Â¶ DbSet ÈÃÉÏ²ãÍ¨¹ý LINQ ¹¹½¨²éÑ¯
-///   * ÔÚ OnModelCreating ÖÐÓ¦ÓÃÊµÌåÓ³ÉäÅäÖÃ
-///   * ¿ÉÔÚÐèÒªÊ±ÖØÐ´ SaveChanges / SaveChangesAsync ×öÉó¼Æ¡¢ÁìÓòÊÂ¼þ¡¢²¢·¢´¦ÀíµÈ
+/// EF Core ï¿½ï¿½ï¿½ï¿½ï¿½Ä£ï¿½ï¿½Ûºï¿½ï¿½ï¿½ï¿½ï¿½Êµï¿½å¼¯ï¿½ï¿½ (DbSet) ï¿½ï¿½Ä£ï¿½ï¿½ï¿½ï¿½ï¿½Ã¡ï¿½
+/// ï¿½ï¿½ Program.cs ï¿½ï¿½×¢ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú£ï¿½Í¨ï¿½ï¿½Îª Scopedï¿½ï¿½ï¿½ï¿½
+/// Ö°ï¿½ï¿½
+///   * ï¿½ï¿½Â¶ DbSet ï¿½ï¿½ï¿½Ï²ï¿½Í¨ï¿½ï¿½ LINQ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ñ¯
+///   * ï¿½ï¿½ OnModelCreating ï¿½ï¿½Ó¦ï¿½ï¿½Êµï¿½ï¿½Ó³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+///   * ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÒªÊ±ï¿½ï¿½Ð´ SaveChanges / SaveChangesAsync ï¿½ï¿½ï¿½ï¿½Æ¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 /// </summary>
 public class GameDbContext : DbContext
 {
     public GameDbContext(DbContextOptions<GameDbContext> options) : base(options)
     {
-        // ´Ë´¦Í¨³£²»×öºÄÊ±²Ù×÷£»ÒÀÀµ×¢ÈëÒÑ¹¹ÔìºÃ options£¨Á¬½Ó´® / Ìá¹©³ÌÐò / À¹½ØÆ÷µÈ£©
+        // ï¿½Ë´ï¿½Í¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×¢ï¿½ï¿½ï¿½Ñ¹ï¿½ï¿½ï¿½ï¿½ optionsï¿½ï¿½ï¿½ï¿½ï¿½Ó´ï¿½ / ï¿½á¹©ï¿½ï¿½ï¿½ï¿½ / ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È£ï¿½
     }
 
-    // === ¾ÛºÏ¸ù / ÊµÌå¼¯ºÏ ===
-    // DbSet<T> Ö»ÊÇ²éÑ¯/¸ú×ÙÈë¿Ú£»ÕæÕýµÄÓ³ÉäÏ¸½ÚÔÚÅäÖÃÀàÀï£¨Configuration£©
+    // === ï¿½ÛºÏ¸ï¿½ / Êµï¿½å¼¯ï¿½ï¿½ ===
+    // DbSet<T> Ö»ï¿½Ç²ï¿½Ñ¯/ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó³ï¿½ï¿½Ï¸ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï£¨Configurationï¿½ï¿½
     public DbSet<Character> Characters => Set<Character>();
     public DbSet<BattleRecord> Battles => Set<BattleRecord>();
     public DbSet<BattleSegmentRecord> BattleSegments => Set<BattleSegmentRecord>();
+    public DbSet<InventoryItem> InventoryItems => Set<InventoryItem>();
+    public DbSet<EconomyEventRecord> EconomyEvents => Set<EconomyEventRecord>();
+    public DbSet<RunningBattleSnapshotRecord> RunningBattleSnapshots => Set<RunningBattleSnapshotRecord>();
 
     /// <summary>
-    /// Ä£ÐÍ¹¹½¨¹³×Ó£º¼¯ÖÐ Fluent ÅäÖÃ¡£
-    /// µ±Ç°ÓÃ ApplyConfigurationsFromAssembly ×Ô¶¯É¨ÃèÊµÏÖ IEntityTypeConfiguration<> µÄÅäÖÃÀà¡£
-    /// µ÷ÓÃÊ±»ú£ºÊ×´ÎÊ¹ÓÃ¸ÃÉÏÏÂÎÄÐèÒªÄ£ÐÍ£¨ÀýÈçµÚÒ»´Î²éÑ¯»òÉú³ÉÇ¨ÒÆ£©Ê±¡£
+    /// Ä£ï¿½Í¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó£ï¿½ï¿½ï¿½ï¿½ï¿½ Fluent ï¿½ï¿½ï¿½Ã¡ï¿½
+    /// ï¿½ï¿½Ç°ï¿½ï¿½ ApplyConfigurationsFromAssembly ï¿½Ô¶ï¿½É¨ï¿½ï¿½Êµï¿½ï¿½ IEntityTypeConfiguration<> ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½à¡£
+    /// ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½×´ï¿½Ê¹ï¿½Ã¸ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÒªÄ£ï¿½Í£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½Î²ï¿½Ñ¯ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç¨ï¿½Æ£ï¿½Ê±ï¿½ï¿½
     /// </summary>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // ×Ô¶¯¼ÓÔØÍ¬³ÌÐò¼¯ÏÂµÄ *Configuration Àà£¨Èç CharacterConfiguration¡¢BattleConfiguration£©
-        // ÓÅµã£º±ÜÃâÊÖ¹¤Öð¸öµ÷ÓÃ£»ÐÂÔöÊµÌåÖ»ÐèÌí¼ÓÅäÖÃÀà¼´¿É¡£
+        // ï¿½Ô¶ï¿½ï¿½ï¿½ï¿½ï¿½Í¬ï¿½ï¿½ï¿½ï¿½ï¿½Âµï¿½ *Configuration ï¿½à£¨ï¿½ï¿½ CharacterConfigurationï¿½ï¿½BattleConfigurationï¿½ï¿½
+        // ï¿½Åµã£ºï¿½ï¿½ï¿½ï¿½ï¿½Ö¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã£ï¿½ï¿½ï¿½ï¿½ï¿½Êµï¿½ï¿½Ö»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½à¼´ï¿½É¡ï¿½
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(GameDbContext).Assembly);
 
-        // ¿ÉÔÚ´Ë´¦Ìí¼ÓÈ«¾ÖÔ¼¶¨£¨Èç£ºÍ³Ò»×Ö·û´®ÁÐ³¤¶È¡¢ÈíÉ¾³ý¹ýÂËÆ÷¡¢Ê±¼ä×ª»»Æ÷µÈ£©
+        // ï¿½ï¿½ï¿½Ú´Ë´ï¿½ï¿½ï¿½ï¿½ï¿½È«ï¿½ï¿½Ô¼ï¿½ï¿½ï¿½ï¿½ï¿½ç£ºÍ³Ò»ï¿½Ö·ï¿½ï¿½ï¿½ï¿½Ð³ï¿½ï¿½È¡ï¿½ï¿½ï¿½É¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½×ªï¿½ï¿½ï¿½ï¿½ï¿½È£ï¿½
 
         base.OnModelCreating(modelBuilder);
     }
