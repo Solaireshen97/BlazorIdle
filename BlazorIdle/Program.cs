@@ -5,9 +5,10 @@ using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 
-// ·þÎñÆ÷»ùµØÖ·£¨×¢ÒâÓëÄã Server Êµ¼Ê¶Ë¿ÚÒ»ÖÂ£©
+// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö·ï¿½ï¿½×¢ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ Server Êµï¿½Ê¶Ë¿ï¿½Ò»ï¿½Â£ï¿½
 var apiBase = builder.Configuration["ApiBaseUrl"] ?? "https://localhost:7056";
 
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiBase) });
+builder.Services.AddScoped<BlazorIdle.Client.Services.AuthService>();
 builder.Services.AddScoped<BlazorIdle.Client.Services.ApiClient>();
 await builder.Build().RunAsync();

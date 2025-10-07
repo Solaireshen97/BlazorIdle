@@ -1,4 +1,8 @@
-﻿@inherits LayoutComponentBase
+﻿@using BlazorIdle.Client.Services
+@inherits LayoutComponentBase
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+
 <div class="page">
     <div class="sidebar">
         <NavMenu />
@@ -6,6 +10,13 @@
 
     <main>
         <div class="top-row px-4">
+            <div class="user-info">
+                @if (!string.IsNullOrEmpty(AuthService.Username))
+                {
+                    <span>欢迎, @AuthService.Username</span>
+                    <button class="btn btn-sm" @onclick="Logout">登出</button>
+                }
+            </div>
             <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
         </div>
         <link href="css/app-extra.css" rel="stylesheet" />
@@ -14,3 +25,11 @@
         </article>
     </main>
 </div>
+
+@code {
+    private async Task Logout()
+    {
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/login", replace: true);
+    }
+}

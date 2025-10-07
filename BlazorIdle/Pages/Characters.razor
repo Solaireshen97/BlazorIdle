@@ -2,9 +2,17 @@
 @using BlazorIdle.Shared.Models
 @using BlazorIdle.Client.Services
 @inject ApiClient Api
+@inject AuthService AuthService
+@inject NavigationManager Navigation
 @inject IJSRuntime JS
 @implements IDisposable
 
+@if (!isAuthenticated)
+{
+    <p>正在检查登录状态...</p>
+}
+else
+{
 <h3>角色 & 战斗测试</h3>
 
 <!-- 1) 创建角色 -->
@@ -680,10 +688,25 @@
         }
     </div>
 }
+}
+
 @code {
+    // ====== 认证状态 ======
+    private bool isAuthenticated = false;
+
     // ====== 创建/同步战斗 ======
     protected override async Task OnInitializedAsync()
     {
+        // 检查登录状态
+        await AuthService.InitializeAsync();
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", replace: true);
+            return;
+        }
+        
+        isAuthenticated = true;
+        
         try { enemies = await Api.GetEnemiesAsync() ?? new(); }
         catch { enemies = new(); }
     }
