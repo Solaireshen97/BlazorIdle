@@ -1,7 +1,11 @@
 using BlazorIdle.Server.Application;
+using BlazorIdle.Server.Application.Auth;
 using BlazorIdle.Server.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using BlazorIdle.Server.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,14 +15,63 @@ builder.Services.AddControllers();
 
 // 2. OpenAPI / Swagger
 builder.Services.AddEndpointsApiExplorer(); // Ϊ��С API / Controller ��������
-builder.Services.AddSwaggerGen();           // ���� swagger.json + UI�������ڵ����ã�
+builder.Services.AddSwaggerGen(options =>   // ���� swagger.json + UI�������ڵ����ã�
+{
+    // ����JWT��֤��֧��
+    options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the Bearer scheme. Example: \"Bearer {token}\"",
+        Name = "Authorization",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
 
-// 3. ҵ��ֲ�ע��
+    options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
+
+// 3. JWT Authentication
+var jwtSecretKey = builder.Configuration["Jwt:SecretKey"]!;
+var jwtIssuer = builder.Configuration["Jwt:Issuer"]!;
+var jwtAudience = builder.Configuration["Jwt:Audience"]!;
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtIssuer,
+            ValidAudience = jwtAudience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecretKey))
+        };
+    });
+
+builder.Services.AddAuthorization();
+builder.Services.AddScoped<JwtTokenService>();
+
+// 4. ҵ��ֲ�ע��
 builder.Services
     .AddInfrastructure(builder.Configuration)   // ע�������ʩ��DbContext / �ִ����ڲ��ѵ��� AddRepositories��
     .AddApplication();                          // ע��Ӧ�ò�����������Command/Query Handler �ȣ�
 
-// 4. CORS������
+// 5. CORS������
 // Ŀ�ģ�����ǰ�� Blazor WebAssembly�����ؿ����˿ڣ����ʱ� API��
 // ע�⣺�����ɸ�Ϊ��ȷ��Դ������ö�ȡ������ƾ�����ټ� AllowCredentials().
 builder.Services.AddCors(options =>
@@ -38,7 +91,7 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// 5. �Զ�Ǩ�ƣ���������
+// 6. �Զ�Ǩ�ƣ���������
 // - ����һ����ʱ Scope ȡ�� DbContext �뻷��
 // - Development �����Զ�ִ�� Migrate() ���ڿ��ٵ���
 // - ����������ã�Ԥ��Ǩ�ƣ�CI/CD�����˹���˺�ִ��
@@ -63,7 +116,7 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// 6. �м������
+// 7. �м������
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();    // /swagger/v1/swagger.json
@@ -74,6 +127,9 @@ app.UseHttpsRedirection();      // ǿ���ض����� HTTPS��ȷ�
 app.UseCors("AllowBlazorClient"); // ������ MapControllers ֮ǰ��������֤/��Ȩǰ������еĻ���
 
 // �����������������֤��˳��ͨ���� UseAuthentication -> UseAuthorization
+app.UseAuthentication(); // ��֤�м��
+app.UseAuthorization();  // ��Ȩ�м��
+
 app.MapControllers(); // ӳ��������˵㵽·�ɱ�
 
 // TODO����ѡ��չ����app.MapHealthChecks("/health"); app.MapGet("/version", ...);
