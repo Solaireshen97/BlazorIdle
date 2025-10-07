@@ -12,6 +12,11 @@ public class Character
     /// </summary>
     public Guid? UserId { get; set; }
     
+    /// <summary>
+    /// 角色在用户 Roster 中的显示顺序（用于多角色管理）
+    /// </summary>
+    public int RosterOrder { get; set; } = 0;
+    
     public string Name { get; set; } = "";
     public int Level { get; set; } = 1;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

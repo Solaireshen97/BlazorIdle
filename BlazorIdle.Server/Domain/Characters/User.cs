@@ -22,6 +22,11 @@ public class User
     public string Email { get; set; } = "";
     
     /// <summary>
+    /// 密码哈希（使用 BCrypt 等安全哈希算法存储）
+    /// </summary>
+    public string PasswordHash { get; set; } = "";
+    
+    /// <summary>
     /// 账号创建时间
     /// </summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
