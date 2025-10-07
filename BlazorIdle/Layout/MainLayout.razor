@@ -2,6 +2,7 @@
 @inherits LayoutComponentBase
 @inject AuthService AuthService
 @inject NavigationManager Navigation
+@implements IDisposable
 
 <div class="page">
     <div class="sidebar">
@@ -27,9 +28,31 @@
 </div>
 
 @code {
+    protected override void OnInitialized()
+    {
+        AuthService.AuthStateChanged += OnAuthStateChanged;
+    }
+
+    // 可选：首次渲染时集中初始化一次，避免各页重复初始化
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await AuthService.InitializeAsync();
+            StateHasChanged();
+        }
+    }
+
+    private void OnAuthStateChanged() => InvokeAsync(StateHasChanged);
+
     private async Task Logout()
     {
         await AuthService.LogoutAsync();
         Navigation.NavigateTo("/login", replace: true);
+    }
+
+    public void Dispose()
+    {
+        AuthService.AuthStateChanged -= OnAuthStateChanged;
     }
 }

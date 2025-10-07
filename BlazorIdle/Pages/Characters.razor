@@ -1,4 +1,5 @@
 ﻿@page "/"
+@using BlazorIdle.Services
 @using BlazorIdle.Shared.Models
 @using BlazorIdle.Client.Services
 @inject ApiClient Api
@@ -742,21 +743,34 @@ else
     // ====== 创建/同步战斗 ======
     protected override async Task OnInitializedAsync()
     {
-        // 检查登录状态
-        await AuthService.InitializeAsync();
-        if (!AuthService.IsAuthenticated)
+        try
         {
-            Navigation.NavigateTo("/login", replace: true);
-            return;
+            // 检查登录状态
+            await AuthService.InitializeAsync();
+            if (!AuthService.IsAuthenticated)
+            {
+                Navigation.NavigateTo("/login", replace: true);
+                return;
+            }
+
+            isAuthenticated = true;
+
+            // 加载当前用户信息和角色列表
+            await LoadUserDataAsync();
+
+            try { enemies = await Api.GetEnemiesAsync() ?? new(); }
+            catch (ApiAuthException)
+            {
+                // 认证错误已在API客户端中处理，只需导航到登录页
+                Navigation.NavigateTo("/login", replace: true);
+                return;
+            }
+            catch { enemies = new(); }
         }
-        
-        isAuthenticated = true;
-        
-        // 加载当前用户信息和角色列表
-        await LoadUserDataAsync();
-        
-        try { enemies = await Api.GetEnemiesAsync() ?? new(); }
-        catch { enemies = new(); }
+        catch (Exception ex)
+        {
+            userMessage = $"初始化失败: {ex.Message}";
+        }
     }
 
     async Task LoadUserDataAsync()
@@ -778,9 +792,25 @@ else
                 
                 userMessage = $"欢迎回来！你有 {userCharacters.Count} 个角色。";
             }
+            else
+            {
+                // 用户数据不存在，可能是数据库被重置
+                await AuthService.LogoutAsync();
+                Navigation.NavigateTo("/login", replace: true);
+                return;
+            }
         }
         catch (Exception ex)
         {
+            // 根据错误类型处理
+            if (ex.Message.Contains("404") || ex.Message.Contains("401") || ex.Message.Contains("Unauthorized"))
+            {
+                // 用户不存在或未授权，执行自动登出
+                await AuthService.LogoutAsync();
+                Navigation.NavigateTo("/login", replace: true);
+                return;
+            }
+
             userMessage = $"加载用户数据失败: {ex.Message}";
         }
     }

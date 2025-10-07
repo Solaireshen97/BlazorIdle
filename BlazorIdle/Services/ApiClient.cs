@@ -1,4 +1,5 @@
-﻿using BlazorIdle.Shared.Models;
+﻿using BlazorIdle.Services;
+using BlazorIdle.Shared.Models;
 using System.Net.Http.Json;
 using System.Text;
 
@@ -21,7 +22,7 @@ public class ApiClient
         var token = _authService.GetToken();
         if (!string.IsNullOrEmpty(token))
         {
-            _http.DefaultRequestHeaders.Authorization = 
+            _http.DefaultRequestHeaders.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         }
         else
@@ -30,11 +31,34 @@ public class ApiClient
         }
     }
 
-    // ===== 用户管理 =====
-    public async Task<UserInfoDto?> GetCurrentUserAsync(CancellationToken ct = default)
+    // 添加一个包装方法来处理API请求的错误
+    private async Task<T?> HandleApiRequestAsync<T>(Func<Task<T?>> apiCall, CancellationToken ct = default)
     {
-        SetAuthHeader();
-        return await _http.GetFromJsonAsync<UserInfoDto>("/api/users/me", ct);
+        try
+        {
+            SetAuthHeader();
+            return await apiCall();
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+                                              ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            // 401 未授权 或 404 未找到资源，可能是令牌无效或用户不存在
+            await _authService.LogoutAsync();
+            // 注意：在API客户端中重定向可能不是最佳实践，可以改为抛出特定异常
+            throw new ApiAuthException("登录状态已过期，请重新登录");
+        }
+        catch (Exception)
+        {
+            // 其他异常重新抛出
+            throw;
+        }
+    }
+
+    // ===== 用户管理 =====
+    public Task<UserInfoDto?> GetCurrentUserAsync(CancellationToken ct = default)
+    {
+        return HandleApiRequestAsync(() =>
+            _http.GetFromJsonAsync<UserInfoDto>("/api/users/me", ct));
     }
 
     public async Task<List<UserCharacterDto>> GetUserCharactersAsync(Guid userId, CancellationToken ct = default)

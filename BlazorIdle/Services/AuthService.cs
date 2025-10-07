@@ -1,5 +1,6 @@
 using Microsoft.JSInterop;
 using System.Net.Http.Json;
+using System;
 
 namespace BlazorIdle.Client.Services;
 
@@ -21,6 +22,10 @@ public class AuthService
     public string? Username => _username;
     public string? UserId => _userId;
 
+    // 新增：认证状态变更事件
+    public event Action? AuthStateChanged;
+    private void NotifyAuthStateChanged() => AuthStateChanged?.Invoke();
+
     /// <summary>
     /// 初始化时从 localStorage 加载 token
     /// </summary>
@@ -39,6 +44,9 @@ public class AuthService
             _userId = null;
             _username = null;
         }
+
+        // 通知 UI 刷新
+        NotifyAuthStateChanged();
     }
 
     /// <summary>
@@ -125,6 +133,9 @@ public class AuthService
         {
             // localStorage 可能不可用
         }
+
+        // 通知 UI 刷新
+        NotifyAuthStateChanged();
     }
 
     /// <summary>
@@ -148,6 +159,9 @@ public class AuthService
         {
             // localStorage 可能不可用
         }
+
+        // 通知 UI 刷新
+        NotifyAuthStateChanged();
     }
 
     // DTOs
