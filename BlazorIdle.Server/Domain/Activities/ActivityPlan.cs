@@ -46,6 +46,9 @@ public class ActivityPlan
     
     /// <summary>已执行时长（秒）</summary>
     public double ExecutedSeconds { get; set; }
+    
+    /// <summary>战斗进度快照JSON（用于保存敌人血量等状态，支持无感继承）</summary>
+    public string? BattleProgressJson { get; set; }
 
     /// <summary>
     /// 检查计划是否已完成（基于限制条件）

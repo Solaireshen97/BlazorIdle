@@ -98,6 +98,13 @@ public class OfflineFastForwardEngine
         {
             plan.State = ActivityState.Completed;
             plan.CompletedAt = DateTime.UtcNow;
+            // 计划完成时清空进度快照
+            plan.BattleProgressJson = null;
+        }
+        else
+        {
+            // 计划未完成时保存战斗进度快照（用于下次离线或在线继承）
+            SaveBattleProgress(plan, simulationResult);
         }
 
         // 7. 返回结果
@@ -162,6 +169,21 @@ public class OfflineFastForwardEngine
         );
         var derived = StatsBuilder.BuildDerived(profession, attrs);
         var stats = StatsBuilder.Combine(baseStats, derived);
+        
+        // 尝试恢复战斗进度快照（支持无感继承）
+        BattleProgressSnapshot? progressSnapshot = null;
+        if (!string.IsNullOrWhiteSpace(plan.BattleProgressJson))
+        {
+            try
+            {
+                progressSnapshot = JsonSerializer.Deserialize<BattleProgressSnapshot>(plan.BattleProgressJson);
+            }
+            catch
+            {
+                // 如果反序列化失败，忽略并从头开始
+                progressSnapshot = null;
+            }
+        }
 
         // 根据活动类型构建配置
         BattleSimulator.BattleConfig config;
@@ -175,6 +197,9 @@ public class OfflineFastForwardEngine
 
             var enemyDef = EnemyRegistry.Resolve(payload.EnemyId ?? "dummy");
             var seed = payload.Seed ?? DeriveSeed(character.Id);
+            
+            // 如果有进度快照，使用快照中的血量；否则使用满血
+            int? initialEnemyHp = progressSnapshot?.PrimaryEnemyHp;
 
             config = new BattleSimulator.BattleConfig
             {
@@ -186,7 +211,8 @@ public class OfflineFastForwardEngine
                 EnemyDef = enemyDef,
                 EnemyCount = payload.EnemyCount,
                 Mode = "continuous",
-                ContinuousRespawnDelaySeconds = payload.RespawnDelay
+                ContinuousRespawnDelaySeconds = payload.RespawnDelay,
+                InitialEnemyHp = initialEnemyHp
             };
 
             economyContext = new EconomyContext
@@ -296,6 +322,19 @@ public class OfflineFastForwardEngine
 
         // 计算总击杀数
         int totalKills = killCount.Values.Sum();
+        
+        // 捕获战斗结束时的状态（用于保存进度）
+        BattleSnapshotInfo? snapshot = null;
+        if (!runningBattle.Completed)
+        {
+            var primaryEnemy = runningBattle.Context.Encounter;
+            snapshot = new BattleSnapshotInfo
+            {
+                PrimaryEnemyHp = primaryEnemy?.CurrentHp,
+                WaveIndex = runningBattle.WaveIndex,
+                RunCount = runningBattle.RunCount
+            };
+        }
 
         return new SimulationResultWithEconomy
         {
@@ -305,7 +344,8 @@ public class OfflineFastForwardEngine
             Exp = exp,
             LootExpected = lootExpected,
             LootSampled = lootSampled,
-            DropMode = finalDropMode
+            DropMode = finalDropMode,
+            BattleSnapshot = snapshot
         };
     }
 
@@ -321,6 +361,25 @@ public class OfflineFastForwardEngine
     }
 
     /// <summary>
+    /// 保存战斗进度快照到计划
+    /// </summary>
+    private void SaveBattleProgress(ActivityPlan plan, SimulationResultWithEconomy result)
+    {
+        if (result.BattleSnapshot is null)
+            return;
+            
+        var snapshot = new BattleProgressSnapshot
+        {
+            PrimaryEnemyHp = result.BattleSnapshot.PrimaryEnemyHp,
+            WaveIndex = result.BattleSnapshot.WaveIndex,
+            RunCount = result.BattleSnapshot.RunCount,
+            SimulatedSeconds = plan.ExecutedSeconds
+        };
+        
+        plan.BattleProgressJson = JsonSerializer.Serialize(snapshot);
+    }
+    
+    /// <summary>
     /// 模拟结果（带经济数据）
     /// </summary>
     private sealed class SimulationResultWithEconomy
@@ -332,5 +391,16 @@ public class OfflineFastForwardEngine
         public Dictionary<string, double> LootExpected { get; init; } = new();
         public Dictionary<string, int> LootSampled { get; init; } = new();
         public string DropMode { get; init; } = "expected";
+        public BattleSnapshotInfo? BattleSnapshot { get; init; }
+    }
+    
+    /// <summary>
+    /// 战斗快照信息
+    /// </summary>
+    private sealed class BattleSnapshotInfo
+    {
+        public int? PrimaryEnemyHp { get; init; }
+        public int? WaveIndex { get; init; }
+        public int? RunCount { get; init; }
     }
 }

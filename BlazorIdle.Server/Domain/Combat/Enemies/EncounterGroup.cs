@@ -12,6 +12,14 @@ public class EncounterGroup
         foreach (var e in enemies)
             _encounters.Add(new Encounter(e));
     }
+    
+    /// <summary>
+    /// 构造函数：直接接受已构造的Encounter列表（用于自定义血量）
+    /// </summary>
+    public EncounterGroup(IEnumerable<Encounter> encounters)
+    {
+        _encounters.AddRange(encounters);
+    }
 
     public static EncounterGroup FromSingle(Encounter single)
         => new EncounterGroup(new[] { single.Enemy });

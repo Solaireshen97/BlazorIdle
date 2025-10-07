@@ -16,4 +16,7 @@ public class CombatActivityPayload
     
     /// <summary>随机种子</summary>
     public ulong? Seed { get; set; }
+    
+    /// <summary>当前敌人血量（用于无感继承在线->离线->在线）</summary>
+    public int? CurrentEnemyHp { get; set; }
 }

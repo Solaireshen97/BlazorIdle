@@ -15,6 +15,15 @@ public class Encounter
         Enemy = enemy;
         CurrentHp = enemy.MaxHp;
     }
+    
+    /// <summary>
+    /// 构造函数：支持自定义初始血量（用于战斗进度继承）
+    /// </summary>
+    public Encounter(EnemyDefinition enemy, int initialHp)
+    {
+        Enemy = enemy;
+        CurrentHp = Math.Min(Math.Max(0, initialHp), enemy.MaxHp);
+    }
 
     public int ApplyDamage(int amount, double now)
     {

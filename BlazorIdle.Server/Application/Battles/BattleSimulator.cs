@@ -51,6 +51,7 @@ public class BattleSimulator
         public Encounter? Encounter { get; init; }
         public EncounterGroup? EncounterGroup { get; init; }
         public IEncounterProvider? Provider { get; init; }
+        public int? InitialEnemyHp { get; init; }  // 初始敌人血量（用于战斗进度继承）
     }
 
     /// <summary>
@@ -183,7 +184,8 @@ public class BattleSimulator
             "continuous" => new ContinuousEncounterProvider(
                 config.EnemyDef,
                 config.EnemyCount,
-                respawnDelaySeconds: config.ContinuousRespawnDelaySeconds ?? 3.0
+                respawnDelaySeconds: config.ContinuousRespawnDelaySeconds ?? 3.0,
+                initialEnemyHp: config.InitialEnemyHp
             ),
             "dungeon" or "dungeonsingle" => new DungeonEncounterProvider(
                 DungeonRegistry.Resolve(config.DungeonId ?? "intro_cave"),

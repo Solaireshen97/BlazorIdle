@@ -300,6 +300,103 @@ public class OfflineFastForwardEngineTests
         Assert.Equal(_testCharacter.Id, result.CharacterId);
         Assert.Equal(plan.Id, result.PlanId);
     }
+    
+    [Fact]
+    public void FastForward_WithEnemyHpInPayload_ShouldInheritEnemyHp()
+    {
+        // Arrange - 模拟一个战斗到一半的场景，敌人已损失部分血量
+        var plan = CreateCombatPlan(
+            limitType: LimitType.Duration,
+            limitValue: 3600, // 1小时计划
+            executedSeconds: 600 // 已执行10分钟
+        );
+        
+        // 设置战斗进度快照：敌人血量为50（假设满血为100）
+        var snapshot = new BlazorIdle.Server.Domain.Activities.BattleProgressSnapshot
+        {
+            PrimaryEnemyHp = 50,
+            SimulatedSeconds = 600
+        };
+        plan.BattleProgressJson = System.Text.Json.JsonSerializer.Serialize(snapshot);
+
+        var offlineSeconds = 600.0; // 离线10分钟
+
+        // Act
+        var result = _engine.FastForward(_testCharacter, plan, offlineSeconds);
+
+        // Assert
+        Assert.Equal(600, result.SimulatedSeconds);
+        Assert.Equal(1200, result.UpdatedExecutedSeconds); // 600 + 600
+        Assert.False(result.PlanCompleted, "计划还未完成");
+        
+        // 验证战斗继承了进度（结果中应该包含进度快照）
+        Assert.NotNull(plan.BattleProgressJson); // 应该保存了新的进度快照
+    }
+    
+    [Fact]
+    public void FastForward_CompletedPlan_ShouldClearBattleProgress()
+    {
+        // Arrange
+        var plan = CreateCombatPlan(
+            limitType: LimitType.Duration,
+            limitValue: 1000, // 计划总时长
+            executedSeconds: 900 // 已执行900秒
+        );
+        
+        // 设置初始进度快照
+        var snapshot = new BlazorIdle.Server.Domain.Activities.BattleProgressSnapshot
+        {
+            PrimaryEnemyHp = 30,
+            SimulatedSeconds = 900
+        };
+        plan.BattleProgressJson = System.Text.Json.JsonSerializer.Serialize(snapshot);
+
+        var offlineSeconds = 200.0; // 离线200秒，足以完成剩余的100秒
+
+        // Act
+        var result = _engine.FastForward(_testCharacter, plan, offlineSeconds);
+
+        // Assert
+        Assert.Equal(100, result.SimulatedSeconds); // 只模拟剩余的100秒
+        Assert.Equal(1000, result.UpdatedExecutedSeconds);
+        Assert.True(result.PlanCompleted, "计划应该完成");
+        
+        // 计划完成后应该清空进度快照
+        Assert.Null(plan.BattleProgressJson);
+    }
+    
+    [Fact]
+    public void FastForward_MultipleOfflineSessions_ShouldChainProgress()
+    {
+        // Arrange - 模拟多次离线，每次都应该继承上次的进度
+        var plan = CreateCombatPlan(
+            limitType: LimitType.Duration,
+            limitValue: 3600, // 1小时计划
+            executedSeconds: 0
+        );
+
+        // 第一次离线：600秒
+        var result1 = _engine.FastForward(_testCharacter, plan, 600.0);
+        Assert.Equal(600, result1.SimulatedSeconds);
+        Assert.Equal(600, result1.UpdatedExecutedSeconds);
+        Assert.NotNull(plan.BattleProgressJson); // 应该保存了进度
+        
+        // 第二次离线：再600秒
+        var result2 = _engine.FastForward(_testCharacter, plan, 600.0);
+        Assert.Equal(600, result2.SimulatedSeconds);
+        Assert.Equal(1200, result2.UpdatedExecutedSeconds);
+        Assert.NotNull(plan.BattleProgressJson); // 应该更新了进度
+        
+        // 第三次离线：再600秒
+        var result3 = _engine.FastForward(_testCharacter, plan, 600.0);
+        Assert.Equal(600, result3.SimulatedSeconds);
+        Assert.Equal(1800, result3.UpdatedExecutedSeconds);
+        Assert.False(result3.PlanCompleted);
+        
+        // 验证整体进度
+        Assert.Equal(_testCharacter.Id, result3.CharacterId);
+        Assert.Equal(plan.Id, result3.PlanId);
+    }
 
     // 辅助方法：创建战斗计划
     private ActivityPlan CreateCombatPlan(
