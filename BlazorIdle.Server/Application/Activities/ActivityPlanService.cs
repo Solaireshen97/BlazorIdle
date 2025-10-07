@@ -312,9 +312,9 @@ public class ActivityPlanService
     }
 
     /// <summary>
-    /// 尝试启动下一个待执行的任务
+    /// 尝试启动下一个待执行的任务（公开方法，供离线结算等场景调用）
     /// </summary>
-    private async Task TryStartNextPendingPlanAsync(Guid characterId, CancellationToken ct = default)
+    public async Task<ActivityPlan?> TryStartNextPendingPlanAsync(Guid characterId, CancellationToken ct = default)
     {
         // 获取下一个待执行的任务（按槽位和创建时间排序）
         var nextPlan = await _plans.GetNextPendingPlanAsync(characterId, ct);
@@ -323,13 +323,16 @@ public class ActivityPlanService
             try
             {
                 await StartPlanAsync(nextPlan.Id, ct);
+                return nextPlan;
             }
             catch (Exception)
             {
                 // 如果启动失败，保持计划为Pending状态
                 // 记录日志或忽略错误
+                return null;
             }
         }
+        return null;
     }
 
     private static ulong DeriveSeed(Guid characterId)
