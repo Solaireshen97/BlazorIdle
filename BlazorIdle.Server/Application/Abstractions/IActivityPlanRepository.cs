@@ -31,4 +31,7 @@ public interface IActivityPlanRepository
     
     /// <summary>获取角色当前正在运行的活动计划</summary>
     Task<ActivityPlan?> GetRunningPlanAsync(Guid characterId, CancellationToken ct = default);
+    
+    /// <summary>获取角色的下一个待执行任务（按槽位和创建时间排序）</summary>
+    Task<ActivityPlan?> GetNextPendingPlanAsync(Guid characterId, CancellationToken ct = default);
 }

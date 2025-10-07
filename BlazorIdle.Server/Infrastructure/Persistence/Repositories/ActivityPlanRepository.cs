@@ -60,4 +60,11 @@ public class ActivityPlanRepository : IActivityPlanRepository
         _db.ActivityPlans
             .Where(p => p.CharacterId == characterId && p.State == ActivityState.Running)
             .FirstOrDefaultAsync(ct);
+
+    public Task<ActivityPlan?> GetNextPendingPlanAsync(Guid characterId, CancellationToken ct = default) =>
+        _db.ActivityPlans
+            .Where(p => p.CharacterId == characterId && p.State == ActivityState.Pending)
+            .OrderBy(p => p.SlotIndex)
+            .ThenBy(p => p.CreatedAt)
+            .FirstOrDefaultAsync(ct);
 }
