@@ -144,6 +144,8 @@ public sealed class ActivityCoordinator
                 var nextId = slot.FinishCurrentAndGetNext();
                 if (nextId.HasValue)
                 {
+                    // 设置槽位的当前计划，防止并发问题
+                    slot.StartPlan(nextId.Value);
                     // 修复：直接调用异步方法，不使用 Task.Run 避免线程池饥饿
                     _ = TryStartPlanAsync(nextId.Value, ct);
                 }
@@ -222,6 +224,8 @@ public sealed class ActivityCoordinator
                 var nextId = slot.FinishCurrentAndGetNext();
                 if (nextId.HasValue)
                 {
+                    // 设置槽位的当前计划，防止并发问题
+                    slot.StartPlan(nextId.Value);
                     // 不等待下一个计划的启动，让后台服务处理
                     _ = TryStartPlanAsync(nextId.Value, ct);
                 }
@@ -288,6 +292,8 @@ public sealed class ActivityCoordinator
                 var nextId = slot.FinishCurrentAndGetNext();
                 if (nextId.HasValue)
                 {
+                    // 设置槽位的当前计划，防止并发问题
+                    slot.StartPlan(nextId.Value);
                     _logger.LogInformation("Starting next queued plan {NextPlanId} after failed plan {PlanId}", nextId.Value, planId);
                     // 不等待下一个计划的启动，让后台服务处理
                     _ = TryStartPlanAsync(nextId.Value, ct);

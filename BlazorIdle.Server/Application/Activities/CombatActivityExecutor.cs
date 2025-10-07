@@ -5,6 +5,7 @@ using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Professions;
 using BlazorIdle.Server.Domain.Combat.Rng;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
 namespace BlazorIdle.Server.Application.Activities;
@@ -16,13 +17,15 @@ public sealed class CombatActivityExecutor : IActivityExecutor
 {
     private readonly StepBattleCoordinator _battleCoordinator;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<CombatActivityExecutor> _logger;
     
     public ActivityType SupportedType => ActivityType.Combat;
     
-    public CombatActivityExecutor(StepBattleCoordinator battleCoordinator, IServiceScopeFactory scopeFactory)
+    public CombatActivityExecutor(StepBattleCoordinator battleCoordinator, IServiceScopeFactory scopeFactory, ILogger<CombatActivityExecutor> logger)
     {
         _battleCoordinator = battleCoordinator;
         _scopeFactory = scopeFactory;
+        _logger = logger;
     }
     
     public async Task<ActivityExecutionContext> StartAsync(ActivityPlan plan, CancellationToken ct = default)
@@ -54,8 +57,21 @@ public sealed class CombatActivityExecutor : IActivityExecutor
         // 解析战斗模式
         var mode = ParseBattleMode(payload.Mode);
         
-        // 计算目标时长（如果是时长限制）
-        double targetSeconds = plan.Limit is DurationLimit dl ? dl.DurationSeconds : 3600.0; // 默认1小时
+        // 计算目标时长
+        // 对于Duration模式：使用活动计划的时长限制
+        // 对于Continuous模式：使用一个很大的值，让活动计划的限制来控制完成
+        double targetSeconds;
+        if (mode == StepBattleMode.Duration)
+        {
+            // Duration模式：战斗自己会在达到目标时间时完成
+            targetSeconds = plan.Limit is DurationLimit dl ? dl.DurationSeconds : 3600.0;
+        }
+        else
+        {
+            // Continuous/Dungeon模式：战斗不会自动完成，由活动计划的限制控制
+            // 使用一个很大的值以确保战斗不会因为时间限制而停止
+            targetSeconds = 86400.0; // 24小时，足够长
+        }
         
         // 启动战斗
         var battleId = _battleCoordinator.Start(
@@ -82,6 +98,11 @@ public sealed class CombatActivityExecutor : IActivityExecutor
         
         context.Data["seed"] = seed;
         context.Data["mode"] = mode.ToString();
+        context.Data["targetSeconds"] = targetSeconds;
+        
+        _logger.LogInformation(
+            "Started combat activity plan {PlanId} for character {CharacterId}: mode={Mode}, targetSeconds={TargetSeconds}, limit={LimitType}",
+            plan.Id, plan.CharacterId, mode, targetSeconds, plan.Limit.GetLimitType());
         
         return context;
     }
@@ -96,7 +117,10 @@ public sealed class CombatActivityExecutor : IActivityExecutor
         
         // 获取战斗状态
         if (!_battleCoordinator.TryGet(battleId, out var battle) || battle is null)
+        {
+            _logger.LogWarning("Battle {BattleId} not found for activity plan {PlanId}", battleId, plan.Id);
             return;
+        }
         
         // 更新活动进度
         var simulatedSeconds = battle.Clock.CurrentTime;
@@ -115,6 +139,10 @@ public sealed class CombatActivityExecutor : IActivityExecutor
         
         var battleId = context.UnderlyingExecutionId.Value;
         
+        _logger.LogInformation(
+            "Stopping combat activity plan {PlanId} for character {CharacterId}: battleId={BattleId}",
+            plan.Id, plan.CharacterId, battleId);
+        
         // 停止并持久化战斗
         return _battleCoordinator.StopAndFinalizeAsync(battleId, ct).ContinueWith(_ => { }, ct);
     }
@@ -128,14 +156,29 @@ public sealed class CombatActivityExecutor : IActivityExecutor
         
         // 检查战斗是否完成
         if (!_battleCoordinator.TryGet(battleId, out var battle) || battle is null)
+        {
+            _logger.LogWarning("Battle {BattleId} not found for activity plan {PlanId}, marking as completed", battleId, plan.Id);
             return true; // 战斗已不在内存，认为已完成
+        }
         
-        // 如果战斗已完成，检查限制
+        // 如果战斗已完成，返回完成
         if (battle.Completed)
+        {
+            _logger.LogInformation("Battle {BattleId} completed for activity plan {PlanId}", battleId, plan.Id);
             return true;
+        }
         
-        // 检查是否达到限制
-        return plan.IsLimitReached();
+        // 检查活动计划的限制是否达到
+        // 注意：对于非Duration模式的战斗，需要依靠活动计划的限制来决定何时完成
+        var limitReached = plan.IsLimitReached();
+        if (limitReached)
+        {
+            _logger.LogInformation(
+                "Activity plan {PlanId} limit reached: simulated={SimulatedSeconds}s, count={CompletedCount}, limit={LimitType}",
+                plan.Id, plan.Progress.SimulatedSeconds, plan.Progress.CompletedCount, plan.Limit.GetLimitType());
+        }
+        
+        return limitReached;
     }
     
     private static StepBattleMode ParseBattleMode(string? mode)
