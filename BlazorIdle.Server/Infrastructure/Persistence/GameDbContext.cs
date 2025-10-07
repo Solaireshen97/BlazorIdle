@@ -1,3 +1,4 @@
+using BlazorIdle.Server.Domain.Activities;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Records;
 using Microsoft.EntityFrameworkCore;
@@ -27,6 +28,7 @@ public class GameDbContext : DbContext
     public DbSet<InventoryItem> InventoryItems => Set<InventoryItem>();
     public DbSet<EconomyEventRecord> EconomyEvents => Set<EconomyEventRecord>();
     public DbSet<RunningBattleSnapshotRecord> RunningBattleSnapshots => Set<RunningBattleSnapshotRecord>();
+    public DbSet<ActivityPlan> ActivityPlans => Set<ActivityPlan>();
 
     /// <summary>
     /// ģ�͹������ӣ����� Fluent ���á�
