@@ -30,6 +30,19 @@ public class ApiClient
         }
     }
 
+    // ===== 用户管理 =====
+    public async Task<UserInfoDto?> GetCurrentUserAsync(CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        return await _http.GetFromJsonAsync<UserInfoDto>("/api/users/me", ct);
+    }
+
+    public async Task<List<UserCharacterDto>> GetUserCharactersAsync(Guid userId, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        return (await _http.GetFromJsonAsync<List<UserCharacterDto>>($"/api/users/{userId}/characters", ct)) ?? new();
+    }
+
     // ===== 角色与同步战斗 =====
     public async Task<CharacterCreated> CreateCharacterAsync(string name, Profession profession, CancellationToken ct = default)
     {
@@ -343,4 +356,25 @@ public sealed class StartPlanResponse
 {
     public Guid PlanId { get; set; }
     public Guid BattleId { get; set; }
+}
+
+// ===== 用户 DTOs =====
+public sealed class UserInfoDto
+{
+    public Guid Id { get; set; }
+    public string Username { get; set; } = "";
+    public string Email { get; set; } = "";
+    public DateTime CreatedAt { get; set; }
+    public DateTime? LastLoginAt { get; set; }
+    public List<UserCharacterDto> Characters { get; set; } = new();
+}
+
+public sealed class UserCharacterDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = "";
+    public int Level { get; set; }
+    public Profession Profession { get; set; }
+    public int RosterOrder { get; set; }
+    public DateTime CreatedAt { get; set; }
 }

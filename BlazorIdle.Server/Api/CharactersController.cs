@@ -17,8 +17,23 @@ public class CharactersController : ControllerBase
     public CharactersController(GameDbContext db) => _db = db;
 
     [HttpPost]
+    [Authorize]  // 现在要求用户必须登录才能创建角色
     public async Task<ActionResult<object>> Create([FromBody] CreateCharacterDto dto)
     {
+        // 获取当前用户ID
+        var userId = JwtTokenService.GetUserIdFromClaims(User);
+        if (userId == null)
+        {
+            return Unauthorized(new { message = "请先登录" });
+        }
+
+        // 检查用户角色数量限制（最多5个）
+        var characterCount = await _db.Characters.CountAsync(ch => ch.UserId == userId.Value);
+        if (characterCount >= 5)
+        {
+            return BadRequest(new { message = "已达到角色数量上限（最多5个角色）" });
+        }
+
         var (str, agi, intel, sta) = DefaultAttributesFor(dto.Profession);
         // 覆盖默认值（若 DTO 提供）
         str = dto.Strength ?? str;
@@ -35,25 +50,14 @@ public class CharactersController : ControllerBase
             Strength = str,
             Agility = agi,
             Intellect = intel,
-            Stamina = sta
+            Stamina = sta,
+            UserId = userId.Value,
+            RosterOrder = characterCount  // 使用当前数量作为顺序
         };
-
-        // 如果用户已认证，自动绑定角色到用户
-        if (User.Identity?.IsAuthenticated == true)
-        {
-            var userId = JwtTokenService.GetUserIdFromClaims(User);
-            if (userId != null)
-            {
-                c.UserId = userId.Value;
-                // 设置 RosterOrder 为用户当前角色数量
-                var characterCount = await _db.Characters.CountAsync(ch => ch.UserId == userId.Value);
-                c.RosterOrder = characterCount;
-            }
-        }
 
         _db.Characters.Add(c);
         await _db.SaveChangesAsync();
-        return Ok(new { c.Id, c.Name });
+        return Ok(new { c.Id, c.Name, c.RosterOrder });
     }
 
     [HttpGet("{id:guid}")]
