@@ -130,12 +130,24 @@ public sealed class CombatActivityExecutor : IActivityExecutor
         if (!_battleCoordinator.TryGet(battleId, out var battle) || battle is null)
             return true; // 战斗已不在内存，认为已完成
         
-        // 如果战斗已完成，检查限制
+        // 对于Duration模式，如果战斗已完成则活动完成
+        if (battle.Mode == StepBattleMode.Duration && battle.Completed)
+            return true;
+        
+        // 对于Continuous/Dungeon模式，或Duration模式未完成时，检查活动计划的限制
+        // 这样可以支持：
+        // 1. Continuous模式 + Duration限制：限定时间的连续战斗
+        // 2. Continuous模式 + Count限制：击杀指定数量
+        // 3. Continuous模式 + Infinite限制：需要手动停止
+        if (plan.IsLimitReached())
+            return true;
+        
+        // 对于Duration模式，即使限制未达到，如果战斗已完成也应该结束
+        // （这处理战斗提前结束的情况，如地城完成）
         if (battle.Completed)
             return true;
         
-        // 检查是否达到限制
-        return plan.IsLimitReached();
+        return false;
     }
     
     private static StepBattleMode ParseBattleMode(string? mode)

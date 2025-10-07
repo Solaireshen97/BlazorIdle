@@ -13,6 +13,9 @@ public sealed class ActivityCoordinator
     private readonly ConcurrentDictionary<Guid, ActivityExecutionContext> _contexts = new();
     private readonly ConcurrentDictionary<Guid, List<ActivitySlot>> _characterSlots = new();
     
+    // 槽位操作锁，防止并发创建/启动计划时的竞态条件
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _slotLocks = new();
+    
     private readonly Dictionary<ActivityType, IActivityExecutor> _executors = new();
     private readonly ILogger<ActivityCoordinator> _logger;
     
@@ -53,21 +56,34 @@ public sealed class ActivityCoordinator
         
         _plans[plan.Id] = plan;
         
-        // 确保角色槽位存在
-        var slots = EnsureCharacterSlots(characterId);
-        var slot = slots[slotIndex];
+        // 获取槽位锁
+        var lockKey = $"{characterId}:{slotIndex}";
+        var slotLock = _slotLocks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
         
-        // 如果槽位空闲，立即设为当前计划；否则加入队列
-        if (slot.IsIdle)
+        // 使用锁保护槽位操作，防止竞态条件
+        slotLock.Wait();
+        try
         {
-            slot.StartPlan(plan.Id);
-            // 异步启动计划执行（不等待，让后台服务处理）
-            // 修复：直接调用异步方法，不使用 Task.Run 避免线程池饥饿
-            _ = TryStartPlanAsync(plan.Id, CancellationToken.None);
+            // 确保角色槽位存在
+            var slots = EnsureCharacterSlots(characterId);
+            var slot = slots[slotIndex];
+            
+            // 如果槽位空闲，立即设为当前计划；否则加入队列
+            if (slot.IsIdle)
+            {
+                slot.StartPlan(plan.Id);
+                // 异步启动计划执行（不等待，让后台服务处理）
+                // 修复：直接调用异步方法，不使用 Task.Run 避免线程池饥饿
+                _ = TryStartPlanAsync(plan.Id, CancellationToken.None);
+            }
+            else
+            {
+                slot.EnqueuePlan(plan.Id);
+            }
         }
-        else
+        finally
         {
-            slot.EnqueuePlan(plan.Id);
+            slotLock.Release();
         }
         
         return plan;
@@ -123,6 +139,10 @@ public sealed class ActivityCoordinator
         if (!_plans.TryGetValue(planId, out var plan))
             return false;
         
+        // 获取槽位锁
+        var lockKey = $"{plan.CharacterId}:{plan.SlotIndex}";
+        var slotLock = _slotLocks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
+        
         // 如果正在运行，停止执行
         if (plan.State == ActivityState.Running)
         {
@@ -135,26 +155,48 @@ public sealed class ActivityCoordinator
                 _contexts.TryRemove(planId, out _);
             }
             
-            // 从槽位移除
-            var slots = EnsureCharacterSlots(plan.CharacterId);
-            var slot = slots[plan.SlotIndex];
-            if (slot.CurrentPlanId == planId)
+            Guid? nextPlanId = null;
+            await slotLock.WaitAsync(ct);
+            try
             {
-                // 完成当前计划并尝试启动下一个
-                var nextId = slot.FinishCurrentAndGetNext();
-                if (nextId.HasValue)
+                // 从槽位移除
+                var slots = EnsureCharacterSlots(plan.CharacterId);
+                var slot = slots[plan.SlotIndex];
+                if (slot.CurrentPlanId == planId)
                 {
-                    // 修复：直接调用异步方法，不使用 Task.Run 避免线程池饥饿
-                    _ = TryStartPlanAsync(nextId.Value, ct);
+                    // 完成当前计划并尝试启动下一个
+                    nextPlanId = slot.FinishCurrentAndGetNext();
+                    if (nextPlanId.HasValue)
+                    {
+                        slot.StartPlan(nextPlanId.Value);
+                    }
                 }
+            }
+            finally
+            {
+                slotLock.Release();
+            }
+            
+            // 在锁外启动下一个计划
+            if (nextPlanId.HasValue)
+            {
+                _ = TryStartPlanAsync(nextPlanId.Value, ct);
             }
         }
         else if (plan.State == ActivityState.Pending)
         {
-            // 从队列移除
-            var slots = EnsureCharacterSlots(plan.CharacterId);
-            var slot = slots[plan.SlotIndex];
-            slot.RemovePlan(planId);
+            await slotLock.WaitAsync(ct);
+            try
+            {
+                // 从队列移除
+                var slots = EnsureCharacterSlots(plan.CharacterId);
+                var slot = slots[plan.SlotIndex];
+                slot.RemovePlan(planId);
+            }
+            finally
+            {
+                slotLock.Release();
+            }
         }
         
         plan.Cancel();
@@ -213,18 +255,38 @@ public sealed class ActivityCoordinator
             plan.Complete();
             _contexts.TryRemove(plan.Id, out _);
             
-            // 从槽位移除并尝试启动下一个
-            var slots = EnsureCharacterSlots(plan.CharacterId);
-            var slot = slots[plan.SlotIndex];
+            // 获取槽位锁
+            var lockKey = $"{plan.CharacterId}:{plan.SlotIndex}";
+            var slotLock = _slotLocks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
             
-            if (slot.CurrentPlanId == plan.Id)
+            Guid? nextPlanId = null;
+            await slotLock.WaitAsync(ct);
+            try
             {
-                var nextId = slot.FinishCurrentAndGetNext();
-                if (nextId.HasValue)
+                // 从槽位移除并尝试启动下一个
+                var slots = EnsureCharacterSlots(plan.CharacterId);
+                var slot = slots[plan.SlotIndex];
+                
+                if (slot.CurrentPlanId == plan.Id)
                 {
-                    // 不等待下一个计划的启动，让后台服务处理
-                    _ = TryStartPlanAsync(nextId.Value, ct);
+                    // FinishCurrentAndGetNext 会清空当前计划并从队列取出下一个
+                    nextPlanId = slot.FinishCurrentAndGetNext();
+                    if (nextPlanId.HasValue)
+                    {
+                        // StartPlan 设置 CurrentPlanId
+                        slot.StartPlan(nextPlanId.Value);
+                    }
                 }
+            }
+            finally
+            {
+                slotLock.Release();
+            }
+            
+            // 在锁外启动下一个计划（避免在锁内执行耗时操作）
+            if (nextPlanId.HasValue)
+            {
+                _ = TryStartPlanAsync(nextPlanId.Value, ct);
             }
         }
     }
@@ -236,15 +298,31 @@ public sealed class ActivityCoordinator
     {
         foreach (var (characterId, slots) in _characterSlots)
         {
-            foreach (var slot in slots)
+            for (int i = 0; i < slots.Count; i++)
             {
-                if (slot.IsIdle && slot.QueuedPlanIds.Count > 0)
+                var slot = slots[i];
+                var lockKey = $"{characterId}:{i}";
+                var slotLock = _slotLocks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
+                
+                // 使用异步锁保护槽位操作
+                await slotLock.WaitAsync(ct);
+                try
                 {
-                    var nextId = slot.QueuedPlanIds[0];
-                    slot.QueuedPlanIds.RemoveAt(0);
-                    slot.StartPlan(nextId);
-                    
-                    await TryStartPlanAsync(nextId, ct);
+                    // 再次检查，因为可能在等待锁期间状态已改变
+                    if (slot.IsIdle && slot.QueuedPlanIds.Count > 0)
+                    {
+                        var nextId = slot.QueuedPlanIds[0];
+                        slot.QueuedPlanIds.RemoveAt(0);
+                        slot.StartPlan(nextId);
+                        
+                        // 在锁外启动计划（避免死锁）
+                        // 使用 fire-and-forget 模式
+                        _ = TryStartPlanAsync(nextId, ct);
+                    }
+                }
+                finally
+                {
+                    slotLock.Release();
                 }
             }
         }
