@@ -85,7 +85,7 @@ public class OfflineFastForwardEngine
             };
         }
 
-        // 4. 快进模拟战斗
+        // 4. 快进模拟战斗（传入战斗状态快照以继承进度）
         var simulationResult = SimulateBattle(character, plan, remainingSeconds, dropMode);
 
         // 5. 更新计划的已执行时长
@@ -98,6 +98,8 @@ public class OfflineFastForwardEngine
         {
             plan.State = ActivityState.Completed;
             plan.CompletedAt = DateTime.UtcNow;
+            // 清空战斗状态，计划已完成
+            plan.BattleStateJson = null;
         }
 
         // 7. 返回结果
@@ -151,6 +153,21 @@ public class OfflineFastForwardEngine
         double durationSeconds,
         string dropMode)
     {
+        // 加载之前的战斗状态快照（如果有）
+        BattleState? previousState = null;
+        if (!string.IsNullOrWhiteSpace(plan.BattleStateJson))
+        {
+            try
+            {
+                previousState = JsonSerializer.Deserialize<BattleState>(plan.BattleStateJson);
+            }
+            catch
+            {
+                // 如果反序列化失败，忽略快照，从头开始
+                previousState = null;
+            }
+        }
+
         // 构建角色战斗数据
         var profession = character.Profession;
         var baseStats = ProfessionBaseStatsRegistry.Resolve(profession);
@@ -245,7 +262,18 @@ public class OfflineFastForwardEngine
 
         // 执行战斗模拟
         var runningBattle = _simulator.CreateRunningBattle(config, durationSeconds);
+        
+        // 恢复之前的战斗状态（敌人血量、波次等）
+        if (previousState != null)
+        {
+            runningBattle.Engine.RestoreBattleState(previousState);
+        }
+        
         runningBattle.FastForwardTo(durationSeconds);
+
+        // 捕获当前战斗状态并保存到计划中（用于下次继续）
+        var currentState = runningBattle.Engine.CaptureBattleState();
+        plan.BattleStateJson = JsonSerializer.Serialize(currentState);
 
         // 统计击杀数据
         var killCount = new Dictionary<string, int>(StringComparer.Ordinal);

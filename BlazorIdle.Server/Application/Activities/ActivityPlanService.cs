@@ -114,6 +114,21 @@ public class ActivityPlanService
         var derived = StatsBuilder.BuildDerived(profession, attrs);
         var stats = StatsBuilder.Combine(baseStats, derived);
 
+        // 加载战斗状态快照（如果有）
+        Battles.Offline.BattleState? battleState = null;
+        if (!string.IsNullOrWhiteSpace(plan.BattleStateJson))
+        {
+            try
+            {
+                battleState = JsonSerializer.Deserialize<Battles.Offline.BattleState>(plan.BattleStateJson);
+            }
+            catch
+            {
+                // 如果反序列化失败，忽略快照，从头开始
+                battleState = null;
+            }
+        }
+
         // 根据活动类型启动战斗
         Guid battleId;
         if (plan.Type == ActivityType.Combat)
@@ -137,7 +152,10 @@ public class ActivityPlanService
                 payload.EnemyCount,
                 StepBattleMode.Continuous,
                 dungeonId: null,
-                continuousRespawnDelaySeconds: payload.RespawnDelay
+                continuousRespawnDelaySeconds: payload.RespawnDelay,
+                dungeonWaveDelaySeconds: null,
+                dungeonRunDelaySeconds: null,
+                battleState: battleState
             );
         }
         else if (plan.Type == ActivityType.Dungeon)
@@ -163,8 +181,10 @@ public class ActivityPlanService
                 enemyCount: 1,
                 mode,
                 dungeonId: payload.DungeonId,
+                continuousRespawnDelaySeconds: null,
                 dungeonWaveDelaySeconds: payload.WaveDelay,
-                dungeonRunDelaySeconds: payload.RunDelay
+                dungeonRunDelaySeconds: payload.RunDelay,
+                battleState: battleState
             );
         }
         else
@@ -193,6 +213,16 @@ public class ActivityPlanService
         if (plan.State != ActivityState.Running)
             return false;
 
+        // 保存战斗状态（在停止前）
+        if (plan.BattleId.HasValue)
+        {
+            if (_coordinator.TryGet(plan.BattleId.Value, out var rb) && rb != null)
+            {
+                var battleState = rb.Engine.CaptureBattleState();
+                plan.BattleStateJson = JsonSerializer.Serialize(battleState);
+            }
+        }
+
         // 停止战斗
         if (plan.BattleId.HasValue)
         {
@@ -209,6 +239,9 @@ public class ActivityPlanService
             var elapsed = (DateTime.UtcNow - plan.StartedAt.Value).TotalSeconds;
             plan.ExecutedSeconds = elapsed;
         }
+        
+        // 清空战斗状态（计划已完成）
+        plan.BattleStateJson = null;
 
         await _plans.UpdateAsync(plan, ct);
 
@@ -231,6 +264,10 @@ public class ActivityPlanService
         if (plan.BattleId.HasValue && _coordinator.TryGet(plan.BattleId.Value, out var rb) && rb is not null)
         {
             plan.ExecutedSeconds = rb.Clock.CurrentTime;
+            
+            // 定期保存战斗状态快照（用于离线/在线无缝切换）
+            var battleState = rb.Engine.CaptureBattleState();
+            plan.BattleStateJson = JsonSerializer.Serialize(battleState);
 
             // 检查是否达到限制条件
             if (plan.IsLimitReached())

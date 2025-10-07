@@ -6,6 +6,7 @@ using BlazorIdle.Shared.Models;
 using System;
 using System.Text.Json;
 using Xunit;
+using BattleState = BlazorIdle.Server.Application.Battles.Offline.BattleState;
 
 namespace BlazorIdle.Tests;
 
@@ -299,6 +300,128 @@ public class OfflineFastForwardEngineTests
         // 验证结果一致性
         Assert.Equal(_testCharacter.Id, result.CharacterId);
         Assert.Equal(plan.Id, result.PlanId);
+        
+        // 验证战斗状态快照已保存
+        Assert.NotNull(plan.BattleStateJson);
+        Assert.NotEmpty(plan.BattleStateJson);
+    }
+
+    [Fact]
+    public void FastForward_ShouldInheritEnemyHealthFromPreviousState()
+    {
+        // Arrange - 模拟在线战斗打到一半，然后离线继续
+        var plan = CreateCombatPlan(
+            limitType: LimitType.Duration,
+            limitValue: 600, // 10分钟计划
+            executedSeconds: 0
+        );
+
+        // 第一次模拟：在线战斗 5 秒
+        var firstResult = _engine.FastForward(_testCharacter, plan, 5.0);
+        Assert.NotNull(plan.BattleStateJson);
+        
+        // 保存第一次的状态
+        var firstStateJson = plan.BattleStateJson;
+        
+        // 第二次模拟：离线 5 秒（应该继承第一次的敌人血量状态）
+        var secondResult = _engine.FastForward(_testCharacter, plan, 5.0);
+        
+        // Assert
+        // 验证战斗状态已更新
+        Assert.NotEqual(firstStateJson, plan.BattleStateJson);
+        
+        // 验证累计执行时间正确
+        Assert.Equal(10, secondResult.UpdatedExecutedSeconds, 0.1);
+        
+        // 验证击杀数据连续性（如果第一次已经开始造成伤害，第二次应该继续）
+        Assert.True(secondResult.TotalKills >= firstResult.TotalKills);
+    }
+
+    [Fact]
+    public void FastForward_MultipleOfflineSessionsShouldMaintainContinuity()
+    {
+        // Arrange - 模拟多次离线上线的场景
+        var plan = CreateCombatPlan(
+            limitType: LimitType.Duration,
+            limitValue: 100, // 100秒计划
+            executedSeconds: 0
+        );
+
+        long totalGold = 0;
+        long totalExp = 0;
+        int totalKills = 0;
+
+        // 模拟5次离线，每次20秒
+        for (int i = 0; i < 5; i++)
+        {
+            var result = _engine.FastForward(_testCharacter, plan, 20.0);
+            totalGold += result.Gold;
+            totalExp += result.Exp;
+            totalKills += result.TotalKills;
+            
+            // 每次都应该有战斗状态保存（除了最后一次完成）
+            if (!result.PlanCompleted)
+            {
+                Assert.NotNull(plan.BattleStateJson);
+            }
+        }
+
+        // Assert
+        Assert.True(plan.IsLimitReached());
+        Assert.Equal(ActivityState.Completed, plan.State);
+        
+        // 完成后应该清空战斗状态
+        Assert.Null(plan.BattleStateJson);
+        
+        // 验证总收益大于0（说明战斗确实在继续）
+        Assert.True(totalKills > 0, "应该有击杀");
+    }
+
+    [Fact]
+    public void FastForward_CompleteOnlineOfflineOnlineCycle_ShouldMaintainContinuity()
+    {
+        // Arrange - 完整的在线→离线→在线循环测试
+        var plan = CreateCombatPlan(
+            limitType: LimitType.Duration,
+            limitValue: 300, // 5分钟计划
+            executedSeconds: 0
+        );
+
+        // 第一阶段：在线战斗 100 秒
+        var onlineResult1 = _engine.FastForward(_testCharacter, plan, 100.0);
+        Assert.Equal(100, onlineResult1.SimulatedSeconds, 0.1);
+        Assert.Equal(100, onlineResult1.UpdatedExecutedSeconds, 0.1);
+        Assert.NotNull(plan.BattleStateJson);
+        var stateAfterOnline1 = JsonSerializer.Deserialize<BattleState>(plan.BattleStateJson);
+        Assert.NotNull(stateAfterOnline1);
+        
+        // 第二阶段：离线 100 秒（应该继承第一阶段的敌人血量）
+        var offlineResult = _engine.FastForward(_testCharacter, plan, 100.0);
+        Assert.Equal(100, offlineResult.SimulatedSeconds, 0.1);
+        Assert.Equal(200, offlineResult.UpdatedExecutedSeconds, 0.1);
+        Assert.NotNull(plan.BattleStateJson);
+        var stateAfterOffline = JsonSerializer.Deserialize<BattleState>(plan.BattleStateJson);
+        Assert.NotNull(stateAfterOffline);
+        
+        // 验证状态更新：离线后的快照时间应该大于或等于在线时（允许浮点误差）
+        Assert.True(stateAfterOffline.SnapshotAtSeconds >= stateAfterOnline1.SnapshotAtSeconds - 0.01, 
+            $"Offline snapshot time ({stateAfterOffline.SnapshotAtSeconds}) should be >= online time ({stateAfterOnline1.SnapshotAtSeconds})");
+        
+        // 第三阶段：重新上线，再战斗 100 秒（应该继承离线的进度）
+        var onlineResult2 = _engine.FastForward(_testCharacter, plan, 100.0);
+        Assert.Equal(100, onlineResult2.SimulatedSeconds, 0.1);
+        Assert.Equal(300, onlineResult2.UpdatedExecutedSeconds, 0.1);
+        
+        // 计划应该完成
+        Assert.True(onlineResult2.PlanCompleted);
+        Assert.Equal(ActivityState.Completed, plan.State);
+        
+        // 完成后战斗状态应该被清空
+        Assert.Null(plan.BattleStateJson);
+        
+        // 验证总收益是累加的（3次战斗应该有收益）
+        var totalKills = onlineResult1.TotalKills + offlineResult.TotalKills + onlineResult2.TotalKills;
+        Assert.True(totalKills > 0, "三次战斗应该累计有击杀");
     }
 
     // 辅助方法：创建战斗计划
