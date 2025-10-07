@@ -6,6 +6,12 @@ namespace BlazorIdle.Server.Domain.Characters;
 public class Character
 {
     public Guid Id { get; set; }
+    
+    /// <summary>
+    /// 所属用户 ID（外键）
+    /// </summary>
+    public Guid? UserId { get; set; }
+    
     public string Name { get; set; } = "";
     public int Level { get; set; } = 1;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -25,4 +31,7 @@ public class Character
     // 新增：离线相关打点（可选）
     public DateTime? LastSeenAtUtc { get; set; }          // 最近在线心跳/登出时间
     public DateTime? LastOfflineSettledAtUtc { get; set; } // 最近一次离线结算时间
+    
+    // Navigation property - 所属用户
+    public User? User { get; set; }
 }

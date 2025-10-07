@@ -10,6 +10,10 @@ public class CharacterConfiguration : IEntityTypeConfiguration<Character>
     {
         b.HasKey(x => x.Id);
         b.Property(x => x.Name).HasMaxLength(64).IsRequired();
+        
+        // 用户外键（可空，支持未关联用户的角色）
+        b.Property(x => x.UserId);
+        b.HasIndex(x => x.UserId); // 为外键添加索引，提升查询性能
 
         // 主属性列（默认）
         b.Property(x => x.Strength).HasDefaultValue(10);

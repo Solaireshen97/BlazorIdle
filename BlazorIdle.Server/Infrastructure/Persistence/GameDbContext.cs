@@ -23,6 +23,7 @@ public class GameDbContext : DbContext
     // === �ۺϸ� / ʵ�弯�� ===
     // DbSet<T> ֻ�ǲ�ѯ/������ڣ�������ӳ��ϸ�����������Configuration��
     public DbSet<Character> Characters => Set<Character>();
+    public DbSet<User> Users => Set<User>();
     public DbSet<BattleRecord> Battles => Set<BattleRecord>();
     public DbSet<BattleSegmentRecord> BattleSegments => Set<BattleSegmentRecord>();
     public DbSet<InventoryItem> InventoryItems => Set<InventoryItem>();
