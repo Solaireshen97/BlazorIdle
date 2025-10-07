@@ -110,6 +110,86 @@ public class ApiClient
     // ===== 背包 =====
     public Task<InventoryResponse?> GetInventoryAsync(Guid characterId, CancellationToken ct = default)
         => _http.GetFromJsonAsync<InventoryResponse>($"/api/inventory/{characterId}", ct);
+
+    // ===== 活动计划 =====
+    public async Task<ActivityPlanDto> CreateCombatPlanAsync(
+        Guid characterId,
+        int slotIndex = 0,
+        string limitType = "duration",
+        double? limitValue = null,
+        string? enemyId = null,
+        int enemyCount = 1,
+        double? respawnDelay = null,
+        ulong? seed = null,
+        CancellationToken ct = default)
+    {
+        var url = $"/api/activity-plans/combat?characterId={characterId}&slotIndex={slotIndex}&limitType={Uri.EscapeDataString(limitType)}&enemyCount={enemyCount}";
+        if (limitValue.HasValue) url += $"&limitValue={limitValue.Value}";
+        if (!string.IsNullOrWhiteSpace(enemyId)) url += $"&enemyId={Uri.EscapeDataString(enemyId)}";
+        if (respawnDelay.HasValue) url += $"&respawnDelay={respawnDelay.Value}";
+        if (seed.HasValue) url += $"&seed={seed.Value}";
+
+        var resp = await _http.PostAsync(url, null, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<ActivityPlanDto>(cancellationToken: ct))!;
+    }
+
+    public async Task<ActivityPlanDto> CreateDungeonPlanAsync(
+        Guid characterId,
+        int slotIndex = 0,
+        string limitType = "duration",
+        double? limitValue = null,
+        string dungeonId = "intro_cave",
+        bool loop = false,
+        double? waveDelay = null,
+        double? runDelay = null,
+        ulong? seed = null,
+        CancellationToken ct = default)
+    {
+        var url = $"/api/activity-plans/dungeon?characterId={characterId}&slotIndex={slotIndex}&limitType={Uri.EscapeDataString(limitType)}&dungeonId={Uri.EscapeDataString(dungeonId)}&loop={loop}";
+        if (limitValue.HasValue) url += $"&limitValue={limitValue.Value}";
+        if (waveDelay.HasValue) url += $"&waveDelay={waveDelay.Value}";
+        if (runDelay.HasValue) url += $"&runDelay={runDelay.Value}";
+        if (seed.HasValue) url += $"&seed={seed.Value}";
+
+        var resp = await _http.PostAsync(url, null, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<ActivityPlanDto>(cancellationToken: ct))!;
+    }
+
+    public async Task<List<ActivityPlanDto>> GetCharacterPlansAsync(Guid characterId, CancellationToken ct = default)
+        => (await _http.GetFromJsonAsync<List<ActivityPlanDto>>($"/api/activity-plans/character/{characterId}", ct)) ?? new();
+
+    public async Task<ActivityPlanDto?> GetPlanAsync(Guid planId, CancellationToken ct = default)
+        => await _http.GetFromJsonAsync<ActivityPlanDto>($"/api/activity-plans/{planId}", ct);
+
+    public async Task<StartPlanResponse> StartPlanAsync(Guid planId, CancellationToken ct = default)
+    {
+        using var content = new StringContent("{}", Encoding.UTF8, "application/json");
+        var resp = await _http.PostAsync($"/api/activity-plans/{planId}/start", content, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<StartPlanResponse>(cancellationToken: ct))!;
+    }
+
+    public async Task<bool> StopPlanAsync(Guid planId, CancellationToken ct = default)
+    {
+        using var content = new StringContent("{}", Encoding.UTF8, "application/json");
+        var resp = await _http.PostAsync($"/api/activity-plans/{planId}/stop", content, ct);
+        return resp.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> CancelPlanAsync(Guid planId, CancellationToken ct = default)
+    {
+        using var content = new StringContent("{}", Encoding.UTF8, "application/json");
+        var resp = await _http.PostAsync($"/api/activity-plans/{planId}/cancel", content, ct);
+        return resp.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> DeletePlanAsync(Guid planId, CancellationToken ct = default)
+    {
+        var resp = await _http.DeleteAsync($"/api/activity-plans/{planId}", ct);
+        return resp.IsSuccessStatusCode;
+    }
 }
 
 // ====== Step DTOs（保留运行中需要的） ======
@@ -181,4 +261,28 @@ public sealed class SimulateResponse
     public double? TtkP90 { get; set; }
     public double? TtkP95 { get; set; }
     public double? TtkP99 { get; set; }
+}
+
+// ===== 活动计划 DTOs =====
+public sealed class ActivityPlanDto
+{
+    public Guid Id { get; set; }
+    public Guid CharacterId { get; set; }
+    public int SlotIndex { get; set; }
+    public int Type { get; set; }  // 1=Combat, 2=Dungeon
+    public int LimitType { get; set; }  // 1=Duration, 2=Infinite
+    public double? LimitValue { get; set; }
+    public int State { get; set; }  // 0=Pending, 1=Running, 2=Completed, 3=Cancelled
+    public DateTime CreatedAt { get; set; }
+    public DateTime? StartedAt { get; set; }
+    public DateTime? CompletedAt { get; set; }
+    public string PayloadJson { get; set; } = "";
+    public Guid? BattleId { get; set; }
+    public double ExecutedSeconds { get; set; }
+}
+
+public sealed class StartPlanResponse
+{
+    public Guid PlanId { get; set; }
+    public Guid BattleId { get; set; }
 }

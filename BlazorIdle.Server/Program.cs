@@ -5,75 +5,76 @@ using BlazorIdle.Server.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. »ù´¡¿ò¼Ü·þÎñ
-// Ìí¼Ó»ùÓÚ¿ØÖÆÆ÷µÄ API Ö§³Ö£¨ÊôÐÔÂ·ÓÉ / ¹ýÂËÆ÷ / Ä£ÐÍ°ó¶¨µÈ£©
+// 1. ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü·ï¿½ï¿½ï¿½
+// ï¿½ï¿½ï¿½Ó»ï¿½ï¿½Ú¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ API Ö§ï¿½Ö£ï¿½ï¿½ï¿½ï¿½ï¿½Â·ï¿½ï¿½ / ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ / Ä£ï¿½Í°ó¶¨µÈ£ï¿½
 builder.Services.AddControllers();
 
 // 2. OpenAPI / Swagger
-builder.Services.AddEndpointsApiExplorer(); // Îª×îÐ¡ API / Controller Éú³ÉÃèÊö
-builder.Services.AddSwaggerGen();           // Éú³É swagger.json + UI£¨¿ª·¢ÆÚµ÷ÊÔÓÃ£©
+builder.Services.AddEndpointsApiExplorer(); // Îªï¿½ï¿½Ð¡ API / Controller ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+builder.Services.AddSwaggerGen();           // ï¿½ï¿½ï¿½ï¿½ swagger.json + UIï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Úµï¿½ï¿½ï¿½ï¿½Ã£ï¿½
 
-// 3. ÒµÎñ·Ö²ã×¢Èë
+// 3. Òµï¿½ï¿½Ö²ï¿½×¢ï¿½ï¿½
 builder.Services
-    .AddInfrastructure(builder.Configuration)   // ×¢²á»ù´¡ÉèÊ©£ºDbContext / ²Ö´¢£¨ÄÚ²¿ÒÑµ÷ÓÃ AddRepositories£©
-    .AddApplication();                          // ×¢²áÓ¦ÓÃ²ãÓÃÀý¡¢·þÎñ£¨Command/Query Handler µÈ£©
+    .AddInfrastructure(builder.Configuration)   // ×¢ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê©ï¿½ï¿½DbContext / ï¿½Ö´ï¿½ï¿½ï¿½ï¿½Ú²ï¿½ï¿½Ñµï¿½ï¿½ï¿½ AddRepositoriesï¿½ï¿½
+    .AddApplication();                          // ×¢ï¿½ï¿½Ó¦ï¿½Ã²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Command/Query Handler ï¿½È£ï¿½
 
-// 4. CORS£¨¿çÓò£©
-// Ä¿µÄ£ºÔÊÐíÇ°¶Ë Blazor WebAssembly£¨±¾µØ¿ª·¢¶Ë¿Ú£©·ÃÎÊ±¾ API¡£
-// ×¢Òâ£ºÉú²ú¿É¸ÄÎª¾«È·À´Ô´»ò´ÓÅäÖÃ¶ÁÈ¡£»ÈôÐèÆ¾¾ÝÐèÔÙ¼Ó AllowCredentials().
+// 4. CORSï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+// Ä¿ï¿½Ä£ï¿½ï¿½ï¿½ï¿½ï¿½Ç°ï¿½ï¿½ Blazor WebAssemblyï¿½ï¿½ï¿½ï¿½ï¿½Ø¿ï¿½ï¿½ï¿½ï¿½Ë¿Ú£ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ APIï¿½ï¿½
+// ×¢ï¿½â£ºï¿½ï¿½ï¿½ï¿½ï¿½É¸ï¿½Îªï¿½ï¿½È·ï¿½ï¿½Ô´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã¶ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ¾ï¿½ï¿½ï¿½ï¿½ï¿½Ù¼ï¿½ AllowCredentials().
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowBlazorClient", policy =>
     {
         policy
             .WithOrigins(
-                "https://localhost:5001", // ¿ÉÄÜÊÇ±¾µØ HTTPS ¾²Ì¬×ÊÔ´»ò¿ª·¢ËÞÖ÷
-                "http://localhost:5000")  // HTTP °æ±¾
+                "https://localhost:5001", // ï¿½ï¿½ï¿½ï¿½ï¿½Ç±ï¿½ï¿½ï¿½ HTTPS ï¿½ï¿½Ì¬ï¿½ï¿½Ô´ï¿½ò¿ª·ï¿½ï¿½ï¿½ï¿½ï¿½
+                "http://localhost:5001",  // HTTP ï¿½æ±¾
+                "http://localhost:5000")  // HTTP ï¿½æ±¾
             .AllowAnyHeader()
             .AllowAnyMethod();
-        // .AllowCredentials(); // ÈçÎ´À´Ê¹ÓÃ Cookie/ÊÚÈ¨Í·²¢ÐèÒªÐ¯´øÆ¾¾Ý
+        // .AllowCredentials(); // ï¿½ï¿½Î´ï¿½ï¿½Ê¹ï¿½ï¿½ Cookie/ï¿½ï¿½È¨Í·ï¿½ï¿½ï¿½ï¿½ÒªÐ¯ï¿½ï¿½Æ¾ï¿½ï¿½
     });
 });
 
 var app = builder.Build();
 
-// 5. ×Ô¶¯Ç¨ÒÆ£¨½ö¿ª·¢£©
-// - ´´½¨Ò»¸öÁÙÊ± Scope È¡³ö DbContext Óë»·¾³
-// - Development »·¾³×Ô¶¯Ö´ÐÐ Migrate() ±ãÓÚ¿ìËÙµü´ú
-// - Éú²ú½¨Òé¸ÄÓÃ£ºÔ¤ÏÈÇ¨ÒÆ£¨CI/CD£©»òÈË¹¤ÉóºËºóÖ´ÐÐ
+// 5. ï¿½Ô¶ï¿½Ç¨ï¿½Æ£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+// - ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½Ê± Scope È¡ï¿½ï¿½ DbContext ï¿½ë»·ï¿½ï¿½
+// - Development ï¿½ï¿½ï¿½ï¿½ï¿½Ô¶ï¿½Ö´ï¿½ï¿½ Migrate() ï¿½ï¿½ï¿½Ú¿ï¿½ï¿½Ùµï¿½ï¿½ï¿½
+// - ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã£ï¿½Ô¤ï¿½ï¿½Ç¨ï¿½Æ£ï¿½CI/CDï¿½ï¿½ï¿½ï¿½ï¿½Ë¹ï¿½ï¿½ï¿½Ëºï¿½Ö´ï¿½ï¿½
 using (var scope = app.Services.CreateScope())
 {
     var env = scope.ServiceProvider.GetRequiredService<IHostEnvironment>();
     var db = scope.ServiceProvider.GetRequiredService<GameDbContext>();
     if (env.IsDevelopment())
     {
-        // ÈôÎÞÇ¨ÒÆ»áÅ×Òì³££ºÐèÏÈÖ´ÐÐ
+        // ï¿½ï¿½ï¿½ï¿½Ç¨ï¿½Æ»ï¿½ï¿½ï¿½ï¿½ì³£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö´ï¿½ï¿½
         // dotnet ef migrations add InitBattle
         // dotnet ef database update
         db.Database.Migrate();
     }
     else
     {
-        // Éú²ú¿ÉÑ¡²ßÂÔ£º
-        // 1) ÊÖ¶¯Ç¨ÒÆ£¨ÍÆ¼ö£©
-        // 2) ÆôÓÃ×Ô¶¯Ç¨ÒÆ£¨·çÏÕ£º²»ÊÜ¿Ø½á¹¹¸Ä¶¯£©
-        // 3) ½ö¼ì²â²¢ÈÕÖ¾¸æ¾¯:
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ñ¡ï¿½ï¿½ï¿½Ô£ï¿½
+        // 1) ï¿½Ö¶ï¿½Ç¨ï¿½Æ£ï¿½ï¿½Æ¼ï¿½ï¿½ï¿½
+        // 2) ï¿½ï¿½ï¿½ï¿½ï¿½Ô¶ï¿½Ç¨ï¿½Æ£ï¿½ï¿½ï¿½ï¿½Õ£ï¿½ï¿½ï¿½ï¿½Ü¿Ø½á¹¹ï¿½Ä¶ï¿½ï¿½ï¿½
+        // 3) ï¿½ï¿½ï¿½ï¿½â²¢ï¿½ï¿½Ö¾ï¿½æ¾¯:
         // if (db.Database.GetPendingMigrations().Any()) { /* log warning */ }
     }
 }
 
-// 6. ÖÐ¼ä¼þ¹ÜÏß
+// 6. ï¿½Ð¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();    // /swagger/v1/swagger.json
     app.UseSwaggerUI();  // /swagger
 }
 
-app.UseHttpsRedirection();      // Ç¿ÖÆÖØ¶¨ÏòÖÁ HTTPS£¨È·±£ swagger Ò²¿ÉÍ¨¹ý https ·ÃÎÊ£©
-app.UseCors("AllowBlazorClient"); // ±ØÐëÔÚ MapControllers Ö®Ç°£¬ÇÒÔÚÈÏÖ¤/ÊÚÈ¨Ç°£¨Èç¹ûÓÐµÄ»°£©
+app.UseHttpsRedirection();      // Ç¿ï¿½ï¿½ï¿½Ø¶ï¿½ï¿½ï¿½ï¿½ï¿½ HTTPSï¿½ï¿½È·ï¿½ï¿½ swagger Ò²ï¿½ï¿½Í¨ï¿½ï¿½ https ï¿½ï¿½ï¿½Ê£ï¿½
+app.UseCors("AllowBlazorClient"); // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ MapControllers Ö®Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¤/ï¿½ï¿½È¨Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÐµÄ»ï¿½ï¿½ï¿½
 
-// Èç¹ûºóÐøÒýÈëÉí·ÝÈÏÖ¤£ºË³ÐòÍ¨³£ÊÇ UseAuthentication -> UseAuthorization
-app.MapControllers(); // Ó³Éä¿ØÖÆÆ÷¶Ëµãµ½Â·ÓÉ±í
+// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¤ï¿½ï¿½Ë³ï¿½ï¿½Í¨ï¿½ï¿½ï¿½ï¿½ UseAuthentication -> UseAuthorization
+app.MapControllers(); // Ó³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ëµãµ½Â·ï¿½É±ï¿½
 
-// TODO£¨¿ÉÑ¡À©Õ¹£©£ºapp.MapHealthChecks("/health"); app.MapGet("/version", ...);
-app.Run(); // Æô¶¯·þÎñÆ÷£¨Í¬²½×èÈû£¬Ö±µ½Ö÷»úÍ£Ö¹£©
+// TODOï¿½ï¿½ï¿½ï¿½Ñ¡ï¿½ï¿½Õ¹ï¿½ï¿½ï¿½ï¿½app.MapHealthChecks("/health"); app.MapGet("/version", ...);
+app.Run(); // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í£Ö¹ï¿½ï¿½
