@@ -46,13 +46,16 @@ public class UsersController : ControllerBase
             user.Email,
             user.CreatedAt,
             user.LastLoginAt,
-            Characters = user.Characters.Select(c => new
-            {
-                c.Id,
-                c.Name,
-                c.Level,
-                c.Profession
-            })
+            Characters = user.Characters
+                .OrderBy(c => c.RosterOrder)
+                .Select(c => new
+                {
+                    c.Id,
+                    c.Name,
+                    c.Level,
+                    c.Profession,
+                    c.RosterOrder
+                })
         });
     }
 
@@ -78,13 +81,16 @@ public class UsersController : ControllerBase
             user.Email,
             user.CreatedAt,
             user.LastLoginAt,
-            Characters = user.Characters.Select(c => new
-            {
-                c.Id,
-                c.Name,
-                c.Level,
-                c.Profession
-            })
+            Characters = user.Characters
+                .OrderBy(c => c.RosterOrder)
+                .Select(c => new
+                {
+                    c.Id,
+                    c.Name,
+                    c.Level,
+                    c.Profession,
+                    c.RosterOrder
+                })
         });
     }
 

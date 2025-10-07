@@ -15,6 +15,41 @@ else
 {
 <h3>角色 & 战斗测试</h3>
 
+<!-- 用户信息显示 -->
+@if (currentUser is not null)
+{
+    <div class="panel" style="background: #f8f9fa; padding: 12px; margin-bottom: 12px;">
+        <h5>👤 当前用户: @currentUser.Username</h5>
+        <p style="margin: 4px 0;">角色数量: @userCharacters.Count / 5</p>
+        @if (!string.IsNullOrEmpty(userMessage))
+        {
+            <div class="alert alert-info" style="margin: 8px 0;">@userMessage</div>
+        }
+    </div>
+}
+
+<!-- 0) 角色列表 -->
+@if (userCharacters.Count > 0)
+{
+    <div class="panel">
+        <h4>我的角色列表</h4>
+        <div class="character-list" style="display: flex; gap: 12px; flex-wrap: wrap;">
+            @foreach (var character in userCharacters)
+            {
+                var isSelected = selectedCharacter?.Id == character.Id;
+                var cardClass = isSelected ? "character-card selected" : "character-card";
+                <div class="@cardClass" @onclick="() => SelectCharacter(character)" style="cursor: pointer; border: 2px solid @(isSelected ? "#007bff" : "#ddd"); padding: 12px; border-radius: 8px; min-width: 200px;">
+                    <h5 style="margin: 0 0 8px 0;">@character.Name @(isSelected ? "✓" : "")</h5>
+                    <div><b>职业:</b> @character.Profession</div>
+                    <div><b>等级:</b> @character.Level</div>
+                    <div><b>顺序:</b> #@(character.RosterOrder + 1)</div>
+                    <div style="font-size: 0.85em; color: #666; margin-top: 4px;">ID: @character.Id.ToString().Substring(0, 8)...</div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
 <!-- 1) 创建角色 -->
 <div class="panel">
     <h4>1. 创建角色</h4>
@@ -25,7 +60,13 @@ else
             <option value="@p">@p</option>
         }
     </select>
-    <button @onclick="CreateCharacter" disabled="@isBusy">创建</button>
+    <button @onclick="CreateCharacter" disabled="@(isBusy || userCharacters.Count >= 5)">
+        @(userCharacters.Count >= 5 ? "已达上限" : "创建")
+    </button>
+    @if (userCharacters.Count >= 5)
+    {
+        <p style="color: #dc3545;">已达到角色数量上限（最多5个角色）</p>
+    }
     @if (lastCreated is not null)
     {
         <p>已创建: @lastCreated.Name (@lastCreated.Id)</p>
@@ -693,6 +734,10 @@ else
 @code {
     // ====== 认证状态 ======
     private bool isAuthenticated = false;
+    private UserInfoDto? currentUser;
+    private List<UserCharacterDto> userCharacters = new();
+    private UserCharacterDto? selectedCharacter;
+    private string userMessage = "";
 
     // ====== 创建/同步战斗 ======
     protected override async Task OnInitializedAsync()
@@ -707,8 +752,45 @@ else
         
         isAuthenticated = true;
         
+        // 加载当前用户信息和角色列表
+        await LoadUserDataAsync();
+        
         try { enemies = await Api.GetEnemiesAsync() ?? new(); }
         catch { enemies = new(); }
+    }
+
+    async Task LoadUserDataAsync()
+    {
+        try
+        {
+            currentUser = await Api.GetCurrentUserAsync();
+            if (currentUser is not null)
+            {
+                userCharacters = currentUser.Characters.OrderBy(c => c.RosterOrder).ToList();
+                
+                // 如果有角色，默认选中第一个
+                if (userCharacters.Count > 0 && selectedCharacter is null)
+                {
+                    selectedCharacter = userCharacters[0];
+                    // 用选中的角色作为 lastCreated 以便其他功能使用
+                    lastCreated = new CharacterCreated(selectedCharacter.Id, selectedCharacter.Name);
+                }
+                
+                userMessage = $"欢迎回来！你有 {userCharacters.Count} 个角色。";
+            }
+        }
+        catch (Exception ex)
+        {
+            userMessage = $"加载用户数据失败: {ex.Message}";
+        }
+    }
+
+    void SelectCharacter(UserCharacterDto character)
+    {
+        selectedCharacter = character;
+        lastCreated = new CharacterCreated(character.Id, character.Name);
+        ResetBattleState();
+        StateHasChanged();
     }
 
     string newName = "TestWarrior";
@@ -733,10 +815,34 @@ else
     {
         try 
         { 
-            isBusy = true; 
-            lastCreated = await Api.CreateCharacterAsync(newName, selectedProfession); 
+            isBusy = true;
+            
+            // 检查是否已达上限
+            if (userCharacters.Count >= 5)
+            {
+                userMessage = "已达到角色数量上限（最多5个角色）";
+                return;
+            }
+            
+            lastCreated = await Api.CreateCharacterAsync(newName, selectedProfession);
+            
+            // 重新加载用户角色列表
+            await LoadUserDataAsync();
+            
+            // 选中新创建的角色
+            var newChar = userCharacters.FirstOrDefault(c => c.Id == lastCreated.Id);
+            if (newChar is not null)
+            {
+                selectedCharacter = newChar;
+                userMessage = $"角色 {newChar.Name} 创建成功！";
+            }
+            
             ResetBattleState();
             await RefreshPlansAsync();  // 加载角色的活动计划
+        }
+        catch (Exception ex)
+        {
+            userMessage = $"创建角色失败: {ex.Message}";
         }
         finally { isBusy = false; }
     }
