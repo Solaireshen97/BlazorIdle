@@ -67,6 +67,22 @@ public class ActivityPlanService
         };
 
         await _plans.AddAsync(plan, ct);
+
+        // 自动启动：如果当前角色没有正在运行的任务，自动启动这个任务
+        var runningPlan = await _plans.GetRunningPlanAsync(characterId, ct);
+        if (runningPlan is null)
+        {
+            try
+            {
+                await StartPlanAsync(plan.Id, ct);
+            }
+            catch (Exception)
+            {
+                // 如果自动启动失败，保持计划为Pending状态，不影响计划创建
+                // 记录日志或忽略错误
+            }
+        }
+
         return plan;
     }
 
@@ -195,6 +211,10 @@ public class ActivityPlanService
         }
 
         await _plans.UpdateAsync(plan, ct);
+
+        // 自动启动下一个待执行的任务
+        await TryStartNextPendingPlanAsync(plan.CharacterId, ct);
+
         return true;
     }
 
@@ -252,6 +272,27 @@ public class ActivityPlanService
         plan.CompletedAt = DateTime.UtcNow;
         await _plans.UpdateAsync(plan, ct);
         return true;
+    }
+
+    /// <summary>
+    /// 尝试启动下一个待执行的任务
+    /// </summary>
+    private async Task TryStartNextPendingPlanAsync(Guid characterId, CancellationToken ct = default)
+    {
+        // 获取下一个待执行的任务（按槽位和创建时间排序）
+        var nextPlan = await _plans.GetNextPendingPlanAsync(characterId, ct);
+        if (nextPlan is not null)
+        {
+            try
+            {
+                await StartPlanAsync(nextPlan.Id, ct);
+            }
+            catch (Exception)
+            {
+                // 如果启动失败，保持计划为Pending状态
+                // 记录日志或忽略错误
+            }
+        }
     }
 
     private static ulong DeriveSeed(Guid characterId)

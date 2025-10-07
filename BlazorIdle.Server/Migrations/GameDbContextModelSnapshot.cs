@@ -62,7 +62,7 @@ namespace BlazorIdle.Server.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("ActivityPlans");
+                    b.ToTable("ActivityPlans", (string)null);
                 });
 
             modelBuilder.Entity("BlazorIdle.Server.Domain.Characters.Character", b =>
@@ -119,7 +119,7 @@ namespace BlazorIdle.Server.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Characters");
+                    b.ToTable("Characters", (string)null);
                 });
 
             modelBuilder.Entity("BlazorIdle.Server.Domain.Characters.InventoryItem", b =>
@@ -241,7 +241,7 @@ namespace BlazorIdle.Server.Migrations
 
                     b.HasIndex("CharacterId");
 
-                    b.ToTable("Battles");
+                    b.ToTable("Battles", (string)null);
                 });
 
             modelBuilder.Entity("BlazorIdle.Server.Domain.Records.BattleSegmentRecord", b =>
@@ -292,7 +292,7 @@ namespace BlazorIdle.Server.Migrations
 
                     b.HasIndex("BattleId");
 
-                    b.ToTable("BattleSegments");
+                    b.ToTable("BattleSegments", (string)null);
                 });
 
             modelBuilder.Entity("BlazorIdle.Server.Domain.Records.EconomyEventRecord", b =>
@@ -389,7 +389,7 @@ namespace BlazorIdle.Server.Migrations
                     b.HasIndex("StepBattleId")
                         .IsUnique();
 
-                    b.ToTable("RunningBattleSnapshots");
+                    b.ToTable("RunningBattleSnapshots", (string)null);
                 });
 
             modelBuilder.Entity("BlazorIdle.Server.Domain.Characters.InventoryItem", b =>
