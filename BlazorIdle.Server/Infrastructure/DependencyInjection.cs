@@ -7,6 +7,7 @@ using BlazorIdle.Server.Infrastructure.Persistence.Repositories;
 using BlazorIdle.Server.Application.Battles.Step;
 using BlazorIdle.Server.Application.Battles.Simulation;
 using BlazorIdle.Server.Application.Battles.Offline;
+using BlazorIdle.Server.Application.Battles;
 using BlazorIdle.Server.Infrastructure.Startup;
 
 namespace BlazorIdle.Server.Infrastructure;
@@ -29,8 +30,27 @@ public static class DependencyInjection
         // 批量模拟
         services.AddTransient<BatchSimulator>();
 
-        // 离线结算
-        services.AddTransient<OfflineSettlementService>();
+        // 离线快进引擎
+        services.AddSingleton<OfflineFastForwardEngine>();
+
+        // 离线结算（集成活动计划自动衔接）
+        services.AddTransient<OfflineSettlementService>(sp =>
+        {
+            var characters = sp.GetRequiredService<ICharacterRepository>();
+            var simulator = sp.GetRequiredService<BattleSimulator>();
+            var plans = sp.GetRequiredService<IActivityPlanRepository>();
+            var engine = sp.GetRequiredService<OfflineFastForwardEngine>();
+            var db = sp.GetRequiredService<GameDbContext>();
+            
+            // 创建回调函数：尝试启动下一个待执行的计划
+            async Task<Domain.Activities.ActivityPlan?> TryStartNextPlan(Guid characterId, CancellationToken ct)
+            {
+                var planService = sp.GetRequiredService<Application.Activities.ActivityPlanService>();
+                return await planService.TryStartNextPendingPlanAsync(characterId, ct);
+            }
+            
+            return new OfflineSettlementService(characters, simulator, plans, engine, db, TryStartNextPlan);
+        });
 
         // 经济数据校验（应用启动时执行）
         services.AddEconomyValidation(throwOnError: true);

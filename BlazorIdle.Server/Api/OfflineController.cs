@@ -11,6 +11,55 @@ public class OfflineController : ControllerBase
 
     public OfflineController(OfflineSettlementService offline) => _offline = offline;
 
+    /// <summary>
+    /// 检查离线收益（用户登录时自动调用）
+    /// </summary>
+    [HttpGet("check")]
+    public async Task<ActionResult<OfflineCheckResult>> CheckOffline(
+        [FromQuery] Guid characterId,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var result = await _offline.CheckAndSettleAsync(characterId, ct);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// 应用离线结算，实际发放收益到角色（前端确认后调用）
+    /// </summary>
+    [HttpPost("apply")]
+    public async Task<ActionResult> ApplySettlement(
+        [FromBody] ApplySettlementRequest request,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            await _offline.ApplySettlementAsync(
+                request.CharacterId,
+                request.Settlement,
+                ct);
+            return Ok();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// 请求模型：应用离线结算
+    /// </summary>
+    public record ApplySettlementRequest(
+        Guid CharacterId,
+        OfflineFastForwardResult Settlement
+    );
+
     // 示例：POST /api/offline/settle?characterId=...&seconds=7200&mode=continuous&enemyId=dummy&enemyCount=1&dropMode=sampled
     [HttpPost("settle")]
     public async Task<ActionResult<object>> Settle(

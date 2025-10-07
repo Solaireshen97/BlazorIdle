@@ -157,13 +157,16 @@ public sealed class OfflineSettlementService
         OfflineFastForwardResult settlement,
         CancellationToken ct = default)
     {
-        var character = await _db.Characters.FindAsync(new object[] { characterId }, ct);
+        var character = await _characters.GetAsync(characterId, ct);
         if (character is null)
             throw new InvalidOperationException("Character not found");
 
         // 发放金币和经验
         character.Gold += settlement.Gold;
         character.Experience += settlement.Exp;
+        
+        // 持久化角色更新
+        await _db.SaveChangesAsync(ct);
         
         // 发放物品（如果有背包系统）
         // TODO: 当背包系统完善后，添加物品发放逻辑
@@ -192,8 +195,6 @@ public sealed class OfflineSettlementService
         //         }
         //     }
         // }
-
-        await _db.SaveChangesAsync(ct);
     }
 
     /// <summary>
