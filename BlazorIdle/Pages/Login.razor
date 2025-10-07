@@ -1,0 +1,181 @@
+@page "/login"
+@using BlazorIdle.Client.Services
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="login-container">
+    <div class="login-box">
+        <h3>BlazorIdle - 用户认证</h3>
+        
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger">@errorMessage</div>
+        }
+
+        @if (isRegistering)
+        {
+            <!-- 注册表单 -->
+            <div class="panel">
+                <h4>注册新账号</h4>
+                <div class="form-group">
+                    <label>用户名:</label>
+                    <input type="text" class="form-control" @bind="registerUsername" placeholder="输入用户名" />
+                </div>
+                <div class="form-group">
+                    <label>邮箱:</label>
+                    <input type="email" class="form-control" @bind="registerEmail" placeholder="输入邮箱" />
+                </div>
+                <div class="form-group">
+                    <label>密码:</label>
+                    <input type="password" class="form-control" @bind="registerPassword" placeholder="输入密码 (至少6位)" />
+                </div>
+                <div class="form-group">
+                    <label>确认密码:</label>
+                    <input type="password" class="form-control" @bind="confirmPassword" placeholder="再次输入密码" />
+                </div>
+                <button class="btn btn-primary" @onclick="HandleRegister" disabled="@isBusy">
+                    @if (isBusy) { <span>注册中...</span> } else { <span>注册</span> }
+                </button>
+                <button class="btn btn-link" @onclick="() => isRegistering = false" disabled="@isBusy">
+                    已有账号？去登录
+                </button>
+            </div>
+        }
+        else
+        {
+            <!-- 登录表单 -->
+            <div class="panel">
+                <h4>登录</h4>
+                <div class="form-group">
+                    <label>用户名或邮箱:</label>
+                    <input type="text" class="form-control" @bind="loginUsername" placeholder="输入用户名或邮箱" />
+                </div>
+                <div class="form-group">
+                    <label>密码:</label>
+                    <input type="password" class="form-control" @bind="loginPassword" placeholder="输入密码" />
+                </div>
+                <button class="btn btn-primary" @onclick="HandleLogin" disabled="@isBusy">
+                    @if (isBusy) { <span>登录中...</span> } else { <span>登录</span> }
+                </button>
+                <button class="btn btn-link" @onclick="() => isRegistering = true" disabled="@isBusy">
+                    没有账号？去注册
+                </button>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private bool isRegistering = false;
+    private bool isBusy = false;
+    private string errorMessage = "";
+
+    // 登录表单
+    private string loginUsername = "";
+    private string loginPassword = "";
+
+    // 注册表单
+    private string registerUsername = "";
+    private string registerEmail = "";
+    private string registerPassword = "";
+    private string confirmPassword = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 初始化认证服务
+        await AuthService.InitializeAsync();
+        
+        // 如果已经登录，直接跳转到主页
+        if (AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/", replace: true);
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        errorMessage = "";
+        
+        if (string.IsNullOrWhiteSpace(loginUsername) || string.IsNullOrWhiteSpace(loginPassword))
+        {
+            errorMessage = "请输入用户名和密码";
+            return;
+        }
+
+        isBusy = true;
+        try
+        {
+            var result = await AuthService.LoginAsync(loginUsername, loginPassword);
+            if (result.IsSuccess)
+            {
+                // 登录成功，跳转到主页
+                Navigation.NavigateTo("/", replace: true);
+            }
+            else
+            {
+                errorMessage = result.ErrorMessage ?? "登录失败";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"登录异常: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private async Task HandleRegister()
+    {
+        errorMessage = "";
+        
+        // 验证输入
+        if (string.IsNullOrWhiteSpace(registerUsername))
+        {
+            errorMessage = "请输入用户名";
+            return;
+        }
+        
+        if (string.IsNullOrWhiteSpace(registerEmail))
+        {
+            errorMessage = "请输入邮箱";
+            return;
+        }
+        
+        if (string.IsNullOrWhiteSpace(registerPassword) || registerPassword.Length < 6)
+        {
+            errorMessage = "密码至少需要6位";
+            return;
+        }
+        
+        if (registerPassword != confirmPassword)
+        {
+            errorMessage = "两次输入的密码不一致";
+            return;
+        }
+
+        isBusy = true;
+        try
+        {
+            var result = await AuthService.RegisterAsync(registerUsername, registerEmail, registerPassword);
+            if (result.IsSuccess)
+            {
+                // 注册成功，跳转到主页
+                Navigation.NavigateTo("/", replace: true);
+            }
+            else
+            {
+                errorMessage = result.ErrorMessage ?? "注册失败";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"注册异常: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+}

@@ -7,11 +7,33 @@ namespace BlazorIdle.Client.Services;
 public class ApiClient
 {
     private readonly HttpClient _http;
-    public ApiClient(HttpClient http) => _http = http;
+    private readonly AuthService _authService;
+    
+    public ApiClient(HttpClient http, AuthService authService)
+    {
+        _http = http;
+        _authService = authService;
+    }
+
+    // 在请求前设置 Authorization header
+    private void SetAuthHeader()
+    {
+        var token = _authService.GetToken();
+        if (!string.IsNullOrEmpty(token))
+        {
+            _http.DefaultRequestHeaders.Authorization = 
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        }
+        else
+        {
+            _http.DefaultRequestHeaders.Authorization = null;
+        }
+    }
 
     // ===== 角色与同步战斗 =====
     public async Task<CharacterCreated> CreateCharacterAsync(string name, Profession profession, CancellationToken ct = default)
     {
+        SetAuthHeader();
         var resp = await _http.PostAsJsonAsync("/api/characters", new CreateCharacterRequest(name, profession), ct);
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<CharacterCreated>(cancellationToken: ct))!;
@@ -19,6 +41,7 @@ public class ApiClient
 
     public async Task<BattleStartResponse> StartBattleAsync(Guid characterId, double seconds = 10, string? enemyId = null, CancellationToken ct = default)
     {
+        SetAuthHeader();
         var url = $"/api/battles/start?characterId={characterId}&seconds={seconds}";
         if (!string.IsNullOrWhiteSpace(enemyId)) url += $"&enemyId={Uri.EscapeDataString(enemyId)}";
         var resp = await _http.PostAsync(url, null, ct);
@@ -28,14 +51,23 @@ public class ApiClient
 
     // 新：支持 dropMode
     public Task<BattleSummaryResponse?> GetBattleSummaryAsync(Guid battleId, string dropMode = "expected", CancellationToken ct = default)
-        => _http.GetFromJsonAsync<BattleSummaryResponse>($"/api/battles/{battleId}/summary?dropMode={Uri.EscapeDataString(dropMode)}", ct);
+    {
+        SetAuthHeader();
+        return _http.GetFromJsonAsync<BattleSummaryResponse>($"/api/battles/{battleId}/summary?dropMode={Uri.EscapeDataString(dropMode)}", ct);
+    }
 
     public async Task<List<BattleSegmentDto>> GetBattleSegmentsAsync(Guid battleId, CancellationToken ct = default)
-        => (await _http.GetFromJsonAsync<List<BattleSegmentDto>>($"/api/battles/{battleId}/segments", ct)) ?? new();
+    {
+        SetAuthHeader();
+        return (await _http.GetFromJsonAsync<List<BattleSegmentDto>>($"/api/battles/{battleId}/segments", ct)) ?? new();
+    }
 
     // ===== 敌人（动态） =====
     public Task<List<EnemyDto>?> GetEnemiesAsync(CancellationToken ct = default)
-        => _http.GetFromJsonAsync<List<EnemyDto>>("/api/enemies", ct);
+    {
+        SetAuthHeader();
+        return _http.GetFromJsonAsync<List<EnemyDto>>("/api/enemies", ct);
+    }
 
     public sealed class EnemyDto
     {
@@ -55,6 +87,7 @@ public class ApiClient
     // mode: "duration" | "continuous" | "dungeonsingle" | "dungeonloop"
     public async Task<StartStepBattleResponse> StartStepBattleAsync(Guid characterId, double seconds, string? enemyId, int enemyCount, ulong? seed, string? mode, string? dungeonId, CancellationToken ct = default)
     {
+        SetAuthHeader();
         var url = $"/api/battles/step/start?characterId={characterId}&seconds={seconds}&enemyCount={enemyCount}";
         if (!string.IsNullOrWhiteSpace(enemyId)) url += $"&enemyId={Uri.EscapeDataString(enemyId)}";
         if (seed.HasValue) url += $"&seed={seed.Value}";
@@ -70,13 +103,20 @@ public class ApiClient
 
     // 新：支持 dropMode
     public Task<StepStatusResponse?> GetStepBattleStatusAsync(Guid battleId, string dropMode = "expected", CancellationToken ct = default)
-        => _http.GetFromJsonAsync<StepStatusResponse>($"/api/battles/step/{battleId}/status?dropMode={Uri.EscapeDataString(dropMode)}", ct);
+    {
+        SetAuthHeader();
+        return _http.GetFromJsonAsync<StepStatusResponse>($"/api/battles/step/{battleId}/status?dropMode={Uri.EscapeDataString(dropMode)}", ct);
+    }
 
     public async Task<List<StepBattleSegmentDto>> GetStepBattleSegmentsAsync(Guid battleId, int since = 0, CancellationToken ct = default)
-        => (await _http.GetFromJsonAsync<List<StepBattleSegmentDto>>($"/api/battles/step/{battleId}/segments?since={since}", ct)) ?? new();
+    {
+        SetAuthHeader();
+        return (await _http.GetFromJsonAsync<List<StepBattleSegmentDto>>($"/api/battles/step/{battleId}/segments?since={since}", ct)) ?? new();
+    }
 
     public async Task<StopStepBattleResponse> StopStepBattleAsync(Guid battleId, CancellationToken ct = default)
     {
+        SetAuthHeader();
         using var content = new StringContent("{}", Encoding.UTF8, "application/json");
         var resp = await _http.PostAsync($"/api/battles/step/{battleId}/stop", content, ct);
         resp.EnsureSuccessStatusCode();
@@ -84,11 +124,15 @@ public class ApiClient
     }
 
     public Task<StepBattleDebugDto?> GetStepBattleDebugAsync(Guid battleId, CancellationToken ct = default)
-        => _http.GetFromJsonAsync<StepBattleDebugDto>($"/api/battles/step/{battleId}/debug", ct);
+    {
+        SetAuthHeader();
+        return _http.GetFromJsonAsync<StepBattleDebugDto>($"/api/battles/step/{battleId}/debug", ct);
+    }
 
     // ===== 回放（基于历史记录） =====
     public async Task<StartStepBattleResponse> StartReplayStepBattleAsync(Guid sourceBattleRecordId, double? seconds = null, int enemyCount = 1, CancellationToken ct = default)
     {
+        SetAuthHeader();
         var url = $"/api/battles/replay/{sourceBattleRecordId}/start?enemyCount={enemyCount}";
         if (seconds.HasValue) url += $"&seconds={seconds.Value}";
         using var content = new StringContent("{}", Encoding.UTF8, "application/json");
@@ -98,18 +142,20 @@ public class ApiClient
     }
 
     // ===== 批量模拟 =====
-    public Task<SimulateResponse?> SimulateAsync(SimulateRequest req, CancellationToken ct = default)
-        => _http.PostAsJsonAsync("/api/simulation", req, ct)
-                .ContinueWith(async t =>
-                {
-                    var resp = await t;
-                    resp.EnsureSuccessStatusCode();
-                    return await resp.Content.ReadFromJsonAsync<SimulateResponse>(cancellationToken: ct);
-                }).Unwrap();
+    public async Task<SimulateResponse?> SimulateAsync(SimulateRequest req, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        var resp = await _http.PostAsJsonAsync("/api/simulation", req, ct);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<SimulateResponse>(cancellationToken: ct);
+    }
 
     // ===== 背包 =====
     public Task<InventoryResponse?> GetInventoryAsync(Guid characterId, CancellationToken ct = default)
-        => _http.GetFromJsonAsync<InventoryResponse>($"/api/inventory/{characterId}", ct);
+    {
+        SetAuthHeader();
+        return _http.GetFromJsonAsync<InventoryResponse>($"/api/inventory/{characterId}", ct);
+    }
 
     // ===== 活动计划 =====
     public async Task<ActivityPlanDto> CreateCombatPlanAsync(
@@ -123,6 +169,7 @@ public class ApiClient
         ulong? seed = null,
         CancellationToken ct = default)
     {
+        SetAuthHeader();
         var url = $"/api/activity-plans/combat?characterId={characterId}&slotIndex={slotIndex}&limitType={Uri.EscapeDataString(limitType)}&enemyCount={enemyCount}";
         if (limitValue.HasValue) url += $"&limitValue={limitValue.Value}";
         if (!string.IsNullOrWhiteSpace(enemyId)) url += $"&enemyId={Uri.EscapeDataString(enemyId)}";
@@ -146,6 +193,7 @@ public class ApiClient
         ulong? seed = null,
         CancellationToken ct = default)
     {
+        SetAuthHeader();
         var url = $"/api/activity-plans/dungeon?characterId={characterId}&slotIndex={slotIndex}&limitType={Uri.EscapeDataString(limitType)}&dungeonId={Uri.EscapeDataString(dungeonId)}&loop={loop}";
         if (limitValue.HasValue) url += $"&limitValue={limitValue.Value}";
         if (waveDelay.HasValue) url += $"&waveDelay={waveDelay.Value}";
@@ -158,13 +206,20 @@ public class ApiClient
     }
 
     public async Task<List<ActivityPlanDto>> GetCharacterPlansAsync(Guid characterId, CancellationToken ct = default)
-        => (await _http.GetFromJsonAsync<List<ActivityPlanDto>>($"/api/activity-plans/character/{characterId}", ct)) ?? new();
+    {
+        SetAuthHeader();
+        return (await _http.GetFromJsonAsync<List<ActivityPlanDto>>($"/api/activity-plans/character/{characterId}", ct)) ?? new();
+    }
 
     public async Task<ActivityPlanDto?> GetPlanAsync(Guid planId, CancellationToken ct = default)
-        => await _http.GetFromJsonAsync<ActivityPlanDto>($"/api/activity-plans/{planId}", ct);
+    {
+        SetAuthHeader();
+        return await _http.GetFromJsonAsync<ActivityPlanDto>($"/api/activity-plans/{planId}", ct);
+    }
 
     public async Task<StartPlanResponse> StartPlanAsync(Guid planId, CancellationToken ct = default)
     {
+        SetAuthHeader();
         using var content = new StringContent("{}", Encoding.UTF8, "application/json");
         var resp = await _http.PostAsync($"/api/activity-plans/{planId}/start", content, ct);
         resp.EnsureSuccessStatusCode();
@@ -173,6 +228,7 @@ public class ApiClient
 
     public async Task<bool> StopPlanAsync(Guid planId, CancellationToken ct = default)
     {
+        SetAuthHeader();
         using var content = new StringContent("{}", Encoding.UTF8, "application/json");
         var resp = await _http.PostAsync($"/api/activity-plans/{planId}/stop", content, ct);
         return resp.IsSuccessStatusCode;
@@ -180,6 +236,7 @@ public class ApiClient
 
     public async Task<bool> CancelPlanAsync(Guid planId, CancellationToken ct = default)
     {
+        SetAuthHeader();
         using var content = new StringContent("{}", Encoding.UTF8, "application/json");
         var resp = await _http.PostAsync($"/api/activity-plans/{planId}/cancel", content, ct);
         return resp.IsSuccessStatusCode;
@@ -187,6 +244,7 @@ public class ApiClient
 
     public async Task<bool> DeletePlanAsync(Guid planId, CancellationToken ct = default)
     {
+        SetAuthHeader();
         var resp = await _http.DeleteAsync($"/api/activity-plans/{planId}", ct);
         return resp.IsSuccessStatusCode;
     }
