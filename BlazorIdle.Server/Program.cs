@@ -15,7 +15,33 @@ builder.Services.AddControllers();
 
 // 2. OpenAPI / Swagger
 builder.Services.AddEndpointsApiExplorer(); // Ϊ��С API / Controller ��������
-builder.Services.AddSwaggerGen();           // ���� swagger.json + UI�������ڵ����ã�
+builder.Services.AddSwaggerGen(options =>   // ���� swagger.json + UI�������ڵ����ã�
+{
+    // ����JWT��֤��֧��
+    options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the Bearer scheme. Example: \"Bearer {token}\"",
+        Name = "Authorization",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+
+    options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
 
 // 3. JWT Authentication
 var jwtSecretKey = builder.Configuration["Jwt:SecretKey"]!;
