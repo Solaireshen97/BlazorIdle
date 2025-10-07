@@ -1160,6 +1160,13 @@
                 try
                 {
                     currentPlanBattle = await Api.GetStepBattleStatusAsync(battleId, "sampled", _planPollCts.Token);
+                    
+                    // 同时刷新计划列表以获取最新的ExecutedSeconds
+                    if (lastCreated is not null)
+                    {
+                        characterPlans = await Api.GetCharacterPlansAsync(lastCreated.Id);
+                    }
+                    
                     await InvokeAsync(StateHasChanged);
                 }
                 catch (Exception) { }

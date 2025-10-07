@@ -67,4 +67,9 @@ public class ActivityPlanRepository : IActivityPlanRepository
             .OrderBy(p => p.SlotIndex)
             .ThenBy(p => p.CreatedAt)
             .FirstOrDefaultAsync(ct);
+
+    public async Task<List<ActivityPlan>> GetAllRunningPlansAsync(CancellationToken ct = default) =>
+        await _db.ActivityPlans
+            .Where(p => p.State == ActivityState.Running)
+            .ToListAsync(ct);
 }
