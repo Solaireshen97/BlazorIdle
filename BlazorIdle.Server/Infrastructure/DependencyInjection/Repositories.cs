@@ -27,6 +27,10 @@ public static class RepositoryRegistration
         //   * 封装获取角色（Character）的数据访问。保持上层不用直接依赖 DbContext。
         services.AddScoped<ICharacterRepository, CharacterRepository>();
 
+        // IActivityPlanRepository -> ActivityPlanRepository:
+        //   * 封装活动计划（ActivityPlan）的持久化与读取。
+        services.AddScoped<IActivityPlanRepository, ActivityPlanRepository>();
+
         return services;
     }
 }

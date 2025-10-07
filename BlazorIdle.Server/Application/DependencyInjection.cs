@@ -1,4 +1,5 @@
 ﻿using BlazorIdle.Server.Application.Abstractions;
+using BlazorIdle.Server.Application.Activities;
 using BlazorIdle.Server.Application.Battles;
 using BlazorIdle.Server.Application.Economy;
 using Microsoft.Extensions.DependencyInjection;
@@ -41,6 +42,11 @@ public static class ApplicationDI
         //  - 负责奖励发放，带幂等性检查
         //  - 使用 Scoped：与请求生命周期绑定
         services.AddScoped<IRewardGrantService, RewardGrantService>();
+
+        // ActivityPlanService:
+        //  - 活动计划服务，管理活动计划的生命周期
+        //  - 使用 Scoped：与请求生命周期绑定
+        services.AddScoped<ActivityPlanService>();
 
         return services;
     }
