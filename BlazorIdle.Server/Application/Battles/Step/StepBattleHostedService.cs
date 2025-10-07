@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using BlazorIdle.Server.Application.Activities;
 
 namespace BlazorIdle.Server.Application.Battles.Step;
 
@@ -15,10 +17,17 @@ public sealed class StepBattleHostedService : BackgroundService
     // 每保存一次快照的最短“模拟时间间隔”
     private const double SnapshotIntervalSimSeconds = 2.0;
 
-    public StepBattleHostedService(StepBattleCoordinator coordinator, StepBattleSnapshotService snapshot, ILogger<StepBattleHostedService> logger)
+    private readonly IServiceScopeFactory _scopeFactory;
+
+    public StepBattleHostedService(
+        StepBattleCoordinator coordinator, 
+        StepBattleSnapshotService snapshot, 
+        IServiceScopeFactory scopeFactory,
+        ILogger<StepBattleHostedService> logger)
     {
         _coordinator = coordinator;
         _snapshot = snapshot;
+        _scopeFactory = scopeFactory;
         _logger = logger;
     }
 
@@ -36,6 +45,7 @@ public sealed class StepBattleHostedService : BackgroundService
 
         _logger.LogInformation("StepBattleHostedService started.");
         var lastSnapAt = DateTime.UtcNow;
+        var lastPlanCheckAt = DateTime.UtcNow;
 
         try
         {
@@ -68,6 +78,13 @@ public sealed class StepBattleHostedService : BackgroundService
                     }
                 }
 
+                // 定期检查活动计划进度并自动停止达到限制的计划
+                if ((DateTime.UtcNow - lastPlanCheckAt).TotalMilliseconds >= 1000)
+                {
+                    lastPlanCheckAt = DateTime.UtcNow;
+                    await CheckAndUpdateActivityPlansAsync(stoppingToken);
+                }
+
                 // 回收
                 _coordinator.PruneCompleted(TimeSpan.FromMinutes(5));
                 await Task.Delay(50, stoppingToken);
@@ -81,6 +98,47 @@ public sealed class StepBattleHostedService : BackgroundService
         _logger.LogInformation("StepBattleHostedService stopped.");
     }
 
+
+    /// <summary>
+    /// 检查所有运行中的活动计划，更新进度并自动停止达到限制的计划
+    /// </summary>
+    private async Task CheckAndUpdateActivityPlansAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var activityPlanService = scope.ServiceProvider.GetService<ActivityPlanService>();
+            if (activityPlanService == null)
+                return;
+
+            var planRepo = scope.ServiceProvider.GetService<BlazorIdle.Server.Application.Abstractions.IActivityPlanRepository>();
+            if (planRepo == null)
+                return;
+
+            // 获取所有运行中的计划
+            var runningPlans = await planRepo.GetAllRunningPlansAsync(ct);
+            
+            foreach (var plan in runningPlans)
+            {
+                if (ct.IsCancellationRequested)
+                    break;
+
+                try
+                {
+                    // 更新计划进度（会自动检查限制并停止）
+                    await activityPlanService.UpdatePlanProgressAsync(plan.Id, ct);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Failed to update plan progress for {PlanId}", plan.Id);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "CheckAndUpdateActivityPlansAsync failed");
+        }
+    }
     // 本地节流器：记录最近一次保存时的“模拟时间”
     private static class SnapshotThrottler
     {
