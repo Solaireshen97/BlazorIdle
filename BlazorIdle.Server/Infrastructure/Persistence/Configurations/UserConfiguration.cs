@@ -31,6 +31,11 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.HasIndex(u => u.Email)
             .IsUnique();
         
+        // 密码哈希：必填，最大长度 256（BCrypt 哈希通常为 60 字符，预留空间）
+        builder.Property(u => u.PasswordHash)
+            .IsRequired()
+            .HasMaxLength(256);
+        
         // 时间戳字段
         builder.Property(u => u.CreatedAt)
             .IsRequired();
