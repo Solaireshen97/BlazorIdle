@@ -1,8 +1,10 @@
 ﻿using BlazorIdle.Server.Application.Abstractions;
+using BlazorIdle.Server.Domain.Activities;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Enemies;
 using BlazorIdle.Server.Domain.Combat.Rng;
 using BlazorIdle.Server.Domain.Economy;
+using BlazorIdle.Server.Infrastructure.Persistence;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -29,15 +31,164 @@ public sealed class OfflineSettleResult
     public Dictionary<string, int> LootSampled { get; init; } = new();
 }
 
+/// <summary>
+/// 离线检查结果
+/// </summary>
+public sealed class OfflineCheckResult
+{
+    public bool HasOfflineTime { get; init; }
+    public double OfflineSeconds { get; init; }
+    public bool HasRunningPlan { get; init; }
+    public OfflineFastForwardResult? Settlement { get; init; }
+    public bool PlanCompleted { get; init; }
+    public bool NextPlanStarted { get; init; }
+    public Guid? NextPlanId { get; init; }
+}
+
 public sealed class OfflineSettlementService
 {
     private readonly ICharacterRepository _characters;
+    private readonly IActivityPlanRepository _plans;
     private readonly BattleSimulator _simulator;
+    private readonly OfflineFastForwardEngine _engine;
+    private readonly GameDbContext _db;
 
-    public OfflineSettlementService(ICharacterRepository characters, BattleSimulator simulator)
+    public OfflineSettlementService(
+        ICharacterRepository characters, 
+        IActivityPlanRepository plans,
+        BattleSimulator simulator,
+        OfflineFastForwardEngine engine,
+        GameDbContext db)
     {
         _characters = characters;
+        _plans = plans;
         _simulator = simulator;
+        _engine = engine;
+        _db = db;
+    }
+
+    /// <summary>
+    /// 检查并结算离线收益（用户登录时自动调用）
+    /// </summary>
+    public async Task<OfflineCheckResult> CheckAndSettleAsync(
+        Guid characterId,
+        double maxOfflineSeconds = 43200, // 12小时上限
+        CancellationToken ct = default)
+    {
+        // 1. 获取角色
+        var character = await _characters.GetAsync(characterId, ct);
+        if (character is null)
+            throw new InvalidOperationException("Character not found");
+
+        // 2. 计算离线时长
+        if (character.LastSeenAtUtc is null)
+        {
+            // 首次登录，设置LastSeenAtUtc并返回
+            character.LastSeenAtUtc = DateTime.UtcNow;
+            await _db.SaveChangesAsync(ct);
+            
+            return new OfflineCheckResult
+            {
+                HasOfflineTime = false,
+                OfflineSeconds = 0,
+                HasRunningPlan = false
+            };
+        }
+
+        var offlineSeconds = (DateTime.UtcNow - character.LastSeenAtUtc.Value).TotalSeconds;
+        
+        // 3. 如果离线时长 <= 0，无离线
+        if (offlineSeconds <= 0)
+        {
+            return new OfflineCheckResult
+            {
+                HasOfflineTime = false,
+                OfflineSeconds = 0,
+                HasRunningPlan = false
+            };
+        }
+
+        // 4. 查找离线时正在运行的计划
+        var runningPlan = await _plans.GetRunningPlanAsync(characterId, ct);
+        
+        // 5. 如果没有运行计划，直接返回
+        if (runningPlan is null)
+        {
+            // 更新LastSeenAtUtc
+            character.LastSeenAtUtc = DateTime.UtcNow;
+            await _db.SaveChangesAsync(ct);
+            
+            return new OfflineCheckResult
+            {
+                HasOfflineTime = true,
+                OfflineSeconds = offlineSeconds,
+                HasRunningPlan = false
+            };
+        }
+
+        // 6. 使用OfflineFastForwardEngine进行快进
+        var result = _engine.FastForward(
+            character, 
+            runningPlan, 
+            offlineSeconds, 
+            maxOfflineSeconds
+        );
+
+        // 7. 更新计划状态到数据库
+        await _plans.UpdateAsync(runningPlan, ct);
+
+        // 8. 如果计划完成，尝试启动下一个Pending计划
+        ActivityPlan? nextPlan = null;
+        if (result.PlanCompleted)
+        {
+            nextPlan = await _plans.GetNextPendingPlanAsync(characterId, ct);
+            
+            // 注意：这里不直接启动下一个计划，因为需要ActivityPlanService
+            // 实际启动需要在Controller或更高层完成
+            // 这里只返回下一个计划的ID供调用者处理
+        }
+
+        // 9. 更新LastSeenAtUtc
+        character.LastSeenAtUtc = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+
+        // 10. 返回结算结果
+        return new OfflineCheckResult
+        {
+            HasOfflineTime = true,
+            OfflineSeconds = offlineSeconds,
+            HasRunningPlan = true,
+            Settlement = result,
+            PlanCompleted = result.PlanCompleted,
+            NextPlanStarted = false, // 实际启动需要在外部完成
+            NextPlanId = nextPlan?.Id
+        };
+    }
+
+    /// <summary>
+    /// 应用离线结算，实际发放收益
+    /// </summary>
+    public async Task ApplySettlementAsync(
+        Guid characterId,
+        OfflineFastForwardResult settlement,
+        CancellationToken ct = default)
+    {
+        var character = await _characters.GetAsync(characterId, ct);
+        if (character is null)
+            throw new InvalidOperationException("Character not found");
+
+        // 更新角色金币和经验
+        character.Gold += settlement.Gold;
+        character.Experience += settlement.Exp;
+
+        // TODO: 发放物品到背包（如果实现了背包系统）
+        // if (settlement.LootSampled.Count > 0)
+        // {
+        //     await _inventory.AddItemsAsync(characterId, settlement.LootSampled, ct);
+        // }
+
+        // 保存角色数据
+        await _db.SaveChangesAsync(ct);
     }
 
     // 新增 dropMode: "expected" | "sampled"

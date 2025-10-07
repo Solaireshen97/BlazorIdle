@@ -48,6 +48,16 @@ public static class ApplicationDI
         //  - 使用 Scoped：与请求生命周期绑定
         services.AddScoped<ActivityPlanService>();
 
+        // OfflineFastForwardEngine:
+        //  - 离线战斗快进引擎，依赖BattleSimulator
+        //  - 使用 Scoped：与请求生命周期绑定
+        services.AddScoped<Battles.Offline.OfflineFastForwardEngine>();
+
+        // OfflineSettlementService:
+        //  - 离线结算服务，管理离线收益计算和发放
+        //  - 使用 Scoped：与请求生命周期绑定
+        services.AddScoped<Battles.Offline.OfflineSettlementService>();
+
         return services;
     }
 }
