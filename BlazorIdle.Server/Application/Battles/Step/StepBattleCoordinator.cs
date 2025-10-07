@@ -35,9 +35,11 @@ public sealed class StepBattleCoordinator
     }
 
     // 新增覆盖：continuousRespawnDelaySeconds / dungeonWaveDelaySeconds / dungeonRunDelaySeconds
+    // battleState: 用于恢复离线/在线切换时的战斗状态
     public Guid Start(Guid characterId, Profession profession, CharacterStats stats, double seconds, ulong seed, string? enemyId, int enemyCount,
         StepBattleMode mode = StepBattleMode.Duration, string? dungeonId = null,
-        double? continuousRespawnDelaySeconds = null, double? dungeonWaveDelaySeconds = null, double? dungeonRunDelaySeconds = null)
+        double? continuousRespawnDelaySeconds = null, double? dungeonWaveDelaySeconds = null, double? dungeonRunDelaySeconds = null,
+        Offline.BattleState? battleState = null)
     {
         var eid = EnemyRegistry.Resolve(enemyId).Id;
         var enemy = EnemyRegistry.Resolve(eid);
@@ -58,6 +60,12 @@ public sealed class StepBattleCoordinator
             dungeonWaveDelaySeconds: dungeonWaveDelaySeconds,
             dungeonRunDelaySeconds: dungeonRunDelaySeconds
         );
+
+        // 恢复战斗状态（如果有）
+        if (battleState != null)
+        {
+            rb.Engine.RestoreBattleState(battleState);
+        }
 
         if (!_running.TryAdd(id, rb))
             throw new InvalidOperationException("Failed to register running battle.");
