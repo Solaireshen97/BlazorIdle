@@ -47,6 +47,9 @@ public class ActivityPlan
     /// <summary>已执行时长（秒）</summary>
     public double ExecutedSeconds { get; set; }
 
+    /// <summary>战斗状态快照（JSON格式，用于离线/在线无缝切换）</summary>
+    public string? BattleStateJson { get; set; }
+
     /// <summary>
     /// 检查计划是否已完成（基于限制条件）
     /// </summary>

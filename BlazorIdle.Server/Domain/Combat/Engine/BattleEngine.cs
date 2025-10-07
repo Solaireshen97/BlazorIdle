@@ -460,4 +460,88 @@ public sealed class BattleEngine
             // 如需：Special 轨道也可在未来开放急速影响
         }
     }
+
+    /// <summary>
+    /// 捕获当前战斗状态（用于离线/在线无缝切换）
+    /// </summary>
+    public Application.Battles.Offline.BattleState CaptureBattleState()
+    {
+        var enemies = new List<Application.Battles.Offline.EnemyHealthState>();
+        
+        if (Context.EncounterGroup != null)
+        {
+            foreach (var enc in Context.EncounterGroup.All)
+            {
+                enemies.Add(new Application.Battles.Offline.EnemyHealthState
+                {
+                    EnemyId = enc.Enemy.Id,
+                    CurrentHp = enc.CurrentHp,
+                    MaxHp = enc.Enemy.MaxHp,
+                    IsDead = enc.IsDead,
+                    KillTime = enc.KillTime,
+                    Overkill = enc.Overkill
+                });
+            }
+        }
+        else if (Context.Encounter != null)
+        {
+            enemies.Add(new Application.Battles.Offline.EnemyHealthState
+            {
+                EnemyId = Context.Encounter.Enemy.Id,
+                CurrentHp = Context.Encounter.CurrentHp,
+                MaxHp = Context.Encounter.Enemy.MaxHp,
+                IsDead = Context.Encounter.IsDead,
+                KillTime = Context.Encounter.KillTime,
+                Overkill = Context.Encounter.Overkill
+            });
+        }
+
+        return new Application.Battles.Offline.BattleState
+        {
+            Enemies = enemies,
+            WaveIndex = WaveIndex,
+            RunCount = RunCount,
+            SnapshotAtSeconds = Clock.CurrentTime
+        };
+    }
+
+    /// <summary>
+    /// 从战斗状态恢复（在创建后立即调用，用于继承离线/在线的进度）
+    /// </summary>
+    public void RestoreBattleState(Application.Battles.Offline.BattleState? state)
+    {
+        if (state == null || state.Enemies.Count == 0)
+            return;
+
+        // 恢复敌人血量
+        if (Context.EncounterGroup != null)
+        {
+            var encounters = Context.EncounterGroup.All;
+            for (int i = 0; i < Math.Min(encounters.Count, state.Enemies.Count); i++)
+            {
+                var enc = encounters[i];
+                var healthState = state.Enemies[i];
+                
+                // 使用反射或直接访问设置当前血量
+                // 由于 Encounter.CurrentHp 是私有 setter，我们需要通过 ApplyDamage 来调整
+                var hpDiff = enc.CurrentHp - healthState.CurrentHp;
+                if (hpDiff > 0 && !healthState.IsDead)
+                {
+                    enc.ApplyDamage(hpDiff, healthState.KillTime ?? Clock.CurrentTime);
+                }
+            }
+        }
+        else if (Context.Encounter != null && state.Enemies.Count > 0)
+        {
+            var healthState = state.Enemies[0];
+            var hpDiff = Context.Encounter.CurrentHp - healthState.CurrentHp;
+            if (hpDiff > 0 && !healthState.IsDead)
+            {
+                Context.Encounter.ApplyDamage(hpDiff, healthState.KillTime ?? Clock.CurrentTime);
+            }
+        }
+
+        // Note: WaveIndex and RunCount are managed by the provider, 
+        // so we don't restore them here to avoid breaking the provider's state machine
+    }
 }

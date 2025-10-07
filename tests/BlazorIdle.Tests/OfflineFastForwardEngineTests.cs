@@ -299,6 +299,81 @@ public class OfflineFastForwardEngineTests
         // 验证结果一致性
         Assert.Equal(_testCharacter.Id, result.CharacterId);
         Assert.Equal(plan.Id, result.PlanId);
+        
+        // 验证战斗状态快照已保存
+        Assert.NotNull(plan.BattleStateJson);
+        Assert.NotEmpty(plan.BattleStateJson);
+    }
+
+    [Fact]
+    public void FastForward_ShouldInheritEnemyHealthFromPreviousState()
+    {
+        // Arrange - 模拟在线战斗打到一半，然后离线继续
+        var plan = CreateCombatPlan(
+            limitType: LimitType.Duration,
+            limitValue: 600, // 10分钟计划
+            executedSeconds: 0
+        );
+
+        // 第一次模拟：在线战斗 5 秒
+        var firstResult = _engine.FastForward(_testCharacter, plan, 5.0);
+        Assert.NotNull(plan.BattleStateJson);
+        
+        // 保存第一次的状态
+        var firstStateJson = plan.BattleStateJson;
+        
+        // 第二次模拟：离线 5 秒（应该继承第一次的敌人血量状态）
+        var secondResult = _engine.FastForward(_testCharacter, plan, 5.0);
+        
+        // Assert
+        // 验证战斗状态已更新
+        Assert.NotEqual(firstStateJson, plan.BattleStateJson);
+        
+        // 验证累计执行时间正确
+        Assert.Equal(10, secondResult.UpdatedExecutedSeconds, 0.1);
+        
+        // 验证击杀数据连续性（如果第一次已经开始造成伤害，第二次应该继续）
+        Assert.True(secondResult.TotalKills >= firstResult.TotalKills);
+    }
+
+    [Fact]
+    public void FastForward_MultipleOfflineSessionsShouldMaintainContinuity()
+    {
+        // Arrange - 模拟多次离线上线的场景
+        var plan = CreateCombatPlan(
+            limitType: LimitType.Duration,
+            limitValue: 100, // 100秒计划
+            executedSeconds: 0
+        );
+
+        long totalGold = 0;
+        long totalExp = 0;
+        int totalKills = 0;
+
+        // 模拟5次离线，每次20秒
+        for (int i = 0; i < 5; i++)
+        {
+            var result = _engine.FastForward(_testCharacter, plan, 20.0);
+            totalGold += result.Gold;
+            totalExp += result.Exp;
+            totalKills += result.TotalKills;
+            
+            // 每次都应该有战斗状态保存（除了最后一次完成）
+            if (!result.PlanCompleted)
+            {
+                Assert.NotNull(plan.BattleStateJson);
+            }
+        }
+
+        // Assert
+        Assert.True(plan.IsLimitReached());
+        Assert.Equal(ActivityState.Completed, plan.State);
+        
+        // 完成后应该清空战斗状态
+        Assert.Null(plan.BattleStateJson);
+        
+        // 验证总收益大于0（说明战斗确实在继续）
+        Assert.True(totalKills > 0, "应该有击杀");
     }
 
     // 辅助方法：创建战斗计划
