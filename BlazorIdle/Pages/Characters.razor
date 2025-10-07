@@ -137,11 +137,184 @@
     </div>
 }
 
-<!-- 4) 异步 Step 战斗（含运行态调试） -->
+<!-- 4) 活动计划管理 -->
 @if (lastCreated is not null)
 {
     <div class="panel" style="margin-top: 18px;">
-        <h4>4. 异步 Step 战斗（调试）</h4>
+        <h4>4. 活动计划管理</h4>
+
+        <div class="row" style="gap:12px; align-items:end; margin-bottom: 12px;">
+            <div>
+                <label>活动类型</label>
+                <select class="form-control" style="width:160px" @bind="planActivityType">
+                    <option value="combat">战斗 (Combat)</option>
+                    <option value="dungeon">地下城 (Dungeon)</option>
+                </select>
+            </div>
+            <div>
+                <label>限制类型</label>
+                <select class="form-control" style="width:160px" @bind="planLimitType">
+                    <option value="duration">时长限制</option>
+                    <option value="infinite">无限制</option>
+                </select>
+            </div>
+            <div>
+                <label>时长(秒)</label>
+                <input type="number" min="1" step="1" class="form-control" style="width:120px" @bind="planLimitValue" disabled="@(planLimitType != "duration")" />
+            </div>
+            <div>
+                <label>槽位</label>
+                <input type="number" min="0" max="4" step="1" class="form-control" style="width:80px" @bind="planSlotIndex" />
+            </div>
+
+            @if (planActivityType == "combat")
+            {
+                <div>
+                    <label>敌人</label>
+                    <select class="form-control" style="width:240px" @bind="selectedEnemyId">
+                        @if (enemies?.Count > 0)
+                        {
+                            @foreach (var e in enemies)
+                            {
+                                <option value="@e.Id">@e.Name (@e.Id)</option>
+                            }
+                        }
+                        else
+                        {
+                            <option value="dummy">Training Dummy (dummy)</option>
+                            <option value="tank">Armored Golem (tank)</option>
+                            <option value="magebane">Magebane Warden (magebane)</option>
+                            <option value="paper">Paper Slime (paper)</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label>敌人数</label>
+                    <input type="number" min="1" step="1" class="form-control" style="width:100px" @bind="planEnemyCount" />
+                </div>
+            }
+            else
+            {
+                <div>
+                    <label>地下城ID</label>
+                    <input class="form-control" style="width:200px" @bind="planDungeonId" placeholder="intro_cave" />
+                </div>
+                <div class="form-check" style="display:flex;align-items:center;gap:6px; margin-top: 20px;">
+                    <input class="form-check-input" type="checkbox" id="chkDungeonLoop" @bind="planDungeonLoop" />
+                    <label class="form-check-label" for="chkDungeonLoop">循环模式</label>
+                </div>
+            }
+
+            <div>
+                <label>Seed(可选)</label>
+                <input class="form-control" style="width:160px" @bind="planSeedInput" />
+            </div>
+            <div style="display:flex;gap:8px;">
+                <button class="btn btn-primary" @onclick="CreateActivityPlanAsync" disabled="@isBusy">创建计划</button>
+                <button class="btn btn-outline-secondary" @onclick="RefreshPlansAsync" disabled="@isBusy">刷新列表</button>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(planError))
+        {
+            <div class="alert alert-danger">@planError</div>
+        }
+
+        @if (characterPlans?.Count > 0)
+        {
+            <div class="card" style="padding: 12px;">
+                <h5>活动计划列表 (@characterPlans.Count)</h5>
+                <table class="table table-sm table-striped">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>类型</th>
+                            <th>状态</th>
+                            <th>槽位</th>
+                            <th>限制</th>
+                            <th>执行时长</th>
+                            <th>BattleId</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var plan in characterPlans.OrderBy(p => p.SlotIndex).ThenBy(p => p.CreatedAt))
+                        {
+                            var typeName = plan.Type == 1 ? "战斗" : plan.Type == 2 ? "地下城" : "未知";
+                            var stateName = plan.State == 0 ? "待执行" : plan.State == 1 ? "执行中" : plan.State == 2 ? "已完成" : "已取消";
+                            var stateClass = plan.State == 0 ? "text-warning" : plan.State == 1 ? "text-success" : plan.State == 2 ? "text-secondary" : "text-muted";
+                            var limitText = plan.LimitType == 2 ? "无限制" : $"{plan.LimitValue:F0}秒";
+                            <tr>
+                                <td><small>@plan.Id.ToString().Substring(0, 8)...</small></td>
+                                <td>@typeName</td>
+                                <td class="@stateClass"><b>@stateName</b></td>
+                                <td>@plan.SlotIndex</td>
+                                <td>@limitText</td>
+                                <td>@plan.ExecutedSeconds.ToString("F0")秒</td>
+                                <td>
+                                    @if (plan.BattleId.HasValue)
+                                    {
+                                        <small>@plan.BattleId.Value.ToString().Substring(0, 8)...</small>
+                                    }
+                                    else
+                                    {
+                                        <span>-</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (plan.State == 1) // Running
+                                    {
+                                        <button class="btn btn-sm btn-warning" @onclick="() => StopPlanAsync(plan.Id)" disabled="@isBusy">停止</button>
+                                        @if (plan.BattleId.HasValue)
+                                        {
+                                            <button class="btn btn-sm btn-info" @onclick="() => ViewPlanBattleAsync(plan.BattleId.Value)" disabled="@isBusy">查看战斗</button>
+                                        }
+                                    }
+                                    else if (plan.State == 0) // Pending
+                                    {
+                                        <button class="btn btn-sm btn-danger" @onclick="() => CancelPlanAsync(plan.Id)" disabled="@isBusy">取消</button>
+                                    }
+                                    else if (plan.State == 2 || plan.State == 3) // Completed or Cancelled
+                                    {
+                                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => DeletePlanAsync(plan.Id)" disabled="@isBusy">删除</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else if (characterPlans is not null)
+        {
+            <div class="alert alert-info">该角色暂无活动计划</div>
+        }
+
+        @if (currentPlanBattle is not null)
+        {
+            <div class="card" style="padding: 12px; margin-top: 12px;">
+                <h5>当前计划战斗状态</h5>
+                <div class="row">
+                    <div class="col-md-3"><b>BattleId:</b> @currentPlanBattle.Id</div>
+                    <div class="col-md-3"><b>SimSec:</b> @currentPlanBattle.SimulatedSeconds.ToString("0.00")</div>
+                    <div class="col-md-2"><b>DPS:</b> @currentPlanBattle.Dps.ToString("0.00")</div>
+                    <div class="col-md-2"><b>Segments:</b> @currentPlanBattle.SegmentCount</div>
+                    <div class="col-md-2"><b>Completed:</b> @(currentPlanBattle.Completed ? "Yes" : "No")</div>
+                </div>
+                <div class="row" style="margin-top:6px">
+                    <div class="col-md-4"><b>Mode:</b> @(currentPlanBattle.Mode ?? "duration")</div>
+                    <div class="col-md-4"><b>Gold:</b> @currentPlanBattle.Gold, <b>Exp:</b> @currentPlanBattle.Exp</div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<!-- 5) 异步 Step 战斗（调试 - 保留原功能） -->
+@if (lastCreated is not null)
+{
+    <div class="panel" style="margin-top: 18px;">
+        <h4>5. 异步 Step 战斗（调试）</h4>
 
         <div class="row" style="gap:12px; align-items:end;">
             <div>
@@ -426,7 +599,7 @@
 @if (lastCreated is not null)
 {
     <div class="panel" style="margin-top: 18px;">
-        <h4>5. 批量模拟器</h4>
+        <h4>6. 批量模拟器</h4>
 
         <div class="row" style="gap:12px; align-items:end;">
             <div>
@@ -535,7 +708,13 @@
 
     async Task CreateCharacter()
     {
-        try { isBusy = true; lastCreated = await Api.CreateCharacterAsync(newName, selectedProfession); ResetBattleState(); }
+        try 
+        { 
+            isBusy = true; 
+            lastCreated = await Api.CreateCharacterAsync(newName, selectedProfession); 
+            ResetBattleState();
+            await RefreshPlansAsync();  // 加载角色的活动计划
+        }
         finally { isBusy = false; }
     }
 
@@ -776,7 +955,230 @@
 
     async Task OpenSummary(Guid id) { var url = $"/api/battles/{id}/summary"; await JS.InvokeVoidAsync("open", url, "_blank"); }
 
-    public void Dispose() { StopPolling(); StopStepPolling(); StopDebugAutoPolling(); }
+    public void Dispose() { StopPolling(); StopStepPolling(); StopDebugAutoPolling(); StopPlanPolling(); }
+
+    // ====== 活动计划管理 ======
+    string planActivityType = "combat";  // combat | dungeon
+    string planLimitType = "duration";   // duration | infinite
+    double planLimitValue = 300;
+    int planSlotIndex = 0;
+    int planEnemyCount = 1;
+    string planDungeonId = "intro_cave";
+    bool planDungeonLoop = false;
+    string? planSeedInput = null;
+    string? planError = null;
+
+    List<ActivityPlanDto>? characterPlans;
+    StepStatusResponse? currentPlanBattle;
+    CancellationTokenSource? _planPollCts;
+    bool planIsPolling;
+
+    async Task CreateActivityPlanAsync()
+    {
+        planError = null;
+        if (lastCreated is null) { planError = "请先创建角色"; return; }
+
+        try
+        {
+            isBusy = true;
+            ulong? seed = null;
+            if (ulong.TryParse(planSeedInput, out var seedVal)) seed = seedVal;
+
+            ActivityPlanDto plan;
+            if (planActivityType == "combat")
+            {
+                plan = await Api.CreateCombatPlanAsync(
+                    characterId: lastCreated.Id,
+                    slotIndex: planSlotIndex,
+                    limitType: planLimitType,
+                    limitValue: planLimitType == "duration" ? planLimitValue : null,
+                    enemyId: selectedEnemyId,
+                    enemyCount: planEnemyCount,
+                    seed: seed
+                );
+            }
+            else
+            {
+                plan = await Api.CreateDungeonPlanAsync(
+                    characterId: lastCreated.Id,
+                    slotIndex: planSlotIndex,
+                    limitType: planLimitType,
+                    limitValue: planLimitType == "duration" ? planLimitValue : null,
+                    dungeonId: planDungeonId,
+                    loop: planDungeonLoop,
+                    seed: seed
+                );
+            }
+
+            await RefreshPlansAsync();
+
+            // 如果创建的计划自动启动了（State=1），开始轮询战斗状态
+            if (plan.State == 1 && plan.BattleId.HasValue)
+            {
+                _ = StartPlanPollingAsync(plan.BattleId.Value);
+            }
+        }
+        catch (Exception ex)
+        {
+            planError = $"创建计划失败: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    async Task RefreshPlansAsync()
+    {
+        if (lastCreated is null) return;
+        try
+        {
+            characterPlans = await Api.GetCharacterPlansAsync(lastCreated.Id);
+            
+            // 查找正在运行的计划并获取其战斗状态
+            var runningPlan = characterPlans?.FirstOrDefault(p => p.State == 1);
+            if (runningPlan?.BattleId.HasValue == true)
+            {
+                if (!planIsPolling)
+                {
+                    _ = StartPlanPollingAsync(runningPlan.BattleId.Value);
+                }
+            }
+            else
+            {
+                StopPlanPolling();
+                currentPlanBattle = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            planError = $"刷新计划列表失败: {ex.Message}";
+        }
+    }
+
+    async Task StopPlanAsync(Guid planId)
+    {
+        try
+        {
+            isBusy = true;
+            var success = await Api.StopPlanAsync(planId);
+            if (success)
+            {
+                await RefreshPlansAsync();
+            }
+            else
+            {
+                planError = "停止计划失败";
+            }
+        }
+        catch (Exception ex)
+        {
+            planError = $"停止计划异常: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    async Task CancelPlanAsync(Guid planId)
+    {
+        try
+        {
+            isBusy = true;
+            var success = await Api.CancelPlanAsync(planId);
+            if (success)
+            {
+                await RefreshPlansAsync();
+            }
+            else
+            {
+                planError = "取消计划失败";
+            }
+        }
+        catch (Exception ex)
+        {
+            planError = $"取消计划异常: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    async Task DeletePlanAsync(Guid planId)
+    {
+        try
+        {
+            isBusy = true;
+            var success = await Api.DeletePlanAsync(planId);
+            if (success)
+            {
+                await RefreshPlansAsync();
+            }
+            else
+            {
+                planError = "删除计划失败";
+            }
+        }
+        catch (Exception ex)
+        {
+            planError = $"删除计划异常: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    async Task ViewPlanBattleAsync(Guid battleId)
+    {
+        try
+        {
+            currentPlanBattle = await Api.GetStepBattleStatusAsync(battleId, "sampled");
+            if (!planIsPolling)
+            {
+                _ = StartPlanPollingAsync(battleId);
+            }
+        }
+        catch (Exception ex)
+        {
+            planError = $"查看战斗失败: {ex.Message}";
+        }
+    }
+
+    async Task StartPlanPollingAsync(Guid battleId)
+    {
+        _planPollCts?.Cancel();
+        _planPollCts = new CancellationTokenSource();
+        planIsPolling = true;
+
+        try
+        {
+            while (!_planPollCts.IsCancellationRequested)
+            {
+                try
+                {
+                    currentPlanBattle = await Api.GetStepBattleStatusAsync(battleId, "sampled", _planPollCts.Token);
+                    await InvokeAsync(StateHasChanged);
+                }
+                catch (Exception) { }
+
+                await Task.Delay(2000, _planPollCts.Token);
+            }
+        }
+        catch (TaskCanceledException) { }
+        finally
+        {
+            planIsPolling = false;
+        }
+    }
+
+    void StopPlanPolling()
+    {
+        _planPollCts?.Cancel();
+        planIsPolling = false;
+    }
 
     // 批量模拟器
     SimulateMode simMode = SimulateMode.Kills;
