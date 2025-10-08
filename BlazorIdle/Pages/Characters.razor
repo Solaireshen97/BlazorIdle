@@ -881,6 +881,11 @@ else
                 
                 await InvokeAsync(StateHasChanged);
             }
+            else
+            {
+                // 即使没有离线时间，也要刷新计划列表并启动轮询（如果有运行中的计划）
+                await RefreshPlansAsync();
+            }
         }
         catch (Exception ex)
         {
