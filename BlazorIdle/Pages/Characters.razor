@@ -835,9 +835,6 @@ else
 
         try
         {
-            // 更新心跳时间
-            await UpdateHeartbeatIfNeededAsync();
-
             // 检查离线收益
             offlineCheckResult = await Api.CheckOfflineAsync(selectedCharacter.Id);
             
@@ -846,6 +843,9 @@ else
             {
                 await InvokeAsync(StateHasChanged);
             }
+
+            // 更新心跳时间
+            await UpdateHeartbeatIfNeededAsync();
         }
         catch (Exception ex)
         {
