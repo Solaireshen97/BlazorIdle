@@ -168,7 +168,7 @@ public class ActivityPlansController : ControllerBase
     }
 
     /// <summary>
-    /// 启动活动计划
+    /// 启动活动计划（支持启动新计划和恢复暂停的计划）
     /// </summary>
     [HttpPost("{id:guid}/start")]
     public async Task<IActionResult> Start(Guid id, CancellationToken ct)
@@ -182,6 +182,36 @@ public class ActivityPlansController : ControllerBase
         {
             return BadRequest(ex.Message);
         }
+    }
+
+    /// <summary>
+    /// 恢复暂停的活动计划（等同于 start 端点，提供更清晰的语义）
+    /// </summary>
+    [HttpPost("{id:guid}/resume")]
+    public async Task<IActionResult> Resume(Guid id, CancellationToken ct)
+    {
+        try
+        {
+            var battleId = await _service.StartPlanAsync(id, ct);
+            return Ok(new { planId = id, battleId, resumed = true });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// 暂停活动计划（用于手动暂停，离线自动暂停由后台服务处理）
+    /// </summary>
+    [HttpPost("{id:guid}/pause")]
+    public async Task<IActionResult> Pause(Guid id, CancellationToken ct)
+    {
+        var result = await _service.PausePlanAsync(id, ct);
+        if (!result)
+            return NotFound();
+
+        return Ok(new { planId = id, paused = true });
     }
 
     /// <summary>
@@ -220,8 +250,8 @@ public class ActivityPlansController : ControllerBase
         if (plan is null)
             return NotFound();
 
-        if (plan.State == ActivityState.Running)
-            return BadRequest("Cannot delete a running plan. Stop it first.");
+        if (plan.State == ActivityState.Running || plan.State == ActivityState.Paused)
+            return BadRequest("Cannot delete a running or paused plan. Stop it first.");
 
         await _repository.DeleteAsync(id, ct);
         return NoContent();
