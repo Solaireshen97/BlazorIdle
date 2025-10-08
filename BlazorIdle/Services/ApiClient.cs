@@ -286,6 +286,15 @@ public class ApiClient
         return resp.IsSuccessStatusCode;
     }
 
+    public async Task<StartPlanResponse> ResumePlanAsync(Guid planId, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        using var content = new StringContent("{}", Encoding.UTF8, "application/json");
+        var resp = await _http.PostAsync($"/api/activity-plans/{planId}/resume", content, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<StartPlanResponse>(cancellationToken: ct))!;
+    }
+
     // ===== 离线战斗 =====
     /// <summary>
     /// 检查离线收益
