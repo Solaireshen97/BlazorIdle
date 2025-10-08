@@ -60,7 +60,8 @@ public class OfflineFastForwardEngine
         double maxCapSeconds = 43200, // 12小时
         string dropMode = "expected")
     {
-        if (plan.State != ActivityState.Running)
+        // 允许处理 Running 或 Paused 状态的计划
+        if (plan.State != ActivityState.Running && plan.State != ActivityState.Paused)
         {
             throw new InvalidOperationException($"Cannot fast forward plan in state {plan.State}");
         }
