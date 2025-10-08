@@ -131,6 +131,24 @@ public class CharactersController : ControllerBase
         return Ok(new { message = "角色顺序调整成功" });
     }
 
+    /// <summary>
+    /// 更新角色心跳时间，标记角色在线
+    /// POST /api/characters/{id}/heartbeat
+    /// </summary>
+    [HttpPost("{id:guid}/heartbeat")]
+    public async Task<IActionResult> Heartbeat(Guid id)
+    {
+        var character = await _db.Characters.FirstOrDefaultAsync(c => c.Id == id);
+        if (character == null)
+        {
+            return NotFound(new { message = "角色不存在" });
+        }
+
+        character.LastSeenAtUtc = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "心跳更新成功", timestamp = character.LastSeenAtUtc });
+    }
+
     private static (int str, int agi, int intel, int sta) DefaultAttributesFor(Profession p)
         => p switch
         {
