@@ -29,7 +29,10 @@ public interface IActivityPlanRepository
     /// <summary>删除活动计划</summary>
     Task DeleteAsync(Guid id, CancellationToken ct = default);
     
-    /// <summary>获取角色当前正在运行的活动计划</summary>
+    /// <summary>
+    /// 获取角色当前正在运行的活动计划
+    /// 注意：包括活跃计划（有BattleId）和暂停计划（无BattleId但有BattleStateJson）
+    /// </summary>
     Task<ActivityPlan?> GetRunningPlanAsync(Guid characterId, CancellationToken ct = default);
     
     /// <summary>获取角色的下一个待执行任务（按槽位和创建时间排序）</summary>

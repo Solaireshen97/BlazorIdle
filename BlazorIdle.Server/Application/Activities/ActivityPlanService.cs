@@ -104,7 +104,7 @@ public class ActivityPlanService
             return plan.BattleId.Value;
         }
 
-        // 检查是否有其他正在运行的战斗
+        // 检查是否有其他正在运行的战斗（不包括暂停的计划）
         var runningPlan = await _plans.GetRunningPlanAsync(plan.CharacterId, ct);
         if (runningPlan is not null && runningPlan.BattleId.HasValue && runningPlan.Id != plan.Id)
             throw new InvalidOperationException("Another plan is already running");
@@ -218,9 +218,9 @@ public class ActivityPlanService
         if (plan.State != ActivityState.Pending)
             throw new InvalidOperationException($"Cannot start plan in state {plan.State}");
 
-        // 检查是否有其他正在运行的计划
+        // 检查是否有其他正在运行的计划（不包括暂停的计划）
         var runningPlan = await _plans.GetRunningPlanAsync(plan.CharacterId, ct);
-        if (runningPlan is not null)
+        if (runningPlan is not null && runningPlan.BattleId.HasValue)
             throw new InvalidOperationException("Another plan is already running");
 
         // 获取角色数据
