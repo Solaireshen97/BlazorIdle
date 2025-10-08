@@ -285,6 +285,38 @@ public class ApiClient
         var resp = await _http.DeleteAsync($"/api/activity-plans/{planId}", ct);
         return resp.IsSuccessStatusCode;
     }
+
+    // ===== 离线战斗 =====
+    /// <summary>
+    /// 检查离线收益
+    /// </summary>
+    public Task<OfflineCheckResult?> CheckOfflineAsync(Guid characterId, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        return _http.GetFromJsonAsync<OfflineCheckResult>($"/api/offline/check?characterId={characterId}", ct);
+    }
+
+    /// <summary>
+    /// 应用离线结算，实际发放收益
+    /// </summary>
+    public async Task ApplyOfflineSettlementAsync(Guid characterId, OfflineFastForwardResult settlement, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        var request = new ApplyOfflineSettlementRequest(characterId, settlement);
+        var resp = await _http.PostAsJsonAsync("/api/offline/apply", request, ct);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>
+    /// 更新角色心跳时间
+    /// </summary>
+    public async Task UpdateHeartbeatAsync(Guid characterId, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        using var content = new StringContent("{}", Encoding.UTF8, "application/json");
+        var resp = await _http.PostAsync($"/api/characters/{characterId}/heartbeat", content, ct);
+        resp.EnsureSuccessStatusCode();
+    }
 }
 
 // ====== Step DTOs（保留运行中需要的） ======
@@ -402,3 +434,36 @@ public sealed class UserCharacterDto
     public int RosterOrder { get; set; }
     public DateTime CreatedAt { get; set; }
 }
+
+// ===== 离线战斗 DTOs =====
+public sealed class OfflineCheckResult
+{
+    public bool HasOfflineTime { get; set; }
+    public double OfflineSeconds { get; set; }
+    public bool HasRunningPlan { get; set; }
+    public OfflineFastForwardResult? Settlement { get; set; }
+    public bool PlanCompleted { get; set; }
+    public bool NextPlanStarted { get; set; }
+    public Guid? NextPlanId { get; set; }
+}
+
+public sealed class OfflineFastForwardResult
+{
+    public Guid CharacterId { get; set; }
+    public Guid PlanId { get; set; }
+    public double SimulatedSeconds { get; set; }
+    public bool PlanCompleted { get; set; }
+    public long TotalDamage { get; set; }
+    public int TotalKills { get; set; }
+    public long Gold { get; set; }
+    public long Exp { get; set; }
+    public Dictionary<string, double> LootExpected { get; set; } = new();
+    public Dictionary<string, int> LootSampled { get; set; } = new();
+    public double UpdatedExecutedSeconds { get; set; }
+    public string DropMode { get; set; } = "expected";
+}
+
+public record ApplyOfflineSettlementRequest(
+    Guid CharacterId,
+    OfflineFastForwardResult Settlement
+);

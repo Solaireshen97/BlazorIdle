@@ -1,0 +1,320 @@
+@using BlazorIdle.Client.Services
+
+@if (Result?.HasOfflineTime == true && Result.Settlement != null)
+{
+    <div class="offline-dialog-overlay" @onclick="OnOverlayClick">
+        <div class="offline-dialog" @onclick:stopPropagation="true">
+            <div class="offline-dialog-header">
+                <h3>🎉 欢迎回来！</h3>
+            </div>
+            
+            <div class="offline-dialog-body">
+                <div class="offline-time">
+                    <strong>离线时长:</strong> @FormatDuration(Result.OfflineSeconds)
+                </div>
+                
+                @if (Result.Settlement.SimulatedSeconds > 0)
+                {
+                    <div class="offline-info">
+                        <small>战斗模拟时长: @FormatDuration(Result.Settlement.SimulatedSeconds)</small>
+                    </div>
+                }
+
+                <div class="rewards-section">
+                    <h4>离线收益</h4>
+                    <div class="rewards-grid">
+                        <div class="reward-item">
+                            <span class="reward-icon">💰</span>
+                            <span class="reward-label">金币:</span>
+                            <span class="reward-value">+@Result.Settlement.Gold</span>
+                        </div>
+                        <div class="reward-item">
+                            <span class="reward-icon">⭐</span>
+                            <span class="reward-label">经验:</span>
+                            <span class="reward-value">+@Result.Settlement.Exp</span>
+                        </div>
+                        <div class="reward-item">
+                            <span class="reward-icon">⚔️</span>
+                            <span class="reward-label">击杀:</span>
+                            <span class="reward-value">@Result.Settlement.TotalKills</span>
+                        </div>
+                    </div>
+
+                    @if (HasLoot)
+                    {
+                        <div class="loot-section">
+                            <h5>物品掉落</h5>
+                            <ul class="loot-list">
+                                @if (Result.Settlement.DropMode == "sampled" && Result.Settlement.LootSampled.Any())
+                                {
+                                    @foreach (var kv in Result.Settlement.LootSampled.OrderByDescending(x => x.Value))
+                                    {
+                                        <li>@kv.Key: <strong>@kv.Value</strong></li>
+                                    }
+                                }
+                                else if (Result.Settlement.LootExpected.Any())
+                                {
+                                    @foreach (var kv in Result.Settlement.LootExpected.OrderByDescending(x => x.Value))
+                                    {
+                                        <li>@kv.Key: <strong>@kv.Value.ToString("0.##")</strong> (预期)</li>
+                                    }
+                                }
+                            </ul>
+                        </div>
+                    }
+                </div>
+
+                @if (Result.PlanCompleted)
+                {
+                    <div class="plan-status completed">
+                        <strong>✅ 活动计划已完成</strong>
+                    </div>
+                }
+                else
+                {
+                    <div class="plan-status running">
+                        <strong>▶️ 活动计划继续执行中</strong>
+                        <small>已执行: @FormatDuration(Result.Settlement.UpdatedExecutedSeconds)</small>
+                    </div>
+                }
+
+                @if (Result.NextPlanStarted)
+                {
+                    <div class="next-plan-info">
+                        <strong>🔄 下一个计划已自动开始</strong>
+                    </div>
+                }
+            </div>
+            
+            <div class="offline-dialog-footer">
+                <button class="btn btn-primary btn-lg" @onclick="OnClaimClicked" disabled="@IsProcessing">
+                    @(IsProcessing ? "领取中..." : "确认领取")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .offline-dialog-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.7);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+    }
+
+    .offline-dialog {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        max-width: 500px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+
+    .offline-dialog-header {
+        padding: 20px;
+        border-bottom: 2px solid #e9ecef;
+        text-align: center;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 12px 12px 0 0;
+    }
+
+    .offline-dialog-header h3 {
+        margin: 0;
+        font-size: 24px;
+    }
+
+    .offline-dialog-body {
+        padding: 24px;
+    }
+
+    .offline-time {
+        text-align: center;
+        font-size: 18px;
+        margin-bottom: 12px;
+        padding: 12px;
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
+
+    .offline-info {
+        text-align: center;
+        margin-bottom: 16px;
+        color: #6c757d;
+    }
+
+    .rewards-section {
+        margin-top: 20px;
+    }
+
+    .rewards-section h4 {
+        margin-bottom: 16px;
+        color: #495057;
+        font-size: 18px;
+    }
+
+    .rewards-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .reward-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border-left: 4px solid #28a745;
+    }
+
+    .reward-icon {
+        font-size: 24px;
+    }
+
+    .reward-label {
+        flex: 1;
+        font-weight: 500;
+        color: #495057;
+    }
+
+    .reward-value {
+        font-size: 20px;
+        font-weight: bold;
+        color: #28a745;
+    }
+
+    .loot-section {
+        margin-top: 16px;
+        padding: 12px;
+        background: #e7f3ff;
+        border-radius: 8px;
+    }
+
+    .loot-section h5 {
+        margin-bottom: 8px;
+        font-size: 14px;
+        color: #0056b3;
+    }
+
+    .loot-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .loot-list li {
+        padding: 4px 0;
+        font-size: 14px;
+    }
+
+    .plan-status {
+        margin-top: 16px;
+        padding: 12px;
+        border-radius: 8px;
+        text-align: center;
+    }
+
+    .plan-status.completed {
+        background: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+    }
+
+    .plan-status.running {
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        color: #856404;
+    }
+
+    .plan-status small {
+        display: block;
+        margin-top: 4px;
+        font-size: 12px;
+    }
+
+    .next-plan-info {
+        margin-top: 12px;
+        padding: 12px;
+        background: #d1ecf1;
+        border: 1px solid #bee5eb;
+        border-radius: 8px;
+        text-align: center;
+        color: #0c5460;
+    }
+
+    .offline-dialog-footer {
+        padding: 20px;
+        border-top: 1px solid #e9ecef;
+        text-align: center;
+    }
+
+    .offline-dialog-footer .btn {
+        min-width: 150px;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public OfflineCheckResult? Result { get; set; }
+
+    [Parameter]
+    public EventCallback OnClaim { get; set; }
+
+    private bool IsProcessing { get; set; }
+
+    private bool HasLoot =>
+        Result?.Settlement != null &&
+        ((Result.Settlement.DropMode == "sampled" && Result.Settlement.LootSampled.Any()) ||
+         (Result.Settlement.DropMode != "sampled" && Result.Settlement.LootExpected.Any()));
+
+    private async Task OnClaimClicked()
+    {
+        if (IsProcessing) return;
+        
+        IsProcessing = true;
+        try
+        {
+            await OnClaim.InvokeAsync();
+        }
+        finally
+        {
+            IsProcessing = false;
+        }
+    }
+
+    private void OnOverlayClick()
+    {
+        // 点击遮罩层时不关闭，必须点击确认领取按钮
+        // 这是为了确保用户看到离线收益
+    }
+
+    private string FormatDuration(double seconds)
+    {
+        var ts = TimeSpan.FromSeconds(seconds);
+        
+        if (ts.TotalHours >= 1)
+        {
+            return $"{(int)ts.TotalHours}小时{ts.Minutes}分钟";
+        }
+        else if (ts.TotalMinutes >= 1)
+        {
+            return $"{(int)ts.TotalMinutes}分钟{ts.Seconds}秒";
+        }
+        else
+        {
+            return $"{(int)ts.TotalSeconds}秒";
+        }
+    }
+}
