@@ -2,11 +2,15 @@
 @using BlazorIdle.Services
 @using BlazorIdle.Shared.Models
 @using BlazorIdle.Client.Services
+@using BlazorIdle.Components
 @inject ApiClient Api
 @inject AuthService AuthService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @implements IDisposable
+
+<!-- 离线结算弹窗 -->
+<OfflineSettlementDialog Result="@offlineCheckResult" OnClaim="@ApplyOfflineSettlement" />
 
 @if (!isAuthenticated)
 {
@@ -740,6 +744,10 @@ else
     private UserCharacterDto? selectedCharacter;
     private string userMessage = "";
 
+    // ====== 离线战斗 ======
+    private OfflineCheckResult? offlineCheckResult;
+    private DateTime lastHeartbeatUpdate = DateTime.MinValue;
+
     // ====== 创建/同步战斗 ======
     protected override async Task OnInitializedAsync()
     {
@@ -788,6 +796,9 @@ else
                     selectedCharacter = userCharacters[0];
                     // 用选中的角色作为 lastCreated 以便其他功能使用
                     lastCreated = new CharacterCreated(selectedCharacter.Id, selectedCharacter.Name);
+                    
+                    // 检查离线收益
+                    await CheckOfflineRewardsAsync();
                 }
                 
                 userMessage = $"欢迎回来！你有 {userCharacters.Count} 个角色。";
@@ -812,6 +823,86 @@ else
             }
 
             userMessage = $"加载用户数据失败: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// 检查离线收益（在角色加载时自动调用）
+    /// </summary>
+    private async Task CheckOfflineRewardsAsync()
+    {
+        if (selectedCharacter is null) return;
+
+        try
+        {
+            // 更新心跳时间
+            await UpdateHeartbeatIfNeededAsync();
+
+            // 检查离线收益
+            offlineCheckResult = await Api.CheckOfflineAsync(selectedCharacter.Id);
+            
+            // 如果有离线收益，弹窗会自动显示
+            if (offlineCheckResult?.HasOfflineTime == true)
+            {
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (Exception ex)
+        {
+            userMessage = $"检查离线收益失败: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// 应用离线结算，实际发放收益
+    /// </summary>
+    private async Task ApplyOfflineSettlement()
+    {
+        if (offlineCheckResult?.Settlement is null || selectedCharacter is null) return;
+
+        try
+        {
+            await Api.ApplyOfflineSettlementAsync(selectedCharacter.Id, offlineCheckResult.Settlement);
+            
+            // 重新加载用户数据以更新金币和经验显示
+            await LoadUserDataAsync();
+            
+            // 刷新计划列表
+            await RefreshPlansAsync();
+            
+            // 清除离线结算结果，关闭弹窗
+            offlineCheckResult = null;
+            
+            userMessage = "离线收益已领取成功！";
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            userMessage = $"领取离线收益失败: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// 更新心跳时间（如果需要）
+    /// 在计划任务刷新时也会调用，实现每2秒更新一次
+    /// </summary>
+    private async Task UpdateHeartbeatIfNeededAsync()
+    {
+        if (selectedCharacter is null) return;
+
+        // 每2秒更新一次心跳
+        var now = DateTime.UtcNow;
+        if ((now - lastHeartbeatUpdate).TotalSeconds < 2)
+            return;
+
+        try
+        {
+            await Api.UpdateHeartbeatAsync(selectedCharacter.Id);
+            lastHeartbeatUpdate = now;
+        }
+        catch
+        {
+            // 心跳更新失败不影响主流程
         }
     }
 
@@ -1325,6 +1416,9 @@ else
                     {
                         characterPlans = await Api.GetCharacterPlansAsync(lastCreated.Id);
                     }
+                    
+                    // 更新心跳时间（每次刷新计划状态时）
+                    await UpdateHeartbeatIfNeededAsync();
                     
                     await InvokeAsync(StateHasChanged);
                 }
