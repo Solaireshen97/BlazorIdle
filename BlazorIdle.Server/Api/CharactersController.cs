@@ -1,4 +1,5 @@
 using BlazorIdle.Server.Application.Auth;
+using BlazorIdle.Server.Application.Battles.Offline;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using BlazorIdle.Shared.Models;
@@ -13,8 +14,13 @@ namespace BlazorIdle.Server.Api;
 public class CharactersController : ControllerBase
 {
     private readonly GameDbContext _db;
+    private readonly OfflineSettlementService _offlineService;
 
-    public CharactersController(GameDbContext db) => _db = db;
+    public CharactersController(GameDbContext db, OfflineSettlementService offlineService)
+    {
+        _db = db;
+        _offlineService = offlineService;
+    }
 
     [HttpPost]
     [Authorize]  // 现在要求用户必须登录才能创建角色
@@ -132,7 +138,7 @@ public class CharactersController : ControllerBase
     }
 
     /// <summary>
-    /// 更新角色心跳时间，标记角色在线
+    /// 更新角色心跳时间，标记角色在线，并自动处理离线结算
     /// POST /api/characters/{id}/heartbeat
     /// </summary>
     [HttpPost("{id:guid}/heartbeat")]
@@ -144,9 +150,44 @@ public class CharactersController : ControllerBase
             return NotFound(new { message = "角色不存在" });
         }
 
+        // 检查是否需要进行离线结算
+        OfflineCheckResult? offlineResult = null;
+        if (_offlineService.IsPlayerOffline(character))
+        {
+            try
+            {
+                // 自动触发离线结算并发放收益
+                offlineResult = await _offlineService.CheckAndSettleAsync(
+                    id, 
+                    autoApply: true, // 强制自动应用
+                    ct: HttpContext.RequestAborted
+                );
+            }
+            catch (Exception)
+            {
+                // 离线结算失败不影响心跳更新，记录日志但继续执行
+                // 可以在这里添加日志记录
+            }
+        }
+
+        // 更新心跳时间
         character.LastSeenAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync();
-        return Ok(new { message = "心跳更新成功", timestamp = character.LastSeenAtUtc });
+
+        return Ok(new
+        {
+            message = "心跳更新成功",
+            timestamp = character.LastSeenAtUtc,
+            offlineSettlement = offlineResult != null ? new
+            {
+                hadOfflineTime = offlineResult.HasOfflineTime,
+                offlineSeconds = offlineResult.OfflineSeconds,
+                goldEarned = offlineResult.Settlement?.Gold ?? 0,
+                expEarned = offlineResult.Settlement?.Exp ?? 0,
+                planCompleted = offlineResult.PlanCompleted,
+                nextPlanStarted = offlineResult.NextPlanStarted
+            } : null
+        });
     }
 
     private static (int str, int agi, int intel, int sta) DefaultAttributesFor(Profession p)

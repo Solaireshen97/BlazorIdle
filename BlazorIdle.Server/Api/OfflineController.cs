@@ -12,17 +12,20 @@ public class OfflineController : ControllerBase
     public OfflineController(OfflineSettlementService offline) => _offline = offline;
 
     /// <summary>
-    /// 检查角色离线时间并返回结算预览（不发放收益）
+    /// 检查角色离线时间并返回结算预览
     /// GET /api/offline/check?characterId={id}
+    /// 注意：默认不自动发放收益，如需自动发放请使用心跳端点
     /// </summary>
     [HttpGet("check")]
     public async Task<ActionResult<OfflineCheckResult>> CheckOffline(
         [FromQuery] Guid characterId,
+        [FromQuery] bool autoApply = false,
         CancellationToken ct = default)
     {
         try
         {
-            var result = await _offline.CheckAndSettleAsync(characterId, ct);
+            // 允许通过查询参数控制是否自动应用
+            var result = await _offline.CheckAndSettleAsync(characterId, autoApply, ct);
             return Ok(result);
         }
         catch (InvalidOperationException ex)
@@ -34,8 +37,11 @@ public class OfflineController : ControllerBase
     /// <summary>
     /// 应用离线结算，实际发放收益到角色
     /// POST /api/offline/apply
+    /// 注意：此端点已被废弃。离线结算现在在心跳更新时自动触发和应用。
+    /// 保留此端点仅为向后兼容，建议使用心跳机制自动处理。
     /// </summary>
     [HttpPost("apply")]
+    [Obsolete("此端点已废弃，离线结算现在通过心跳自动处理")]
     public async Task<ActionResult> ApplySettlement(
         [FromBody] ApplySettlementRequest request,
         CancellationToken ct = default)
@@ -46,7 +52,7 @@ public class OfflineController : ControllerBase
                 request.CharacterId,
                 request.Settlement,
                 ct);
-            return Ok(new { success = true });
+            return Ok(new { success = true, message = "结算应用成功（注意：建议使用心跳自动结算）" });
         }
         catch (InvalidOperationException ex)
         {

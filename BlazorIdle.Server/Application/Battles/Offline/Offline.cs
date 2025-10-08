@@ -6,6 +6,7 @@ using BlazorIdle.Server.Domain.Combat.Rng;
 using BlazorIdle.Server.Domain.Economy;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -54,6 +55,7 @@ public sealed class OfflineSettlementService
     private readonly OfflineFastForwardEngine _engine;
     private readonly GameDbContext _db;
     private readonly Func<Guid, CancellationToken, Task<ActivityPlan?>>? _tryStartNextPlan;
+    private readonly OfflineOptions _options;
 
     public OfflineSettlementService(
         ICharacterRepository characters, 
@@ -61,6 +63,7 @@ public sealed class OfflineSettlementService
         IActivityPlanRepository plans,
         OfflineFastForwardEngine engine,
         GameDbContext db,
+        IOptions<OfflineOptions> options,
         Func<Guid, CancellationToken, Task<ActivityPlan?>>? tryStartNextPlan = null)
     {
         _characters = characters;
@@ -68,23 +71,43 @@ public sealed class OfflineSettlementService
         _plans = plans;
         _engine = engine;
         _db = db;
+        _options = options.Value;
         _tryStartNextPlan = tryStartNextPlan;
     }
 
     /// <summary>
-    /// 用户登录时自动检测并结算离线收益（不立即发放，返回结算结果供前端展示）
+    /// 检查角色是否被认为已离线（基于心跳超时）
     /// </summary>
+    public bool IsPlayerOffline(Character character)
+    {
+        if (!character.LastSeenAtUtc.HasValue)
+            return false;
+
+        var timeSinceLastSeen = (DateTime.UtcNow - character.LastSeenAtUtc.Value).TotalSeconds;
+        return timeSinceLastSeen >= _options.OfflineThresholdSeconds;
+    }
+
+    /// <summary>
+    /// 用户登录时自动检测并结算离线收益
+    /// </summary>
+    /// <param name="characterId">角色ID</param>
+    /// <param name="autoApply">是否自动应用结算结果（发放收益），默认使用配置</param>
+    /// <param name="ct">取消令牌</param>
     public async Task<OfflineCheckResult> CheckAndSettleAsync(
         Guid characterId,
+        bool? autoApply = null,
         CancellationToken ct = default)
     {
         var character = await _characters.GetAsync(characterId, ct);
         if (character is null)
             throw new InvalidOperationException("Character not found");
 
-        // 1. 计算离线时长
+        // 1. 计算离线时长，只有达到离线阈值才进行结算
         var offlineSeconds = CalculateOfflineDuration(character);
-        if (offlineSeconds <= 0)
+        var shouldApply = autoApply ?? _options.EnableAutoSettlement;
+        
+        // 如果离线时长未达到阈值，不进行离线结算
+        if (offlineSeconds < _options.OfflineThresholdSeconds)
         {
             // 更新心跳时间
             character.LastSeenAtUtc = DateTime.UtcNow;
@@ -137,7 +160,7 @@ public sealed class OfflineSettlementService
             }
         }
 
-        return new OfflineCheckResult
+        var checkResult = new OfflineCheckResult
         {
             HasOfflineTime = true,
             OfflineSeconds = offlineSeconds,
@@ -147,6 +170,14 @@ public sealed class OfflineSettlementService
             NextPlanStarted = nextPlanStarted,
             NextPlanId = nextPlanId
         };
+
+        // 7. 如果启用自动应用，立即发放收益
+        if (shouldApply && (result.Gold > 0 || result.Exp > 0))
+        {
+            await ApplySettlementAsync(characterId, result, ct);
+        }
+
+        return checkResult;
     }
 
     /// <summary>
