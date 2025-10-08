@@ -81,7 +81,7 @@ public class OfflineDetectionService : BackgroundService
                             "检测到玩家 {CharacterId} 已离线 {OfflineSeconds:F0} 秒，暂停计划 {PlanId}",
                             character.Id, offlineSeconds, plan.Id);
 
-                        await planService.StopPlanAsync(plan.Id, ct);
+                        await planService.PausePlanAsync(plan.Id, ct);
                     }
                     catch (Exception ex)
                     {

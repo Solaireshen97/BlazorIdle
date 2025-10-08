@@ -1,4 +1,5 @@
 using BlazorIdle.Server.Application.Auth;
+using BlazorIdle.Server.Application.Activities;
 using BlazorIdle.Server.Application.Battles.Offline;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Infrastructure.Persistence;
@@ -16,15 +17,18 @@ public class CharactersController : ControllerBase
 {
     private readonly GameDbContext _db;
     private readonly OfflineSettlementService _offlineService;
+    private readonly ActivityPlanService _planService;
     private readonly IConfiguration _configuration;
 
     public CharactersController(
         GameDbContext db,
         OfflineSettlementService offlineService,
+        ActivityPlanService planService,
         IConfiguration configuration)
     {
         _db = db;
         _offlineService = offlineService;
+        _planService = planService;
         _configuration = configuration;
     }
 
@@ -199,11 +203,35 @@ public class CharactersController : ControllerBase
             await _db.SaveChangesAsync();
         }
         
+        // 检查是否有暂停的计划需要恢复
+        bool planResumed = false;
+        try
+        {
+            var runningPlan = await _db.ActivityPlans
+                .FirstOrDefaultAsync(p => p.CharacterId == id 
+                    && p.State == Domain.Activities.ActivityState.Running
+                    && !p.BattleId.HasValue
+                    && !string.IsNullOrWhiteSpace(p.BattleStateJson));
+            
+            if (runningPlan != null)
+            {
+                // 恢复暂停的计划
+                await _planService.ResumePlanAsync(runningPlan.Id);
+                planResumed = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            // 记录错误但不阻止心跳更新
+            Console.WriteLine($"恢复计划失败: {ex.Message}");
+        }
+        
         return Ok(new
         {
             message = "心跳更新成功",
             timestamp = character?.LastSeenAtUtc,
-            offlineSettlement = offlineResult
+            offlineSettlement = offlineResult,
+            planResumed = planResumed
         });
     }
 

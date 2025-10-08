@@ -87,6 +87,126 @@ public class ActivityPlanService
     }
 
     /// <summary>
+    /// 恢复暂停的活动计划
+    /// </summary>
+    public async Task<Guid> ResumePlanAsync(Guid planId, CancellationToken ct = default)
+    {
+        var plan = await _plans.GetAsync(planId, ct);
+        if (plan is null)
+            throw new InvalidOperationException("Plan not found");
+
+        if (plan.State != ActivityState.Running)
+            throw new InvalidOperationException($"Cannot resume plan in state {plan.State}");
+
+        // 如果计划已经有战斗ID（已在运行），直接返回
+        if (plan.BattleId.HasValue)
+        {
+            return plan.BattleId.Value;
+        }
+
+        // 检查是否有其他正在运行的战斗
+        var runningPlan = await _plans.GetRunningPlanAsync(plan.CharacterId, ct);
+        if (runningPlan is not null && runningPlan.BattleId.HasValue && runningPlan.Id != plan.Id)
+            throw new InvalidOperationException("Another plan is already running");
+
+        // 获取角色数据
+        var character = await _characters.GetAsync(plan.CharacterId, ct);
+        if (character is null)
+            throw new InvalidOperationException("Character not found");
+
+        var profession = character.Profession;
+        var baseStats = ProfessionBaseStatsRegistry.Resolve(profession);
+        var attrs = new PrimaryAttributes(character.Strength, character.Agility, character.Intellect, character.Stamina);
+        var derived = StatsBuilder.BuildDerived(profession, attrs);
+        var stats = StatsBuilder.Combine(baseStats, derived);
+
+        // 加载战斗状态快照
+        Battles.Offline.BattleState? battleState = null;
+        if (!string.IsNullOrWhiteSpace(plan.BattleStateJson))
+        {
+            try
+            {
+                battleState = JsonSerializer.Deserialize<Battles.Offline.BattleState>(plan.BattleStateJson);
+            }
+            catch
+            {
+                // 如果反序列化失败，忽略快照，从头开始
+                battleState = null;
+            }
+        }
+
+        // 根据活动类型启动战斗
+        Guid battleId;
+        if (plan.Type == ActivityType.Combat)
+        {
+            var payload = JsonSerializer.Deserialize<CombatActivityPayload>(plan.PayloadJson);
+            if (payload is null)
+                throw new InvalidOperationException("Invalid combat payload");
+
+            var seed = payload.Seed ?? DeriveSeed(character.Id);
+            var duration = plan.LimitType == LimitType.Duration && plan.LimitValue.HasValue
+                ? plan.LimitValue.Value
+                : 86400.0; // 24小时作为无限模式的默认值
+
+            battleId = _coordinator.Start(
+                character.Id,
+                profession,
+                stats,
+                duration,
+                seed,
+                payload.EnemyId,
+                payload.EnemyCount,
+                StepBattleMode.Continuous,
+                dungeonId: null,
+                continuousRespawnDelaySeconds: payload.RespawnDelay,
+                dungeonWaveDelaySeconds: null,
+                dungeonRunDelaySeconds: null,
+                battleState: battleState
+            );
+        }
+        else if (plan.Type == ActivityType.Dungeon)
+        {
+            var payload = JsonSerializer.Deserialize<DungeonActivityPayload>(plan.PayloadJson);
+            if (payload is null)
+                throw new InvalidOperationException("Invalid dungeon payload");
+
+            var seed = payload.Seed ?? DeriveSeed(character.Id);
+            var duration = plan.LimitType == LimitType.Duration && plan.LimitValue.HasValue
+                ? plan.LimitValue.Value
+                : 86400.0;
+
+            var mode = payload.Loop ? StepBattleMode.DungeonLoop : StepBattleMode.DungeonSingle;
+
+            battleId = _coordinator.Start(
+                character.Id,
+                profession,
+                stats,
+                duration,
+                seed,
+                enemyId: null,
+                enemyCount: 1,
+                mode,
+                dungeonId: payload.DungeonId,
+                continuousRespawnDelaySeconds: null,
+                dungeonWaveDelaySeconds: payload.WaveDelay,
+                dungeonRunDelaySeconds: payload.RunDelay,
+                battleState: battleState
+            );
+        }
+        else
+        {
+            throw new NotImplementedException($"Activity type {plan.Type} is not implemented");
+        }
+
+        // 更新计划状态
+        plan.StartedAt = DateTime.UtcNow;
+        plan.BattleId = battleId;
+        await _plans.UpdateAsync(plan, ct);
+
+        return battleId;
+    }
+
+    /// <summary>
     /// 启动活动计划
     /// </summary>
     public async Task<Guid> StartPlanAsync(Guid planId, CancellationToken ct = default)
@@ -199,6 +319,51 @@ public class ActivityPlanService
         await _plans.UpdateAsync(plan, ct);
 
         return battleId;
+    }
+
+    /// <summary>
+    /// 暂停活动计划（用于离线检测，保留状态以便恢复）
+    /// </summary>
+    public async Task<bool> PausePlanAsync(Guid planId, CancellationToken ct = default)
+    {
+        var plan = await _plans.GetAsync(planId, ct);
+        if (plan is null)
+            return false;
+
+        if (plan.State != ActivityState.Running)
+            return false;
+
+        // 保存战斗状态（在停止前）
+        if (plan.BattleId.HasValue)
+        {
+            if (_coordinator.TryGet(plan.BattleId.Value, out var rb) && rb != null)
+            {
+                var battleState = rb.Engine.CaptureBattleState();
+                plan.BattleStateJson = JsonSerializer.Serialize(battleState);
+            }
+        }
+
+        // 更新已执行时长
+        if (plan.StartedAt.HasValue)
+        {
+            var elapsed = (DateTime.UtcNow - plan.StartedAt.Value).TotalSeconds;
+            plan.ExecutedSeconds = elapsed;
+        }
+
+        // 停止战斗并清空内存
+        if (plan.BattleId.HasValue)
+        {
+            await _coordinator.StopAndFinalizeAsync(plan.BattleId.Value, ct);
+            plan.BattleId = null; // 清空战斗ID，但保留状态
+        }
+
+        // 保持计划在 Running 状态，但清空 StartedAt（表示暂停）
+        // plan.State 保持为 Running
+        plan.StartedAt = null;
+
+        await _plans.UpdateAsync(plan, ct);
+
+        return true;
     }
 
     /// <summary>
