@@ -295,8 +295,8 @@ else
                         @foreach (var plan in characterPlans.OrderBy(p => p.SlotIndex).ThenBy(p => p.CreatedAt))
                         {
                             var typeName = plan.Type == 1 ? "战斗" : plan.Type == 2 ? "地下城" : "未知";
-                            var stateName = plan.State == 0 ? "待执行" : plan.State == 1 ? "执行中" : plan.State == 2 ? "已完成" : "已取消";
-                            var stateClass = plan.State == 0 ? "text-warning" : plan.State == 1 ? "text-success" : plan.State == 2 ? "text-secondary" : "text-muted";
+                            var stateName = plan.State == 0 ? "待执行" : plan.State == 1 ? "执行中" : plan.State == 2 ? "已完成" : plan.State == 3 ? "已取消" : plan.State == 4 ? "已暂停" : "未知";
+                            var stateClass = plan.State == 0 ? "text-warning" : plan.State == 1 ? "text-success" : plan.State == 2 ? "text-secondary" : plan.State == 3 ? "text-muted" : plan.State == 4 ? "text-info" : "text-muted";
                             var limitText = plan.LimitType == 2 ? "无限制" : $"{plan.LimitValue:F0}秒";
                             <tr>
                                 <td><small>@plan.Id.ToString().Substring(0, 8)...</small></td>
@@ -326,6 +326,11 @@ else
                                     }
                                     else if (plan.State == 0) // Pending
                                     {
+                                        <button class="btn btn-sm btn-danger" @onclick="() => CancelPlanAsync(plan.Id)" disabled="@isBusy">取消</button>
+                                    }
+                                    else if (plan.State == 4) // Paused
+                                    {
+                                        <button class="btn btn-sm btn-success" @onclick="() => ResumePlanAsync(plan.Id)" disabled="@isBusy">恢复</button>
                                         <button class="btn btn-sm btn-danger" @onclick="() => CancelPlanAsync(plan.Id)" disabled="@isBusy">取消</button>
                                     }
                                     else if (plan.State == 2 || plan.State == 3) // Completed or Cancelled
@@ -850,6 +855,25 @@ else
                 // 刷新计划列表
                 await RefreshPlansAsync();
                 
+                // 如果计划未完成且下一个计划已启动，重新开始轮询
+                if (heartbeatResponse.OfflineSettlement.NextPlanStarted && heartbeatResponse.OfflineSettlement.NextPlanId.HasValue)
+                {
+                    var nextPlan = characterPlans?.FirstOrDefault(p => p.Id == heartbeatResponse.OfflineSettlement.NextPlanId.Value);
+                    if (nextPlan?.BattleId.HasValue == true)
+                    {
+                        _ = StartPlanPollingAsync(nextPlan.BattleId.Value);
+                    }
+                }
+                // 如果计划未完成但没有启动下一个计划，检查当前运行中的计划
+                else if (!heartbeatResponse.OfflineSettlement.PlanCompleted && heartbeatResponse.OfflineSettlement.HasRunningPlan)
+                {
+                    var runningPlan = characterPlans?.FirstOrDefault(p => p.State == 1); // State=1 is Running
+                    if (runningPlan?.BattleId.HasValue == true)
+                    {
+                        _ = StartPlanPollingAsync(runningPlan.BattleId.Value);
+                    }
+                }
+                
                 await InvokeAsync(StateHasChanged);
             }
         }
@@ -900,6 +924,25 @@ else
                 
                 // 刷新计划列表
                 await RefreshPlansAsync();
+                
+                // 如果计划未完成且下一个计划已启动，重新开始轮询
+                if (heartbeatResponse.OfflineSettlement.NextPlanStarted && heartbeatResponse.OfflineSettlement.NextPlanId.HasValue)
+                {
+                    var nextPlan = characterPlans?.FirstOrDefault(p => p.Id == heartbeatResponse.OfflineSettlement.NextPlanId.Value);
+                    if (nextPlan?.BattleId.HasValue == true)
+                    {
+                        _ = StartPlanPollingAsync(nextPlan.BattleId.Value);
+                    }
+                }
+                // 如果计划未完成但没有启动下一个计划，检查当前运行中的计划
+                else if (!heartbeatResponse.OfflineSettlement.PlanCompleted && heartbeatResponse.OfflineSettlement.HasRunningPlan)
+                {
+                    var runningPlan = characterPlans?.FirstOrDefault(p => p.State == 1); // State=1 is Running
+                    if (runningPlan?.BattleId.HasValue == true)
+                    {
+                        _ = StartPlanPollingAsync(runningPlan.BattleId.Value);
+                    }
+                }
                 
                 await InvokeAsync(StateHasChanged);
             }
@@ -1290,6 +1333,7 @@ else
             characterPlans = await Api.GetCharacterPlansAsync(lastCreated.Id);
             
             // 查找正在运行的计划并获取其战斗状态
+            // State: 0=Pending, 1=Running, 2=Completed, 3=Cancelled, 4=Paused
             var runningPlan = characterPlans?.FirstOrDefault(p => p.State == 1);
             if (runningPlan?.BattleId.HasValue == true)
             {
@@ -1378,6 +1422,37 @@ else
         catch (Exception ex)
         {
             planError = $"删除计划异常: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    async Task ResumePlanAsync(Guid planId)
+    {
+        try
+        {
+            isBusy = true;
+            var response = await Api.ResumePlanAsync(planId);
+            if (response != null)
+            {
+                await RefreshPlansAsync();
+                
+                // 如果计划恢复成功并且有战斗ID，开始轮询
+                if (response.Resumed && response.BattleId.HasValue)
+                {
+                    _ = StartPlanPollingAsync(response.BattleId.Value);
+                }
+            }
+            else
+            {
+                planError = "恢复计划失败";
+            }
+        }
+        catch (Exception ex)
+        {
+            planError = $"恢复计划异常: {ex.Message}";
         }
         finally
         {
