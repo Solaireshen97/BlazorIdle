@@ -78,10 +78,11 @@ public class OfflineDetectionService : BackgroundService
                     try
                     {
                         _logger.LogInformation(
-                            "检测到玩家 {CharacterId} 已离线 {OfflineSeconds:F0} 秒，暂停计划 {PlanId}",
+                            "检测到玩家 {CharacterId} 已离线 {OfflineSeconds:F0} 秒，暂停计划 {PlanId} 但保持运行状态以便离线结算",
                             character.Id, offlineSeconds, plan.Id);
 
-                        await planService.StopPlanAsync(plan.Id, ct);
+                        // 使用新的暂停方法：保存战斗状态但不标记为完成
+                        await planService.PausePlanForOfflineAsync(plan.Id, ct);
                     }
                     catch (Exception ex)
                     {

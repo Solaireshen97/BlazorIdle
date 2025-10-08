@@ -252,6 +252,44 @@ public class ActivityPlanService
     }
 
     /// <summary>
+    /// 暂停活动计划（保存战斗状态但不标记为完成，用于离线玩家）
+    /// </summary>
+    public async Task<bool> PausePlanForOfflineAsync(Guid planId, CancellationToken ct = default)
+    {
+        var plan = await _plans.GetAsync(planId, ct);
+        if (plan is null)
+            return false;
+
+        if (plan.State != ActivityState.Running)
+            return false;
+
+        // 保存战斗状态（在停止前）
+        if (plan.BattleId.HasValue)
+        {
+            if (_coordinator.TryGet(plan.BattleId.Value, out var rb) && rb != null)
+            {
+                var battleState = rb.Engine.CaptureBattleState();
+                plan.BattleStateJson = JsonSerializer.Serialize(battleState);
+                
+                // 更新已执行时长
+                plan.ExecutedSeconds = rb.Clock.CurrentTime;
+            }
+        }
+
+        // 停止战斗（释放内存资源）
+        if (plan.BattleId.HasValue)
+        {
+            await _coordinator.StopAndFinalizeAsync(plan.BattleId.Value, ct);
+        }
+
+        // 注意：不改变计划状态，保持 Running，以便玩家上线时可以通过离线结算继续
+        // 只更新战斗状态快照和执行时长
+        await _plans.UpdateAsync(plan, ct);
+
+        return true;
+    }
+
+    /// <summary>
     /// 更新运行中计划的执行进度
     /// </summary>
     public async Task UpdatePlanProgressAsync(Guid planId, CancellationToken ct = default)

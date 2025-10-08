@@ -119,12 +119,43 @@ public sealed class OfflineSettlementService
         // 4. 更新计划状态（已在 FastForward 中完成，但需要持久化）
         await _plans.UpdateAsync(runningPlan, ct);
 
-        // 5. 更新角色时间戳
+        // 5. 如果计划仍在运行（无限任务或未完成的有限任务），需要重新启动战斗
+        if (!result.PlanCompleted && _tryStartNextPlan is not null)
+        {
+            // 重新启动计划（重新创建战斗实例，从战斗状态快照继续）
+            try
+            {
+                // 将状态设置为 Pending 以允许重新启动
+                var originalStartedAt = runningPlan.StartedAt;
+                runningPlan.State = ActivityState.Pending;
+                await _plans.UpdateAsync(runningPlan, ct);
+                
+                // 调用 StartPlanAsync 重新启动（会加载战斗状态快照）
+                // 注意：这里通过 TryStartNextPendingPlanAsync 来启动，它会找到我们刚设置为 Pending 的计划
+                await _tryStartNextPlan(characterId, ct);
+                
+                // 恢复原始的 StartedAt 时间（保持时间连续性）
+                var reloadedPlan = await _plans.GetAsync(runningPlan.Id, ct);
+                if (reloadedPlan != null && originalStartedAt.HasValue)
+                {
+                    reloadedPlan.StartedAt = originalStartedAt;
+                    await _plans.UpdateAsync(reloadedPlan, ct);
+                }
+            }
+            catch (Exception)
+            {
+                // 如果重启失败，恢复 Running 状态
+                runningPlan.State = ActivityState.Running;
+                await _plans.UpdateAsync(runningPlan, ct);
+            }
+        }
+
+        // 6. 更新角色时间戳
         character.LastSeenAtUtc = DateTime.UtcNow;
         character.LastOfflineSettledAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
 
-        // 6. 如果计划完成，尝试启动下一个（实现自动衔接）
+        // 7. 如果计划完成，尝试启动下一个（实现自动衔接）
         Guid? nextPlanId = null;
         bool nextPlanStarted = false;
         if (result.PlanCompleted && _tryStartNextPlan is not null)
