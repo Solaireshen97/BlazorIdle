@@ -271,6 +271,14 @@ public class ApiClient
         return resp.IsSuccessStatusCode;
     }
 
+    public async Task<bool> ResumePlanAsync(Guid planId, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        using var content = new StringContent("{}", Encoding.UTF8, "application/json");
+        var resp = await _http.PostAsync($"/api/activity-plans/{planId}/resume", content, ct);
+        return resp.IsSuccessStatusCode;
+    }
+
     public async Task<bool> CancelPlanAsync(Guid planId, CancellationToken ct = default)
     {
         SetAuthHeader();
@@ -400,7 +408,7 @@ public sealed class ActivityPlanDto
     public int Type { get; set; }  // 1=Combat, 2=Dungeon
     public int LimitType { get; set; }  // 1=Duration, 2=Infinite
     public double? LimitValue { get; set; }
-    public int State { get; set; }  // 0=Pending, 1=Running, 2=Completed, 3=Cancelled
+    public int State { get; set; }  // 0=Pending, 1=Running, 2=Completed, 3=Cancelled, 4=Paused
     public DateTime CreatedAt { get; set; }
     public DateTime? StartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }

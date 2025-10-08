@@ -198,6 +198,26 @@ public class ActivityPlansController : ControllerBase
     }
 
     /// <summary>
+    /// 恢复暂停的活动计划
+    /// </summary>
+    [HttpPost("{id:guid}/resume")]
+    public async Task<IActionResult> Resume(Guid id, CancellationToken ct)
+    {
+        try
+        {
+            var result = await _service.ResumePlanAsync(id, ct);
+            if (!result)
+                return BadRequest("Failed to resume plan. Plan must be in Paused state.");
+
+            return Ok(new { planId = id, resumed = true });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
+    /// <summary>
     /// 取消活动计划
     /// </summary>
     [HttpPost("{id:guid}/cancel")]
@@ -211,7 +231,7 @@ public class ActivityPlansController : ControllerBase
     }
 
     /// <summary>
-    /// 删除活动计划（仅限未启动或已完成的计划）
+    /// 删除活动计划（仅限未启动、已暂停或已完成的计划）
     /// </summary>
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
