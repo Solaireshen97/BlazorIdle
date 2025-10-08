@@ -72,4 +72,14 @@ public class ActivityPlanRepository : IActivityPlanRepository
         await _db.ActivityPlans
             .Where(p => p.State == ActivityState.Running)
             .ToListAsync(ct);
+
+    public Task<ActivityPlan?> GetByCharacterIdAndStateAsync(Guid characterId, ActivityState state, CancellationToken ct = default) =>
+        _db.ActivityPlans
+            .Where(p => p.CharacterId == characterId && p.State == state)
+            .FirstOrDefaultAsync(ct);
+
+    public async Task<List<ActivityPlan>> GetAllPausedPlansAsync(CancellationToken ct = default) =>
+        await _db.ActivityPlans
+            .Where(p => p.State == ActivityState.Paused)
+            .ToListAsync(ct);
 }

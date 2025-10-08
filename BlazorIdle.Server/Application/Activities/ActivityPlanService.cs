@@ -202,6 +202,52 @@ public class ActivityPlanService
     }
 
     /// <summary>
+    /// 暂停活动计划（保留战斗状态，可恢复）
+    /// </summary>
+    public async Task<bool> PausePlanAsync(Guid planId, CancellationToken ct = default)
+    {
+        var plan = await _plans.GetAsync(planId, ct);
+        if (plan is null)
+            return false;
+
+        if (plan.State != ActivityState.Running)
+            return false;
+
+        // 保存战斗状态快照（用于恢复）
+        if (plan.BattleId.HasValue)
+        {
+            if (_coordinator.TryGet(plan.BattleId.Value, out var rb) && rb != null)
+            {
+                var battleState = rb.Engine.CaptureBattleState();
+                plan.BattleStateJson = JsonSerializer.Serialize(battleState);
+            }
+        }
+
+        // 停止战斗但不结算
+        if (plan.BattleId.HasValue)
+        {
+            await _coordinator.StopAndFinalizeAsync(plan.BattleId.Value, ct);
+        }
+
+        // 更新计划状态为暂停
+        plan.State = ActivityState.Paused;
+        
+        // 更新已执行时长（保存玩家最后一次在线时的进度）
+        if (plan.StartedAt.HasValue)
+        {
+            var elapsed = (DateTime.UtcNow - plan.StartedAt.Value).TotalSeconds;
+            plan.ExecutedSeconds = elapsed;
+        }
+        
+        // 保留战斗状态JSON（用于恢复）
+        // plan.BattleStateJson 保持不变
+
+        await _plans.UpdateAsync(plan, ct);
+
+        return true;
+    }
+
+    /// <summary>
     /// 停止活动计划
     /// </summary>
     public async Task<bool> StopPlanAsync(Guid planId, CancellationToken ct = default)
@@ -309,6 +355,37 @@ public class ActivityPlanService
         plan.CompletedAt = DateTime.UtcNow;
         await _plans.UpdateAsync(plan, ct);
         return true;
+    }
+
+    /// <summary>
+    /// 恢复暂停的活动计划
+    /// </summary>
+    public async Task<bool> ResumePlanAsync(Guid planId, CancellationToken ct = default)
+    {
+        var plan = await _plans.GetAsync(planId, ct);
+        if (plan is null)
+            return false;
+
+        if (plan.State != ActivityState.Paused)
+            return false;
+
+        // 将暂停的计划改为待执行状态，然后通过StartPlanAsync启动
+        plan.State = ActivityState.Pending;
+        await _plans.UpdateAsync(plan, ct);
+
+        // 使用StartPlanAsync启动计划（会自动加载BattleStateJson）
+        try
+        {
+            await StartPlanAsync(planId, ct);
+            return true;
+        }
+        catch (Exception)
+        {
+            // 如果启动失败，恢复为暂停状态
+            plan.State = ActivityState.Paused;
+            await _plans.UpdateAsync(plan, ct);
+            return false;
+        }
     }
 
     /// <summary>

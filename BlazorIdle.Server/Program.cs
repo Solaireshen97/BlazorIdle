@@ -74,6 +74,7 @@ builder.Services
 
 // 5. ע�����߼�⺧̨����
 builder.Services.AddHostedService<OfflineDetectionService>();
+builder.Services.AddHostedService<PausedPlanRecoveryService>();
 
 // 6. CORS������
 // Ŀ�ģ�����ǰ�� Blazor WebAssembly�����ؿ����˿ڣ����ʱ� API��

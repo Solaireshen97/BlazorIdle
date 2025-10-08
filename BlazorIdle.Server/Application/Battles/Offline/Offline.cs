@@ -97,20 +97,31 @@ public sealed class OfflineSettlementService
             };
         }
 
-        // 2. 查找离线时正在运行的计划
+        // 2. 查找离线时正在运行或暂停的计划
         var runningPlan = await _plans.GetRunningPlanAsync(characterId, ct);
+        
+        // 如果没有运行中的计划，检查是否有暂停的计划需要恢复
         if (runningPlan is null)
         {
-            // 没有活动计划，仅更新LastSeenAt
-            character.LastSeenAtUtc = DateTime.UtcNow;
-            await _db.SaveChangesAsync(ct);
-
-            return new OfflineCheckResult
+            var pausedPlan = await _plans.GetByCharacterIdAndStateAsync(characterId, ActivityState.Paused, ct);
+            if (pausedPlan is not null)
             {
-                HasOfflineTime = true,
-                OfflineSeconds = offlineSeconds,
-                HasRunningPlan = false
-            };
+                // 将暂停的计划视为运行计划进行离线结算
+                runningPlan = pausedPlan;
+            }
+            else
+            {
+                // 没有活动计划，仅更新LastSeenAt
+                character.LastSeenAtUtc = DateTime.UtcNow;
+                await _db.SaveChangesAsync(ct);
+
+                return new OfflineCheckResult
+                {
+                    HasOfflineTime = true,
+                    OfflineSeconds = offlineSeconds,
+                    HasRunningPlan = false
+                };
+            }
         }
 
         // 3. 使用 OfflineFastForwardEngine 快进模拟（保持无感继承效果）

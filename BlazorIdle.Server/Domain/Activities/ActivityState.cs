@@ -2,7 +2,9 @@ namespace BlazorIdle.Server.Domain.Activities;
 
 /// <summary>
 /// 活动计划状态
-/// 状态机：Pending → Running → Completed/Cancelled
+/// 状态机：Pending → Running → Paused/Completed/Cancelled
+///                    ↑          ↓
+///                    └──────────┘
 /// </summary>
 public enum ActivityState
 {
@@ -16,5 +18,8 @@ public enum ActivityState
     Completed = 2,
     
     /// <summary>已取消（用户主动停止）</summary>
-    Cancelled = 3
+    Cancelled = 3,
+    
+    /// <summary>已暂停（离线或其他原因暂停，保留状态可恢复）</summary>
+    Paused = 4
 }

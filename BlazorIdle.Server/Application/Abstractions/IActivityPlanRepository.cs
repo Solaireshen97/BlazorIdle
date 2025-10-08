@@ -37,4 +37,10 @@ public interface IActivityPlanRepository
     
     /// <summary>获取所有正在运行的活动计划</summary>
     Task<List<ActivityPlan>> GetAllRunningPlansAsync(CancellationToken ct = default);
+    
+    /// <summary>获取角色指定状态的第一个活动计划</summary>
+    Task<ActivityPlan?> GetByCharacterIdAndStateAsync(Guid characterId, ActivityState state, CancellationToken ct = default);
+    
+    /// <summary>获取所有暂停的活动计划</summary>
+    Task<List<ActivityPlan>> GetAllPausedPlansAsync(CancellationToken ct = default);
 }
