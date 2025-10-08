@@ -802,8 +802,13 @@ else
                     // 用选中的角色作为 lastCreated 以便其他功能使用
                     lastCreated = new CharacterCreated(selectedCharacter.Id, selectedCharacter.Name);
                     
-                    // 检查离线收益
+                    // 检查离线收益（会触发 RefreshPlansAsync）
                     await CheckOfflineRewardsAsync();
+                }
+                // 如果已经有选中的角色，刷新其计划列表
+                else if (selectedCharacter is not null && lastCreated is not null)
+                {
+                    await RefreshPlansAsync();
                 }
                 
                 userMessage = $"欢迎回来！你有 {userCharacters.Count} 个角色。";
@@ -957,8 +962,17 @@ else
     {
         selectedCharacter = character;
         lastCreated = new CharacterCreated(character.Id, character.Name);
+        
+        // 停止当前角色的所有轮询
+        StopPlanPolling();
+        currentPlanBattle = null;
+        characterPlans = null;
+        
         ResetBattleState();
         StateHasChanged();
+        
+        // 加载新角色的计划
+        _ = RefreshPlansAsync();
     }
 
     string newName = "TestWarrior";
