@@ -29,6 +29,108 @@ else
     </div>
 }
 
+<!-- 离线结算弹窗 -->
+@if (showOfflineDialog && offlineCheckResult is not null)
+{
+    <div class="modal" style="display: block; background: rgba(0,0,0,0.5);" @onclick="@(() => { })">
+        <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">🎉 欢迎回来！离线收益结算</h5>
+                    <button type="button" class="btn-close" @onclick="CloseOfflineDialog" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <strong>离线时长：</strong> 
+                        @{
+                            var hours = (int)(offlineCheckResult.OfflineSeconds / 3600);
+                            var minutes = (int)((offlineCheckResult.OfflineSeconds % 3600) / 60);
+                            <span>@hours 小时 @minutes 分钟</span>
+                        }
+                    </div>
+                    
+                    @if (offlineCheckResult.Settlement is not null)
+                    {
+                        <div class="card" style="padding: 12px; margin-bottom: 12px;">
+                            <h6>收益统计</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <strong>💰 金币：</strong> <span style="color: #ffc107;">+@offlineCheckResult.Settlement.Gold</span>
+                                </div>
+                                <div class="col-md-6">
+                                    <strong>⭐ 经验：</strong> <span style="color: #17a2b8;">+@offlineCheckResult.Settlement.Exp</span>
+                                </div>
+                            </div>
+                            <div class="row" style="margin-top: 8px;">
+                                <div class="col-md-6">
+                                    <strong>⚔️ 总伤害：</strong> @offlineCheckResult.Settlement.TotalDamage
+                                </div>
+                                <div class="col-md-6">
+                                    <strong>💀 击杀数：</strong> @offlineCheckResult.Settlement.TotalKills
+                                </div>
+                            </div>
+                            <div class="row" style="margin-top: 8px;">
+                                <div class="col-md-12">
+                                    <strong>⏱️ 模拟时长：</strong> @offlineCheckResult.Settlement.SimulatedSeconds.ToString("F0") 秒
+                                </div>
+                            </div>
+                        </div>
+
+                        @if (offlineCheckResult.Settlement.LootSampled.Any() || offlineCheckResult.Settlement.LootExpected.Any())
+                        {
+                            <div class="card" style="padding: 12px; margin-bottom: 12px;">
+                                <h6>掉落物品</h6>
+                                @if (offlineCheckResult.Settlement.DropMode == "sampled" && offlineCheckResult.Settlement.LootSampled.Any())
+                                {
+                                    <ul style="margin: 0; padding-left: 20px;">
+                                        @foreach (var (itemId, quantity) in offlineCheckResult.Settlement.LootSampled.Where(kv => kv.Value > 0).OrderByDescending(kv => kv.Value))
+                                        {
+                                            <li>@itemId: <strong>@quantity</strong></li>
+                                        }
+                                    </ul>
+                                }
+                                else if (offlineCheckResult.Settlement.LootExpected.Any())
+                                {
+                                    <ul style="margin: 0; padding-left: 20px;">
+                                        @foreach (var (itemId, quantity) in offlineCheckResult.Settlement.LootExpected.Where(kv => kv.Value > 0).OrderByDescending(kv => kv.Value))
+                                        {
+                                            <li>@itemId: <strong>@quantity.ToString("F2")</strong></li>
+                                        }
+                                    </ul>
+                                }
+                            </div>
+                        }
+
+                        @if (offlineCheckResult.PlanCompleted)
+                        {
+                            <div class="alert alert-success">
+                                ✅ 活动计划已完成！
+                                @if (offlineCheckResult.NextPlanStarted)
+                                {
+                                    <br/>
+                                    <span>已自动开始下一个计划。</span>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-warning">
+                                ⏳ 活动计划继续进行中...
+                            </div>
+                        }
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseOfflineDialog">稍后</button>
+                    <button type="button" class="btn btn-primary" @onclick="ApplyOfflineSettlement" disabled="@isBusy">
+                        @(isBusy ? "领取中..." : "确认领取")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 <!-- 0) 角色列表 -->
 @if (userCharacters.Count > 0)
 {
@@ -740,6 +842,10 @@ else
     private UserCharacterDto? selectedCharacter;
     private string userMessage = "";
 
+    // ====== 离线结算 ======
+    private bool showOfflineDialog = false;
+    private OfflineCheckResult? offlineCheckResult;
+
     // ====== 创建/同步战斗 ======
     protected override async Task OnInitializedAsync()
     {
@@ -788,6 +894,9 @@ else
                     selectedCharacter = userCharacters[0];
                     // 用选中的角色作为 lastCreated 以便其他功能使用
                     lastCreated = new CharacterCreated(selectedCharacter.Id, selectedCharacter.Name);
+                    
+                    // 检查离线收益
+                    await CheckOfflineRewardsAsync(selectedCharacter.Id);
                 }
                 
                 userMessage = $"欢迎回来！你有 {userCharacters.Count} 个角色。";
@@ -1320,10 +1429,17 @@ else
                 {
                     currentPlanBattle = await Api.GetStepBattleStatusAsync(battleId, "sampled", _planPollCts.Token);
                     
-                    // 同时刷新计划列表以获取最新的ExecutedSeconds
+                    // 同时刷新计划列表以获取最新的ExecutedSeconds并更新心跳
                     if (lastCreated is not null)
                     {
                         characterPlans = await Api.GetCharacterPlansAsync(lastCreated.Id);
+                        
+                        // 更新心跳（每次刷新计划时更新，实现无感心跳）
+                        try
+                        {
+                            await Api.UpdateHeartbeatAsync(lastCreated.Id, _planPollCts.Token);
+                        }
+                        catch (Exception) { /* 心跳更新失败不影响主流程 */ }
                     }
                     
                     await InvokeAsync(StateHasChanged);
@@ -1344,6 +1460,63 @@ else
     {
         _planPollCts?.Cancel();
         planIsPolling = false;
+    }
+
+    // ====== 离线收益检查与应用 ======
+    async Task CheckOfflineRewardsAsync(Guid characterId)
+    {
+        try
+        {
+            var result = await Api.CheckOfflineAsync(characterId);
+            if (result is not null && result.HasOfflineTime && result.HasRunningPlan)
+            {
+                offlineCheckResult = result;
+                showOfflineDialog = true;
+                
+                // 刷新计划列表以获取最新状态
+                await RefreshPlansAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            userMessage = $"检查离线收益失败: {ex.Message}";
+        }
+    }
+
+    async Task ApplyOfflineSettlement()
+    {
+        if (offlineCheckResult?.Settlement is null || lastCreated is null)
+            return;
+
+        try
+        {
+            isBusy = true;
+            await Api.ApplyOfflineSettlementAsync(lastCreated.Id, offlineCheckResult.Settlement);
+            
+            // 刷新角色数据和计划列表
+            await LoadUserDataAsync();
+            await RefreshPlansAsync();
+            
+            // 关闭弹窗
+            showOfflineDialog = false;
+            offlineCheckResult = null;
+            
+            userMessage = "离线收益已领取！";
+        }
+        catch (Exception ex)
+        {
+            planError = $"领取离线收益失败: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    void CloseOfflineDialog()
+    {
+        showOfflineDialog = false;
+        offlineCheckResult = null;
     }
 
     // 批量模拟器

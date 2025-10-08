@@ -97,6 +97,49 @@ public sealed class OfflineSettleResponse
     public Dictionary<string, int> LootSampled { get; set; } = new();
 }
 
+// 离线战斗相关 DTOs
+/// <summary>
+/// 离线快进结果
+/// </summary>
+public sealed class OfflineFastForwardResult
+{
+    public Guid CharacterId { get; init; }
+    public Guid PlanId { get; init; }
+    public double SimulatedSeconds { get; init; }      // 实际模拟时长
+    public bool PlanCompleted { get; init; }           // 计划是否完成
+    public long TotalDamage { get; init; }
+    public int TotalKills { get; init; }
+    public long Gold { get; init; }                    // 金币收益
+    public long Exp { get; init; }                     // 经验收益
+    public Dictionary<string, double> LootExpected { get; init; } = new();
+    public Dictionary<string, int> LootSampled { get; init; } = new();
+    public double UpdatedExecutedSeconds { get; init; } // 更新后的已执行时长
+    public string DropMode { get; init; } = "expected";
+}
+
+/// <summary>
+/// 离线检查结果（用于登录时自动检测）
+/// </summary>
+public sealed class OfflineCheckResult
+{
+    public bool HasOfflineTime { get; init; }
+    public double OfflineSeconds { get; init; }
+    public bool HasRunningPlan { get; init; }
+    public OfflineFastForwardResult? Settlement { get; init; }
+    public bool PlanCompleted { get; init; }
+    public bool NextPlanStarted { get; init; }
+    public Guid? NextPlanId { get; init; }
+}
+
+/// <summary>
+/// 应用离线结算请求
+/// </summary>
+public sealed class ApplySettlementRequest
+{
+    public Guid CharacterId { get; set; }
+    public OfflineFastForwardResult Settlement { get; set; } = null!;
+}
+
 // 背包物品（/api/inventory/{characterId}）
 public sealed class InventoryItemDto
 {
