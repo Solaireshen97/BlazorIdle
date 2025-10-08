@@ -347,9 +347,16 @@ public class ActivityPlanService
                 plan.ExecutedSeconds = elapsed;
             }
         }
+        // 如果是暂停状态，不需要停止战斗（已经停止了），但需要更新执行时长
+        else if (plan.State == ActivityState.Paused)
+        {
+            // ExecutedSeconds 在暂停时已经更新，无需再次计算
+        }
 
         plan.State = ActivityState.Cancelled;
         plan.CompletedAt = DateTime.UtcNow;
+        // 清空战斗状态（计划已取消）
+        plan.BattleStateJson = null;
         await _plans.UpdateAsync(plan, ct);
         return true;
     }
