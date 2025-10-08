@@ -97,8 +97,21 @@ public sealed class OfflineSettlementService
             };
         }
 
-        // 2. 查找离线时正在运行的计划
+        // 2. 查找离线时正在运行或暂停的计划
         var runningPlan = await _plans.GetRunningPlanAsync(characterId, ct);
+        
+        // 如果没有运行中的计划，检查是否有暂停的计划
+        if (runningPlan is null)
+        {
+            // 查找暂停的计划（需要通过仓储查询）
+            var allPlans = await _db.ActivityPlans
+                .Where(p => p.CharacterId == characterId && p.State == ActivityState.Paused)
+                .OrderByDescending(p => p.StartedAt)
+                .ToListAsync(ct);
+            
+            runningPlan = allPlans.FirstOrDefault();
+        }
+        
         if (runningPlan is null)
         {
             // 没有活动计划，仅更新LastSeenAt
@@ -113,18 +126,27 @@ public sealed class OfflineSettlementService
             };
         }
 
-        // 3. 使用 OfflineFastForwardEngine 快进模拟（保持无感继承效果）
+        // 3. 如果计划是暂停状态，需要先恢复为运行状态
+        bool wasPaused = runningPlan.State == ActivityState.Paused;
+        if (wasPaused)
+        {
+            // 暂时将状态改为 Running 以便快进引擎处理
+            runningPlan.State = ActivityState.Running;
+        }
+        
+        // 4. 使用 OfflineFastForwardEngine 快进模拟（保持无感继承效果）
         var result = _engine.FastForward(character, runningPlan, offlineSeconds);
 
-        // 4. 更新计划状态（已在 FastForward 中完成，但需要持久化）
+        // 5. 更新计划状态（已在 FastForward 中完成，但需要持久化）
         await _plans.UpdateAsync(runningPlan, ct);
 
-        // 5. 更新角色时间戳
+        // 6. 更新角色时间戳
         character.LastSeenAtUtc = DateTime.UtcNow;
         character.LastOfflineSettledAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
 
-        // 6. 如果计划完成，尝试启动下一个（实现自动衔接）
+        // 7. 如果计划完成，尝试启动下一个（实现自动衔接）
+        // 如果计划未完成且之前是暂停状态，需要恢复运行（通过 _tryStartNextPlan 或重新启动）
         Guid? nextPlanId = null;
         bool nextPlanStarted = false;
         if (result.PlanCompleted && _tryStartNextPlan is not null)
@@ -135,6 +157,13 @@ public sealed class OfflineSettlementService
                 nextPlanId = nextPlan.Id;
                 nextPlanStarted = true;
             }
+        }
+        else if (!result.PlanCompleted && wasPaused && _tryStartNextPlan is not null)
+        {
+            // 计划未完成且之前是暂停的，尝试恢复运行
+            // 由于计划现在仍然是某个状态（Running 或 Paused），我们需要等待玩家操作来恢复
+            // 或者可以在这里自动恢复，但这需要 ActivityPlanService 支持
+            // 暂时保持当前状态，等待用户登录后通过其他机制恢复
         }
 
         return new OfflineCheckResult

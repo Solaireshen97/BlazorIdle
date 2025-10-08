@@ -87,8 +87,11 @@
             </div>
             
             <div class="offline-dialog-footer">
-                <button class="btn btn-primary btn-lg" @onclick="OnClaimClicked" disabled="@IsProcessing">
-                    @(IsProcessing ? "领取中..." : "确认领取")
+                <div class="alert alert-success" style="margin-bottom: 12px; text-align: center;">
+                    ✅ 离线收益已自动发放到您的账户
+                </div>
+                <button class="btn btn-primary btn-lg" @onclick="OnClaimClicked">
+                    关闭
                 </button>
             </div>
         </div>
@@ -272,8 +275,6 @@
     [Parameter]
     public EventCallback OnClaim { get; set; }
 
-    private bool IsProcessing { get; set; }
-
     private bool HasLoot =>
         Result?.Settlement != null &&
         ((Result.Settlement.DropMode == "sampled" && Result.Settlement.LootSampled.Any()) ||
@@ -281,22 +282,13 @@
 
     private async Task OnClaimClicked()
     {
-        if (IsProcessing) return;
-        
-        IsProcessing = true;
-        try
-        {
-            await OnClaim.InvokeAsync();
-        }
-        finally
-        {
-            IsProcessing = false;
-        }
+        // 收益已自动应用，这里只是关闭弹窗
+        await OnClaim.InvokeAsync();
     }
 
     private void OnOverlayClick()
     {
-        // 点击遮罩层时不关闭，必须点击确认领取按钮
+        // 点击遮罩层时不关闭，必须点击关闭按钮
         // 这是为了确保用户看到离线收益
     }
 

@@ -87,7 +87,7 @@ public class ActivityPlanService
     }
 
     /// <summary>
-    /// 启动活动计划
+    /// 启动活动计划（支持启动新计划和恢复暂停的计划）
     /// </summary>
     public async Task<Guid> StartPlanAsync(Guid planId, CancellationToken ct = default)
     {
@@ -95,7 +95,8 @@ public class ActivityPlanService
         if (plan is null)
             throw new InvalidOperationException("Plan not found");
 
-        if (plan.State != ActivityState.Pending)
+        // 允许启动 Pending 或 Paused 状态的计划
+        if (plan.State != ActivityState.Pending && plan.State != ActivityState.Paused)
             throw new InvalidOperationException($"Cannot start plan in state {plan.State}");
 
         // 检查是否有其他正在运行的计划
@@ -202,6 +203,48 @@ public class ActivityPlanService
     }
 
     /// <summary>
+    /// 暂停活动计划（用于玩家离线）
+    /// 保存当前进度和战斗状态，以便稍后恢复
+    /// </summary>
+    public async Task<bool> PausePlanAsync(Guid planId, CancellationToken ct = default)
+    {
+        var plan = await _plans.GetAsync(planId, ct);
+        if (plan is null)
+            return false;
+
+        if (plan.State != ActivityState.Running)
+            return false;
+
+        // 保存战斗状态（在暂停前）
+        if (plan.BattleId.HasValue)
+        {
+            if (_coordinator.TryGet(plan.BattleId.Value, out var rb) && rb != null)
+            {
+                var battleState = rb.Engine.CaptureBattleState();
+                plan.BattleStateJson = JsonSerializer.Serialize(battleState);
+                
+                // 更新已执行时长
+                plan.ExecutedSeconds = rb.Clock.CurrentTime;
+            }
+        }
+
+        // 停止战斗（释放内存）
+        if (plan.BattleId.HasValue)
+        {
+            await _coordinator.StopAndFinalizeAsync(plan.BattleId.Value, ct);
+            // 清除 BattleId 引用，但保留 BattleStateJson 用于恢复
+            plan.BattleId = null;
+        }
+
+        // 更新计划状态为暂停
+        plan.State = ActivityState.Paused;
+        
+        await _plans.UpdateAsync(plan, ct);
+
+        return true;
+    }
+
+    /// <summary>
     /// 停止活动计划
     /// </summary>
     public async Task<bool> StopPlanAsync(Guid planId, CancellationToken ct = default)
@@ -304,9 +347,16 @@ public class ActivityPlanService
                 plan.ExecutedSeconds = elapsed;
             }
         }
+        // 如果是暂停状态，不需要停止战斗（已经停止了），但需要更新执行时长
+        else if (plan.State == ActivityState.Paused)
+        {
+            // ExecutedSeconds 在暂停时已经更新，无需再次计算
+        }
 
         plan.State = ActivityState.Cancelled;
         plan.CompletedAt = DateTime.UtcNow;
+        // 清空战斗状态（计划已取消）
+        plan.BattleStateJson = null;
         await _plans.UpdateAsync(plan, ct);
         return true;
     }

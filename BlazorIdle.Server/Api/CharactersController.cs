@@ -1,10 +1,12 @@
 using BlazorIdle.Server.Application.Auth;
+using BlazorIdle.Server.Application.Battles.Offline;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using BlazorIdle.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace BlazorIdle.Server.Api;
 
@@ -13,8 +15,18 @@ namespace BlazorIdle.Server.Api;
 public class CharactersController : ControllerBase
 {
     private readonly GameDbContext _db;
+    private readonly OfflineSettlementService _offlineService;
+    private readonly IConfiguration _configuration;
 
-    public CharactersController(GameDbContext db) => _db = db;
+    public CharactersController(
+        GameDbContext db,
+        OfflineSettlementService offlineService,
+        IConfiguration configuration)
+    {
+        _db = db;
+        _offlineService = offlineService;
+        _configuration = configuration;
+    }
 
     [HttpPost]
     [Authorize]  // 现在要求用户必须登录才能创建角色
@@ -133,6 +145,7 @@ public class CharactersController : ControllerBase
 
     /// <summary>
     /// 更新角色心跳时间，标记角色在线
+    /// 自动检测离线状态并触发离线结算（如果需要）
     /// POST /api/characters/{id}/heartbeat
     /// </summary>
     [HttpPost("{id:guid}/heartbeat")]
@@ -144,9 +157,54 @@ public class CharactersController : ControllerBase
             return NotFound(new { message = "角色不存在" });
         }
 
-        character.LastSeenAtUtc = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
-        return Ok(new { message = "心跳更新成功", timestamp = character.LastSeenAtUtc });
+        // 获取离线检测阈值（默认60秒）
+        var offlineThresholdSeconds = _configuration.GetValue<int>("Offline:OfflineDetectionSeconds", 60);
+        var autoApplyRewards = _configuration.GetValue<bool>("Offline:AutoApplyRewards", true);
+        
+        // 检查是否需要触发离线结算
+        OfflineCheckResult? offlineResult = null;
+        if (character.LastSeenAtUtc.HasValue)
+        {
+            var offlineSeconds = (DateTime.UtcNow - character.LastSeenAtUtc.Value).TotalSeconds;
+            
+            // 如果离线时间超过阈值，触发离线结算
+            if (offlineSeconds >= offlineThresholdSeconds)
+            {
+                try
+                {
+                    // 执行离线检测和结算（但暂不更新心跳，让 CheckAndSettleAsync 处理）
+                    offlineResult = await _offlineService.CheckAndSettleAsync(id);
+                    
+                    // 如果自动应用收益已开启且有结算结果，立即应用
+                    if (autoApplyRewards && offlineResult.Settlement != null)
+                    {
+                        await _offlineService.ApplySettlementAsync(id, offlineResult.Settlement);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // 记录错误但不阻止心跳更新
+                    // 在生产环境中应该使用适当的日志记录
+                    Console.WriteLine($"离线结算失败: {ex.Message}");
+                }
+            }
+        }
+        
+        // 更新心跳时间（如果 CheckAndSettleAsync 还没更新的话）
+        // CheckAndSettleAsync 会更新 LastSeenAtUtc，所以这里需要重新获取
+        character = await _db.Characters.FirstOrDefaultAsync(c => c.Id == id);
+        if (character != null)
+        {
+            character.LastSeenAtUtc = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+        }
+        
+        return Ok(new
+        {
+            message = "心跳更新成功",
+            timestamp = character?.LastSeenAtUtc,
+            offlineSettlement = offlineResult
+        });
     }
 
     private static (int str, int agi, int intel, int sta) DefaultAttributesFor(Profession p)

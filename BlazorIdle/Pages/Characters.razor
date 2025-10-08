@@ -10,7 +10,7 @@
 @implements IDisposable
 
 <!-- 离线结算弹窗 -->
-<OfflineSettlementDialog Result="@offlineCheckResult" OnClaim="@ApplyOfflineSettlement" />
+<OfflineSettlementDialog Result="@offlineCheckResult" OnClaim="@CloseOfflineSettlement" />
 
 @if (!isAuthenticated)
 {
@@ -828,6 +828,7 @@ else
 
     /// <summary>
     /// 检查离线收益（在角色加载时自动调用）
+    /// 注意：现在心跳更新会自动触发离线检测和结算
     /// </summary>
     private async Task CheckOfflineRewardsAsync()
     {
@@ -835,17 +836,22 @@ else
 
         try
         {
-            // 检查离线收益
-            offlineCheckResult = await Api.CheckOfflineAsync(selectedCharacter.Id);
+            // 更新心跳时间（会自动触发离线检测和结算）
+            var heartbeatResponse = await Api.UpdateHeartbeatAsync(selectedCharacter.Id);
             
-            // 如果有离线收益，弹窗会自动显示
-            if (offlineCheckResult?.HasOfflineTime == true)
+            // 如果心跳响应中包含离线结算结果，显示弹窗
+            if (heartbeatResponse?.OfflineSettlement != null && heartbeatResponse.OfflineSettlement.HasOfflineTime)
             {
+                offlineCheckResult = heartbeatResponse.OfflineSettlement;
+                
+                // 重新加载用户数据以更新金币和经验显示（因为收益已自动应用）
+                await LoadUserDataAsync();
+                
+                // 刷新计划列表
+                await RefreshPlansAsync();
+                
                 await InvokeAsync(StateHasChanged);
             }
-
-            // 更新心跳时间
-            await UpdateHeartbeatIfNeededAsync();
         }
         catch (Exception ex)
         {
@@ -854,37 +860,19 @@ else
     }
 
     /// <summary>
-    /// 应用离线结算，实际发放收益
+    /// 关闭离线结算弹窗（收益已自动应用，不需要手动领取）
     /// </summary>
-    private async Task ApplyOfflineSettlement()
+    private async Task CloseOfflineSettlement()
     {
-        if (offlineCheckResult?.Settlement is null || selectedCharacter is null) return;
-
-        try
-        {
-            await Api.ApplyOfflineSettlementAsync(selectedCharacter.Id, offlineCheckResult.Settlement);
-            
-            // 重新加载用户数据以更新金币和经验显示
-            await LoadUserDataAsync();
-            
-            // 刷新计划列表
-            await RefreshPlansAsync();
-            
-            // 清除离线结算结果，关闭弹窗
-            offlineCheckResult = null;
-            
-            userMessage = "离线收益已领取成功！";
-            await InvokeAsync(StateHasChanged);
-        }
-        catch (Exception ex)
-        {
-            userMessage = $"领取离线收益失败: {ex.Message}";
-        }
+        // 清除离线结算结果，关闭弹窗
+        offlineCheckResult = null;
+        await InvokeAsync(StateHasChanged);
     }
 
     /// <summary>
     /// 更新心跳时间（如果需要）
     /// 在计划任务刷新时也会调用，实现每2秒更新一次
+    /// 注意：心跳更新会自动触发离线检测和结算
     /// </summary>
     private async Task UpdateHeartbeatIfNeededAsync()
     {
@@ -897,8 +885,24 @@ else
 
         try
         {
-            await Api.UpdateHeartbeatAsync(selectedCharacter.Id);
+            var heartbeatResponse = await Api.UpdateHeartbeatAsync(selectedCharacter.Id);
             lastHeartbeatUpdate = now;
+            
+            // 如果心跳响应中包含离线结算结果（首次检测到离线），显示弹窗
+            if (heartbeatResponse?.OfflineSettlement != null && 
+                heartbeatResponse.OfflineSettlement.HasOfflineTime &&
+                offlineCheckResult == null) // 避免重复弹窗
+            {
+                offlineCheckResult = heartbeatResponse.OfflineSettlement;
+                
+                // 重新加载用户数据以更新金币和经验显示
+                await LoadUserDataAsync();
+                
+                // 刷新计划列表
+                await RefreshPlansAsync();
+                
+                await InvokeAsync(StateHasChanged);
+            }
         }
         catch
         {

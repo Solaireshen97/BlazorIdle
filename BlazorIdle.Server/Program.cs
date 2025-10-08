@@ -1,6 +1,7 @@
 using BlazorIdle.Server.Application;
 using BlazorIdle.Server.Application.Auth;
 using BlazorIdle.Server.Infrastructure;
+using BlazorIdle.Server.Services;
 using Microsoft.EntityFrameworkCore;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -71,7 +72,10 @@ builder.Services
     .AddInfrastructure(builder.Configuration)   // ע�������ʩ��DbContext / �ִ����ڲ��ѵ��� AddRepositories��
     .AddApplication();                          // ע��Ӧ�ò�����������Command/Query Handler �ȣ�
 
-// 5. CORS������
+// 5. ע�����߼�⺧̨����
+builder.Services.AddHostedService<OfflineDetectionService>();
+
+// 6. CORS������
 // Ŀ�ģ�����ǰ�� Blazor WebAssembly�����ؿ����˿ڣ����ʱ� API��
 // ע�⣺�����ɸ�Ϊ��ȷ��Դ������ö�ȡ������ƾ�����ټ� AllowCredentials().
 builder.Services.AddCors(options =>

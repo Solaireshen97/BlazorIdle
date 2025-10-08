@@ -308,14 +308,15 @@ public class ApiClient
     }
 
     /// <summary>
-    /// 更新角色心跳时间
+    /// 更新角色心跳时间（会自动触发离线检测和结算）
     /// </summary>
-    public async Task UpdateHeartbeatAsync(Guid characterId, CancellationToken ct = default)
+    public async Task<HeartbeatResponse?> UpdateHeartbeatAsync(Guid characterId, CancellationToken ct = default)
     {
         SetAuthHeader();
         using var content = new StringContent("{}", Encoding.UTF8, "application/json");
         var resp = await _http.PostAsync($"/api/characters/{characterId}/heartbeat", content, ct);
         resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<HeartbeatResponse>(cancellationToken: ct);
     }
 }
 
@@ -467,3 +468,10 @@ public record ApplyOfflineSettlementRequest(
     Guid CharacterId,
     OfflineFastForwardResult Settlement
 );
+
+public sealed class HeartbeatResponse
+{
+    public string Message { get; set; } = "";
+    public DateTime? Timestamp { get; set; }
+    public OfflineCheckResult? OfflineSettlement { get; set; }
+}

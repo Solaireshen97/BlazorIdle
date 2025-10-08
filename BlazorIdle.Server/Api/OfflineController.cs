@@ -12,7 +12,8 @@ public class OfflineController : ControllerBase
     public OfflineController(OfflineSettlementService offline) => _offline = offline;
 
     /// <summary>
-    /// 检查角色离线时间并返回结算预览（不发放收益）
+    /// 检查角色离线时间并返回结算结果
+    /// 注意：从心跳更新自动触发后，此端点主要用于查询已结算的结果
     /// GET /api/offline/check?characterId={id}
     /// </summary>
     [HttpGet("check")]
@@ -33,6 +34,7 @@ public class OfflineController : ControllerBase
 
     /// <summary>
     /// 应用离线结算，实际发放收益到角色
+    /// 注意：在自动应用收益模式下，此端点仅作为备用/手动触发选项保留
     /// POST /api/offline/apply
     /// </summary>
     [HttpPost("apply")]
@@ -46,7 +48,7 @@ public class OfflineController : ControllerBase
                 request.CharacterId,
                 request.Settlement,
                 ct);
-            return Ok(new { success = true });
+            return Ok(new { success = true, message = "收益已发放" });
         }
         catch (InvalidOperationException ex)
         {

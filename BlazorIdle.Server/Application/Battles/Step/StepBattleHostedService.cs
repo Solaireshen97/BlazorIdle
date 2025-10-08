@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -41,6 +43,17 @@ public sealed class StepBattleHostedService : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "RecoverAllAsync failed.");
+        }
+
+        // 恢复暂停的计划（服务器重启后）
+        _logger.LogInformation("Recovering paused plans...");
+        try
+        {
+            await RecoverPausedPlansAsync(stoppingToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "RecoverPausedPlansAsync failed.");
         }
 
         _logger.LogInformation("StepBattleHostedService started.");
@@ -98,6 +111,65 @@ public sealed class StepBattleHostedService : BackgroundService
         _logger.LogInformation("StepBattleHostedService stopped.");
     }
 
+
+    /// <summary>
+    /// 恢复暂停的计划（服务器重启后）
+    /// 暂停的计划会在玩家下次上线时通过离线结算自动恢复，
+    /// 或者如果玩家仍然在线（可能是服务器重启），则直接恢复运行
+    /// </summary>
+    private async Task RecoverPausedPlansAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<Infrastructure.Persistence.GameDbContext>();
+            var characterRepo = scope.ServiceProvider.GetRequiredService<BlazorIdle.Server.Application.Abstractions.ICharacterRepository>();
+            var activityPlanService = scope.ServiceProvider.GetService<ActivityPlanService>();
+            
+            if (activityPlanService == null)
+                return;
+
+            // 查找所有暂停的计划
+            var pausedPlans = await db.ActivityPlans
+                .Where(p => p.State == Domain.Activities.ActivityState.Paused)
+                .ToListAsync(ct);
+
+            foreach (var plan in pausedPlans)
+            {
+                if (ct.IsCancellationRequested)
+                    break;
+
+                try
+                {
+                    // 检查玩家是否在线（最近60秒内有心跳）
+                    var character = await characterRepo.GetAsync(plan.CharacterId, ct);
+                    if (character?.LastSeenAtUtc != null)
+                    {
+                        var offlineSeconds = (DateTime.UtcNow - character.LastSeenAtUtc.Value).TotalSeconds;
+                        
+                        // 如果玩家在线（心跳在60秒内），尝试恢复运行
+                        if (offlineSeconds < 60)
+                        {
+                            _logger.LogInformation(
+                                "服务器重启后恢复暂停的计划 {PlanId} (玩家 {CharacterId} 在线)",
+                                plan.Id, plan.CharacterId);
+                            
+                            await activityPlanService.StartPlanAsync(plan.Id, ct);
+                        }
+                        // 否则保持暂停状态，等待玩家上线后通过离线结算恢复
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Failed to recover paused plan {PlanId}", plan.Id);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "RecoverPausedPlansAsync failed");
+        }
+    }
 
     /// <summary>
     /// 检查所有运行中的活动计划，更新进度并自动停止达到限制的计划
