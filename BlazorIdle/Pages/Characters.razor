@@ -849,6 +849,9 @@ else
             // 更新心跳时间（会自动触发离线检测和结算）
             var heartbeatResponse = await Api.UpdateHeartbeatAsync(selectedCharacter.Id);
             
+            // 刷新计划列表（无论是否有离线时间都需要刷新以获取运行中的计划）
+            await RefreshPlansAsync();
+            
             // 如果心跳响应中包含离线结算结果，显示弹窗
             if (heartbeatResponse?.OfflineSettlement != null && heartbeatResponse.OfflineSettlement.HasOfflineTime)
             {
@@ -857,7 +860,7 @@ else
                 // 重新加载用户数据以更新金币和经验显示（因为收益已自动应用）
                 await LoadUserDataAsync();
                 
-                // 刷新计划列表
+                // 再次刷新计划列表以获取最新状态
                 await RefreshPlansAsync();
                 
                 // 如果计划未完成且下一个计划已启动，重新开始轮询
