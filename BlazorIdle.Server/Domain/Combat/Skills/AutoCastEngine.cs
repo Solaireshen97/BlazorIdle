@@ -233,7 +233,28 @@ public class AutoCastEngine
         }
         else
         {
-            DamageCalculator.ApplyDamage(context, "skill:" + def.Id, baseDmg, type);
+            // Phase 2: 单体技能使用 TargetSelector 随机选择目标
+            if (context.EncounterGroup != null)
+            {
+                var candidates = context.EncounterGroup.All
+                    .Select((enc, idx) => new Combatants.EnemyCombatant($"enemy_{idx}", enc))
+                    .ToList<Combatants.ICombatant>();
+                
+                var target = context.TargetSelector.SelectTarget(candidates);
+                if (target is Combatants.EnemyCombatant enemyTarget)
+                {
+                    DamageCalculator.ApplyDamageToTarget(context, enemyTarget.Encounter, "skill:" + def.Id, baseDmg, type);
+                }
+                else
+                {
+                    // 无可用目标，跳过
+                }
+            }
+            else
+            {
+                // 向后兼容：使用旧的 ApplyDamage 方法
+                DamageCalculator.ApplyDamage(context, "skill:" + def.Id, baseDmg, type);
+            }
         }
 
         context.SegmentCollector.OnTag("skill_cast:" + def.Id, 1);

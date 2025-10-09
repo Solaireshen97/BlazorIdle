@@ -1,7 +1,8 @@
-﻿using BlazorIdle.Server.Domain.Combat.Damage;
+using BlazorIdle.Server.Domain.Combat.Damage;
 using BlazorIdle.Server.Domain.Combat.Procs;
 using BlazorWebGame.Domain.Combat;
 using System;
+using System.Linq;
 
 namespace BlazorIdle.Server.Domain.Combat;
 
@@ -26,6 +27,26 @@ public record AttackTickEvent(double ExecuteAt, TrackState Track) : IGameEvent
             return;
         }
 
+        // Phase 2: 使用 TargetSelector 选择目标（如果有 EncounterGroup）
+        Combatants.ICombatant? target = null;
+        if (context.EncounterGroup != null)
+        {
+            // 将 EncounterGroup.All 包装为 ICombatant 列表
+            var candidates = context.EncounterGroup.All
+                .Select((enc, idx) => new Combatants.EnemyCombatant($"enemy_{idx}", enc))
+                .ToList<Combatants.ICombatant>();
+            
+            target = context.TargetSelector.SelectTarget(candidates);
+        }
+        
+        // 如果没有可选目标，跳过本次攻击
+        if (target == null && context.Encounter == null)
+        {
+            Track.NextTriggerAt = ExecuteAt + Track.CurrentInterval;
+            context.Scheduler.Schedule(new AttackTickEvent(Track.NextTriggerAt, Track));
+            return;
+        }
+
         const int baseDamage = 10;
 
         // 普攻暴击：使用面板基础（可被 BuffAggregate 叠加）
@@ -38,7 +59,16 @@ public record AttackTickEvent(double ExecuteAt, TrackState Track) : IGameEvent
         int finalDamage = isCrit ? (int)Math.Round(baseDamage * mult) : baseDamage;
         if (isCrit) context.SegmentCollector.OnTag("crit:basic_attack", 1);
 
-        DamageCalculator.ApplyDamage(context, "basic_attack", finalDamage, DamageType.Physical);
+        // Phase 2: 对选中的目标应用伤害
+        if (target is Combatants.EnemyCombatant enemyTarget)
+        {
+            DamageCalculator.ApplyDamageToTarget(context, enemyTarget.Encounter, "basic_attack", finalDamage, DamageType.Physical);
+        }
+        else
+        {
+            // 向后兼容：使用旧的 ApplyDamage 方法
+            DamageCalculator.ApplyDamage(context, "basic_attack", finalDamage, DamageType.Physical);
+        }
 
         // Proc: OnHit/OnCrit（非 DoT），来源为普攻
         context.Procs.OnDirectHit(context, "basic_attack", DamageType.Physical, isCrit, isDot: false, DirectSourceKind.BasicAttack, context.Clock.CurrentTime);

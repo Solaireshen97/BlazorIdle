@@ -37,6 +37,9 @@ public class BattleContext
     
     /// <summary>玩家战斗单位（Phase 1 基础架构）</summary>
     public PlayerCombatant Player { get; private set; }
+    
+    /// <summary>目标选取管理器（Phase 2: 基于权重的随机目标选择）</summary>
+    public TargetSelector TargetSelector { get; private set; }
 
     public BattleContext(
         Battle battle,
@@ -72,6 +75,9 @@ public class BattleContext
             stats: Stats,
             stamina: stamina
         );
+        
+        // Phase 2: 初始化目标选取管理器
+        TargetSelector = new TargetSelector(rng);
 
         // DoT：Haste/AP/SP 快照委托 + DoT 命中回调到 Procs（isDot=true）
         Buffs = new BuffManager(
