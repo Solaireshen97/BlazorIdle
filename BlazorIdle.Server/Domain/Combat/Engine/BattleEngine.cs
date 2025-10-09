@@ -176,6 +176,18 @@ public sealed class BattleEngine
         return grp.All.All(e => e.IsDead);
     }
 
+    // 重置攻击进度（切换目标或等待刷新时使用）
+    private void ResetAttackProgress()
+    {
+        var attackTrack = Context.Tracks.FirstOrDefault(t => t.TrackType == TrackType.Attack);
+        if (attackTrack is not null)
+        {
+            // 将下次攻击时间设置为当前时间 + 完整的攻击间隔
+            attackTrack.NextTriggerAt = Clock.CurrentTime + attackTrack.CurrentInterval;
+            Collector.OnTag("attack_progress_reset", 1);
+        }
+    }
+
     // 若主目标已死而波未清空，立刻重选主目标
     private void TryRetargetPrimaryIfDead()
     {
@@ -189,6 +201,7 @@ public sealed class BattleEngine
             if (next is not null && !next.IsDead)
             {
                 Context.RefreshPrimaryEncounter();
+                ResetAttackProgress(); // 切换目标时重置攻击进度
                 Collector.OnTag("retarget_primary", 1);
             }
         }
@@ -213,6 +226,9 @@ public sealed class BattleEngine
             _pendingNextGroup = nextGroup;
             _pendingSpawnAt = Clock.CurrentTime + delay;
             _waitingSpawn = true;
+
+            // 进入刷新等待状态时重置攻击进度
+            ResetAttackProgress();
 
             if (runCompleted) Collector.OnTag("dungeon_run_complete", 1);
             Collector.OnTag("spawn_scheduled", 1);
