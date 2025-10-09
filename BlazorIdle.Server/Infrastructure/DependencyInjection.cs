@@ -34,7 +34,7 @@ public static class DependencyInjection
         // 离线战斗引擎
         services.AddTransient<OfflineFastForwardEngine>();
 
-        // 离线结算（需要注入 ActivityPlanService 的 TryStartNextPendingPlanAsync 委托）
+        // 离线结算（需要注入 ActivityPlanService 的 TryStartNextPendingPlanAsync 和 StartPlanAsync 委托）
         services.AddTransient<OfflineSettlementService>(sp =>
         {
             var characters = sp.GetRequiredService<ICharacterRepository>();
@@ -44,14 +44,15 @@ public static class DependencyInjection
             var db = sp.GetRequiredService<GameDbContext>();
             var planService = sp.GetRequiredService<ActivityPlanService>();
             
-            // 传递 ActivityPlanService 的 TryStartNextPendingPlanAsync 方法作为委托
+            // 传递 ActivityPlanService 的方法作为委托
             return new OfflineSettlementService(
                 characters,
                 simulator,
                 plans,
                 engine,
                 db,
-                planService.TryStartNextPendingPlanAsync
+                planService.TryStartNextPendingPlanAsync,
+                planService.StartPlanAsync
             );
         });
 

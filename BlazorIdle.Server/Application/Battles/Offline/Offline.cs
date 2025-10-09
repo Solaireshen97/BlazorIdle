@@ -54,6 +54,7 @@ public sealed class OfflineSettlementService
     private readonly OfflineFastForwardEngine _engine;
     private readonly GameDbContext _db;
     private readonly Func<Guid, CancellationToken, Task<ActivityPlan?>>? _tryStartNextPlan;
+    private readonly Func<Guid, CancellationToken, Task<Guid>>? _startPlan;
 
     public OfflineSettlementService(
         ICharacterRepository characters, 
@@ -61,7 +62,8 @@ public sealed class OfflineSettlementService
         IActivityPlanRepository plans,
         OfflineFastForwardEngine engine,
         GameDbContext db,
-        Func<Guid, CancellationToken, Task<ActivityPlan?>>? tryStartNextPlan = null)
+        Func<Guid, CancellationToken, Task<ActivityPlan?>>? tryStartNextPlan = null,
+        Func<Guid, CancellationToken, Task<Guid>>? startPlan = null)
     {
         _characters = characters;
         _simulator = simulator;
@@ -69,6 +71,7 @@ public sealed class OfflineSettlementService
         _engine = engine;
         _db = db;
         _tryStartNextPlan = tryStartNextPlan;
+        _startPlan = startPlan;
     }
 
     /// <summary>
@@ -126,15 +129,11 @@ public sealed class OfflineSettlementService
             };
         }
 
-        // 3. 如果计划是暂停状态，需要先恢复为运行状态
+        // 3. 记录计划是否处于暂停状态（用于后续恢复战斗）
         bool wasPaused = runningPlan.State == ActivityState.Paused;
-        if (wasPaused)
-        {
-            // 暂时将状态改为 Running 以便快进引擎处理
-            runningPlan.State = ActivityState.Running;
-        }
         
         // 4. 使用 OfflineFastForwardEngine 快进模拟（保持无感继承效果）
+        // FastForward 可以处理 Running 或 Paused 状态的计划
         var result = _engine.FastForward(character, runningPlan, offlineSeconds);
 
         // 5. 更新计划状态（已在 FastForward 中完成，但需要持久化）
@@ -146,11 +145,13 @@ public sealed class OfflineSettlementService
         await _db.SaveChangesAsync(ct);
 
         // 7. 如果计划完成，尝试启动下一个（实现自动衔接）
-        // 如果计划未完成且之前是暂停状态，需要恢复运行（通过 _tryStartNextPlan 或重新启动）
+        // 如果计划未完成，需要重新启动战斗以恢复 BattleId 和战斗状态
         Guid? nextPlanId = null;
         bool nextPlanStarted = false;
+        
         if (result.PlanCompleted && _tryStartNextPlan is not null)
         {
+            // 计划已完成，启动下一个待执行的计划
             var nextPlan = await _tryStartNextPlan(characterId, ct);
             if (nextPlan is not null)
             {
@@ -158,12 +159,30 @@ public sealed class OfflineSettlementService
                 nextPlanStarted = true;
             }
         }
-        else if (!result.PlanCompleted && wasPaused && _tryStartNextPlan is not null)
+        else if (!result.PlanCompleted && _startPlan is not null)
         {
-            // 计划未完成且之前是暂停的，尝试恢复运行
-            // 由于计划现在仍然是某个状态（Running 或 Paused），我们需要等待玩家操作来恢复
-            // 或者可以在这里自动恢复，但这需要 ActivityPlanService 支持
-            // 暂时保持当前状态，等待用户登录后通过其他机制恢复
+            // 计划未完成，需要重新启动战斗以恢复 BattleId
+            // 战斗状态已经在 FastForward 中更新到 BattleStateJson，StartPlanAsync 会自动加载并恢复
+            // 注意：此时 runningPlan 的状态可能是 Paused 或 Running
+            // StartPlanAsync 可以处理 Paused 状态的计划，但不能处理 Running 状态
+            // 所以如果是 Running 状态（没有 BattleId），需要先改为 Paused
+            if (runningPlan.State == ActivityState.Running && !runningPlan.BattleId.HasValue)
+            {
+                runningPlan.State = ActivityState.Paused;
+                await _plans.UpdateAsync(runningPlan, ct);
+            }
+            
+            try
+            {
+                await _startPlan(runningPlan.Id, ct);
+                // 重新加载计划以获取更新后的 BattleId
+                runningPlan = await _plans.GetAsync(runningPlan.Id, ct);
+            }
+            catch (Exception)
+            {
+                // 如果启动失败，计划会保持当前状态（Paused 或 Running，但 BattleId=null）
+                // 用户可以手动点击恢复按钮来重试
+            }
         }
 
         return new OfflineCheckResult
