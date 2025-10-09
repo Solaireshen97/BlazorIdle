@@ -36,10 +36,11 @@ public sealed class StepBattleCoordinator
 
     // 新增覆盖：continuousRespawnDelaySeconds / dungeonWaveDelaySeconds / dungeonRunDelaySeconds
     // battleState: 用于恢复离线/在线切换时的战斗状态
+    // stamina: 角色耐力，用于计算最大血量
     public Guid Start(Guid characterId, Profession profession, CharacterStats stats, double seconds, ulong seed, string? enemyId, int enemyCount,
         StepBattleMode mode = StepBattleMode.Duration, string? dungeonId = null,
         double? continuousRespawnDelaySeconds = null, double? dungeonWaveDelaySeconds = null, double? dungeonRunDelaySeconds = null,
-        Offline.BattleState? battleState = null)
+        Offline.BattleState? battleState = null, int stamina = 10)
     {
         var eid = EnemyRegistry.Resolve(enemyId).Id;
         var enemy = EnemyRegistry.Resolve(eid);
@@ -58,7 +59,8 @@ public sealed class StepBattleCoordinator
             dungeonId: dungeonId,
             continuousRespawnDelaySeconds: continuousRespawnDelaySeconds,
             dungeonWaveDelaySeconds: dungeonWaveDelaySeconds,
-            dungeonRunDelaySeconds: dungeonRunDelaySeconds
+            dungeonRunDelaySeconds: dungeonRunDelaySeconds,
+            stamina: stamina
         );
 
         // 恢复战斗状态（如果有）
@@ -139,6 +141,52 @@ public sealed class StepBattleCoordinator
             mode = "expected";
         }
 
+        // 计算玩家最大血量（基于耐力：每点耐力 = 10 血量）
+        int playerMaxHp = rb.Stamina * 10;
+        
+        // 收集敌人血量状态
+        var enemyHealthList = new List<EnemyHealthStatusDto>();
+        var ctx2 = rb.Context;
+        if (ctx2.EncounterGroup != null)
+        {
+            foreach (var enc in ctx2.EncounterGroup.All)
+            {
+                enemyHealthList.Add(new EnemyHealthStatusDto
+                {
+                    EnemyId = enc.Enemy.Id,
+                    EnemyName = enc.Enemy.Name,
+                    CurrentHp = enc.CurrentHp,
+                    MaxHp = enc.Enemy.MaxHp,
+                    HpPercent = enc.Enemy.MaxHp > 0 ? (double)enc.CurrentHp / enc.Enemy.MaxHp : 0,
+                    IsDead = enc.IsDead
+                });
+            }
+        }
+        else if (ctx2.Encounter != null)
+        {
+            var enc = ctx2.Encounter;
+            enemyHealthList.Add(new EnemyHealthStatusDto
+            {
+                EnemyId = enc.Enemy.Id,
+                EnemyName = enc.Enemy.Name,
+                CurrentHp = enc.CurrentHp,
+                MaxHp = enc.Enemy.MaxHp,
+                HpPercent = enc.Enemy.MaxHp > 0 ? (double)enc.CurrentHp / enc.Enemy.MaxHp : 0,
+                IsDead = enc.IsDead
+            });
+        }
+        
+        // 获取下次攻击时间
+        double? nextAttackAt = null;
+        double? nextSpecialAt = null;
+        foreach (var track in ctx2.Tracks)
+        {
+            if (track.TrackType == Domain.Combat.TrackType.Attack)
+                nextAttackAt = track.NextTriggerAt;
+            else if (track.TrackType == Domain.Combat.TrackType.Special)
+                nextSpecialAt = track.NextTriggerAt;
+        }
+
         return (true, new StepBattleStatusDto
         {
             Id = rb.Id,
@@ -169,7 +217,15 @@ public sealed class StepBattleCoordinator
             Gold = gold,
             Exp = exp,
             LootExpected = lootExp ?? new(),
-            LootSampled = lootSampled ?? new()
+            LootSampled = lootSampled ?? new(),
+            
+            // 实时战斗信息
+            PlayerMaxHp = playerMaxHp,
+            PlayerHpPercent = 1.0, // 当前游戏机制下玩家不受伤害
+            Enemies = enemyHealthList,
+            NextAttackAt = nextAttackAt,
+            NextSpecialAt = nextSpecialAt,
+            CurrentTime = rb.Clock.CurrentTime
         });
     }
 
@@ -428,6 +484,49 @@ public sealed class StepBattleStatusDto
     public long Exp { get; set; }
     public Dictionary<string, double> LootExpected { get; set; } = new();
     public Dictionary<string, int> LootSampled { get; set; } = new();
+    
+    // 新增：实时战斗信息
+    /// <summary>玩家最大血量（基于耐力计算，用于显示）</summary>
+    public int PlayerMaxHp { get; set; }
+    
+    /// <summary>玩家当前血量百分比（当前游戏机制下始终为 100%）</summary>
+    public double PlayerHpPercent { get; set; } = 1.0;
+    
+    /// <summary>敌人血量状态列表（支持多怪物）</summary>
+    public List<EnemyHealthStatusDto> Enemies { get; set; } = new();
+    
+    /// <summary>下次普通攻击时间</summary>
+    public double? NextAttackAt { get; set; }
+    
+    /// <summary>下次特殊攻击时间</summary>
+    public double? NextSpecialAt { get; set; }
+    
+    /// <summary>当前战斗时间</summary>
+    public double CurrentTime { get; set; }
+}
+
+/// <summary>
+/// 单个敌人的血量状态（用于前端显示）
+/// </summary>
+public sealed class EnemyHealthStatusDto
+{
+    /// <summary>敌人ID</summary>
+    public string EnemyId { get; set; } = "dummy";
+    
+    /// <summary>敌人名称</summary>
+    public string EnemyName { get; set; } = "";
+    
+    /// <summary>当前血量</summary>
+    public int CurrentHp { get; set; }
+    
+    /// <summary>最大血量</summary>
+    public int MaxHp { get; set; }
+    
+    /// <summary>血量百分比</summary>
+    public double HpPercent { get; set; }
+    
+    /// <summary>是否已死亡</summary>
+    public bool IsDead { get; set; }
 }
 
 public sealed class StepBattleSegmentDto

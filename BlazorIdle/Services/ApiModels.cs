@@ -40,6 +40,25 @@ public sealed class StepStatusResponse
     public long Exp { get; set; }
     public Dictionary<string, double> LootExpected { get; set; } = new();
     public Dictionary<string, int> LootSampled { get; set; } = new();
+    
+    // 实时战斗信息
+    public int PlayerMaxHp { get; set; }
+    public double PlayerHpPercent { get; set; } = 1.0;
+    public List<EnemyHealthStatusDto> Enemies { get; set; } = new();
+    public double? NextAttackAt { get; set; }
+    public double? NextSpecialAt { get; set; }
+    public double CurrentTime { get; set; }
+}
+
+// 敌人血量状态
+public sealed class EnemyHealthStatusDto
+{
+    public string EnemyId { get; set; } = "";
+    public string EnemyName { get; set; } = "";
+    public int CurrentHp { get; set; }
+    public int MaxHp { get; set; }
+    public double HpPercent { get; set; }
+    public bool IsDead { get; set; }
 }
 
 // 同步摘要返回（/api/battles/{id}/summary）

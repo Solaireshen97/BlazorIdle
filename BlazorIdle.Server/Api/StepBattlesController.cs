@@ -70,7 +70,8 @@ public class StepBattlesController : ControllerBase
             parsedMode, dungeonId,
             continuousRespawnDelaySeconds: respawnDelay,
             dungeonWaveDelaySeconds: waveDelay,
-            dungeonRunDelaySeconds: runDelay
+            dungeonRunDelaySeconds: runDelay,
+            stamina: c.Stamina
         );
 
         return Ok(new
