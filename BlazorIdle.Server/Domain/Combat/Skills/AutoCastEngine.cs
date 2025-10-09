@@ -1,4 +1,5 @@
-﻿using BlazorIdle.Server.Domain.Combat.Damage;
+﻿using BlazorIdle.Server.Domain.Combat.Combatants;
+using BlazorIdle.Server.Domain.Combat.Damage;
 using BlazorIdle.Server.Domain.Combat.Enemies;
 using BlazorIdle.Server.Domain.Combat.Procs;
 using BlazorIdle.Server.Domain.Combat.Resources;
@@ -199,6 +200,7 @@ public class AutoCastEngine
 
         if (def.AoEMode != AoEMode.None && def.MaxTargets > 1 && context.EncounterGroup is not null)
         {
+            // AoE 技能保持现有逻辑（SelectAlive）
             var targets = context.EncounterGroup.SelectAlive(def.MaxTargets, includePrimary: def.IncludePrimaryTarget);
             if (targets.Count == 0 && context.Encounter != null)
                 targets.Add(context.Encounter);
@@ -233,7 +235,24 @@ public class AutoCastEngine
         }
         else
         {
-            DamageCalculator.ApplyDamage(context, "skill:" + def.Id, baseDmg, type);
+            // Phase 2: 单体技能使用 TargetSelector 随机选择目标
+            var enemyCombatants = context.GetAllEnemyCombatants();
+            var selectedTarget = context.TargetSelector.SelectTarget(enemyCombatants);
+            
+            // 如果有目标才释放技能
+            if (selectedTarget != null)
+            {
+                var enemyCombatant = selectedTarget as EnemyCombatant;
+                if (enemyCombatant != null)
+                {
+                    DamageCalculator.ApplyDamageToTarget(context, enemyCombatant.Encounter, "skill:" + def.Id, baseDmg, type);
+                }
+                else
+                {
+                    // 兼容：如果不是 EnemyCombatant，使用原有逻辑
+                    DamageCalculator.ApplyDamage(context, "skill:" + def.Id, baseDmg, type);
+                }
+            }
         }
 
         context.SegmentCollector.OnTag("skill_cast:" + def.Id, 1);

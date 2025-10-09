@@ -1,4 +1,5 @@
-﻿using BlazorIdle.Server.Domain.Combat.Damage;
+﻿using BlazorIdle.Server.Domain.Combat.Combatants;
+using BlazorIdle.Server.Domain.Combat.Damage;
 using BlazorIdle.Server.Domain.Combat.Procs;
 using BlazorWebGame.Domain.Combat;
 using System;
@@ -26,6 +27,18 @@ public record AttackTickEvent(double ExecuteAt, TrackState Track) : IGameEvent
             return;
         }
 
+        // Phase 2: 使用 TargetSelector 随机选择目标
+        var enemyCombatants = context.GetAllEnemyCombatants();
+        var selectedTarget = context.TargetSelector.SelectTarget(enemyCombatants);
+        
+        // 如果没有可攻击目标，跳过攻击
+        if (selectedTarget == null)
+        {
+            Track.NextTriggerAt = ExecuteAt + Track.CurrentInterval;
+            context.Scheduler.Schedule(new AttackTickEvent(Track.NextTriggerAt, Track));
+            return;
+        }
+
         const int baseDamage = 10;
 
         // 普攻暴击：使用面板基础（可被 BuffAggregate 叠加）
@@ -38,7 +51,17 @@ public record AttackTickEvent(double ExecuteAt, TrackState Track) : IGameEvent
         int finalDamage = isCrit ? (int)Math.Round(baseDamage * mult) : baseDamage;
         if (isCrit) context.SegmentCollector.OnTag("crit:basic_attack", 1);
 
-        DamageCalculator.ApplyDamage(context, "basic_attack", finalDamage, DamageType.Physical);
+        // 直接对选中的目标应用伤害
+        var enemyCombatant = selectedTarget as EnemyCombatant;
+        if (enemyCombatant != null)
+        {
+            DamageCalculator.ApplyDamageToTarget(context, enemyCombatant.Encounter, "basic_attack", finalDamage, DamageType.Physical);
+        }
+        else
+        {
+            // 兼容：如果没有选中目标，使用原有逻辑
+            DamageCalculator.ApplyDamage(context, "basic_attack", finalDamage, DamageType.Physical);
+        }
 
         // Proc: OnHit/OnCrit（非 DoT），来源为普攻
         context.Procs.OnDirectHit(context, "basic_attack", DamageType.Physical, isCrit, isDot: false, DirectSourceKind.BasicAttack, context.Clock.CurrentTime);

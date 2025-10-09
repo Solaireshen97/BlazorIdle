@@ -37,6 +37,9 @@ public class BattleContext
     
     /// <summary>玩家战斗单位（Phase 1 基础架构）</summary>
     public PlayerCombatant Player { get; private set; }
+    
+    /// <summary>目标选取管理器（Phase 2 目标选取系统）</summary>
+    public TargetSelector TargetSelector { get; }
 
     public BattleContext(
         Battle battle,
@@ -72,6 +75,9 @@ public class BattleContext
             stats: Stats,
             stamina: stamina
         );
+        
+        // Phase 2: 初始化目标选取管理器
+        TargetSelector = new TargetSelector(rng);
 
         // DoT：Haste/AP/SP 快照委托 + DoT 命中回调到 Procs（isDot=true）
         Buffs = new BuffManager(
@@ -94,5 +100,25 @@ public class BattleContext
     internal void RefreshPrimaryEncounter()
     {
         Encounter = EncounterGroup?.PrimaryAlive() ?? Encounter;
+    }
+    
+    /// <summary>
+    /// 获取所有敌人战斗单位（Phase 2 目标选取系统）
+    /// </summary>
+    /// <returns>敌人战斗单位列表</returns>
+    public List<EnemyCombatant> GetAllEnemyCombatants()
+    {
+        var result = new List<EnemyCombatant>();
+        if (EncounterGroup != null)
+        {
+            int index = 0;
+            foreach (var encounter in EncounterGroup.All)
+            {
+                var combatant = new EnemyCombatant($"enemy_{index}", encounter);
+                result.Add(combatant);
+                index++;
+            }
+        }
+        return result;
     }
 }
