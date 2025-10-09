@@ -388,7 +388,11 @@ else
                                 <div><b>攻击进度:</b></div>
                                 @if (currentPlanBattle.NextAttackAt.HasValue)
                                 {
-                                    var attackProgress = currentPlanBattle.CurrentTime >= currentPlanBattle.NextAttackAt.Value ? 1.0 : 0.0;
+                                    var attackProgress = CalculateSmoothProgress(
+                                        currentPlanBattle.CurrentTime, 
+                                        currentPlanBattle.NextAttackAt.Value, 
+                                        _planAttackInterval, 
+                                        _planLastUpdateTime);
                                     var attackTime = currentPlanBattle.NextAttackAt.Value - currentPlanBattle.CurrentTime;
                                     <div style="display: flex; align-items: center; margin-top: 4px;">
                                         <span style="min-width: 100px; font-size: 12px;">普通攻击:</span>
@@ -402,7 +406,11 @@ else
                                 }
                                 @if (currentPlanBattle.NextSpecialAt.HasValue)
                                 {
-                                    var specialProgress = currentPlanBattle.CurrentTime >= currentPlanBattle.NextSpecialAt.Value ? 1.0 : 0.0;
+                                    var specialProgress = CalculateSmoothProgress(
+                                        currentPlanBattle.CurrentTime, 
+                                        currentPlanBattle.NextSpecialAt.Value, 
+                                        _planSpecialInterval, 
+                                        _planLastUpdateTime);
                                     var specialTime = currentPlanBattle.NextSpecialAt.Value - currentPlanBattle.CurrentTime;
                                     <div style="display: flex; align-items: center; margin-top: 4px;">
                                         <span style="min-width: 100px; font-size: 12px;">特殊攻击:</span>
@@ -652,7 +660,11 @@ else
                             <div><b>攻击进度:</b></div>
                             @if (stepStatus.NextAttackAt.HasValue)
                             {
-                                var attackProgress = stepStatus.CurrentTime >= stepStatus.NextAttackAt.Value ? 1.0 : 0.0;
+                                var attackProgress = CalculateSmoothProgress(
+                                    stepStatus.CurrentTime, 
+                                    stepStatus.NextAttackAt.Value, 
+                                    _stepAttackInterval, 
+                                    _stepLastUpdateTime);
                                 var attackTime = stepStatus.NextAttackAt.Value - stepStatus.CurrentTime;
                                 <div style="display: flex; align-items: center; margin-top: 4px;">
                                     <span style="min-width: 100px; font-size: 12px;">普通攻击:</span>
@@ -666,7 +678,11 @@ else
                             }
                             @if (stepStatus.NextSpecialAt.HasValue)
                             {
-                                var specialProgress = stepStatus.CurrentTime >= stepStatus.NextSpecialAt.Value ? 1.0 : 0.0;
+                                var specialProgress = CalculateSmoothProgress(
+                                    stepStatus.CurrentTime, 
+                                    stepStatus.NextSpecialAt.Value, 
+                                    _stepSpecialInterval, 
+                                    _stepLastUpdateTime);
                                 var specialTime = stepStatus.NextSpecialAt.Value - stepStatus.CurrentTime;
                                 <div style="display: flex; align-items: center; margin-top: 4px;">
                                     <span style="min-width: 100px; font-size: 12px;">特殊攻击:</span>
@@ -1318,6 +1334,13 @@ else
     bool stepIsPolling;
     int _stepSinceIndex = 0;
     string? stepError;
+    
+    // 攻击进度平滑化追踪变量（步进战斗）
+    double _stepAttackInterval = 0;
+    double _stepSpecialInterval = 0;
+    double? _stepPrevNextAttackAt = null;
+    double? _stepPrevNextSpecialAt = null;
+    DateTime _stepLastUpdateTime = DateTime.UtcNow;
 
     StepBattleDebugDto? stepDebug;
     bool stepAutoDebug = false;
@@ -1367,6 +1390,7 @@ else
         _stepPollCts?.Cancel();
         _stepPollCts = new CancellationTokenSource();
         stepIsPolling = true;
+        StartProgressAnimationTimer(); // 启动平滑动画定时器
 
         try
         {
@@ -1387,7 +1411,23 @@ else
     {
         if (stepBattleId is null) return;
         var s = await Api.GetStepBattleStatusAsync(stepBattleId.Value, stepDropMode, ct);
-        if (s is not null) stepStatus = s;
+        if (s is not null)
+        {
+            // 更新攻击间隔追踪
+            UpdateProgressTracking(
+                ref _stepAttackInterval, 
+                ref _stepPrevNextAttackAt, 
+                s.NextAttackAt,
+                ref _stepLastUpdateTime);
+            
+            UpdateProgressTracking(
+                ref _stepSpecialInterval, 
+                ref _stepPrevNextSpecialAt, 
+                s.NextSpecialAt,
+                ref _stepLastUpdateTime);
+            
+            stepStatus = s;
+        }
 
         var segList = await Api.GetStepBattleSegmentsAsync(stepBattleId.Value, _stepSinceIndex, ct);
         if (segList is { Count: > 0 })
@@ -1410,7 +1450,13 @@ else
         }
     }
 
-    void StopStepPolling() { _stepPollCts?.Cancel(); stepIsPolling = false; StateHasChanged(); }
+    void StopStepPolling() 
+    { 
+        _stepPollCts?.Cancel(); 
+        stepIsPolling = false; 
+        if (!planIsPolling) StopProgressAnimationTimer(); // 只有当计划战斗也不在轮询时才停止定时器
+        StateHasChanged(); 
+    }
 
     void ResetStep()
     {
@@ -1466,7 +1512,32 @@ else
 
     async Task OpenSummary(Guid id) { var url = $"/api/battles/{id}/summary"; await JS.InvokeVoidAsync("open", url, "_blank"); }
 
-    public void Dispose() { StopPolling(); StopStepPolling(); StopDebugAutoPolling(); StopPlanPolling(); }
+    public void Dispose() 
+    { 
+        StopPolling(); 
+        StopStepPolling(); 
+        StopDebugAutoPolling(); 
+        StopPlanPolling(); 
+        StopProgressAnimationTimer();
+    }
+    
+    // 进度条平滑动画定时器
+    private System.Threading.Timer? _progressAnimationTimer;
+    
+    private void StartProgressAnimationTimer()
+    {
+        // 每100ms刷新一次UI以实现平滑动画
+        _progressAnimationTimer ??= new System.Threading.Timer(_ =>
+        {
+            InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(100));
+    }
+    
+    private void StopProgressAnimationTimer()
+    {
+        _progressAnimationTimer?.Dispose();
+        _progressAnimationTimer = null;
+    }
 
     // ====== 活动计划管理 ======
     string planActivityType = "combat";  // combat | dungeon
@@ -1483,6 +1554,13 @@ else
     StepStatusResponse? currentPlanBattle;
     CancellationTokenSource? _planPollCts;
     bool planIsPolling;
+    
+    // 攻击进度平滑化追踪变量（计划战斗）
+    double _planAttackInterval = 0;
+    double _planSpecialInterval = 0;
+    double? _planPrevNextAttackAt = null;
+    double? _planPrevNextSpecialAt = null;
+    DateTime _planLastUpdateTime = DateTime.UtcNow;
 
     async Task CreateActivityPlanAsync()
     {
@@ -1695,6 +1773,7 @@ else
         _planPollCts?.Cancel();
         _planPollCts = new CancellationTokenSource();
         planIsPolling = true;
+        StartProgressAnimationTimer(); // 启动平滑动画定时器
 
         try
         {
@@ -1702,7 +1781,25 @@ else
             {
                 try
                 {
-                    currentPlanBattle = await Api.GetStepBattleStatusAsync(battleId, "sampled", _planPollCts.Token);
+                    var newBattleStatus = await Api.GetStepBattleStatusAsync(battleId, "sampled", _planPollCts.Token);
+                    
+                    // 更新攻击间隔追踪
+                    if (newBattleStatus != null)
+                    {
+                        UpdateProgressTracking(
+                            ref _planAttackInterval, 
+                            ref _planPrevNextAttackAt, 
+                            newBattleStatus.NextAttackAt,
+                            ref _planLastUpdateTime);
+                        
+                        UpdateProgressTracking(
+                            ref _planSpecialInterval, 
+                            ref _planPrevNextSpecialAt, 
+                            newBattleStatus.NextSpecialAt,
+                            ref _planLastUpdateTime);
+                        
+                        currentPlanBattle = newBattleStatus;
+                    }
                     
                     // 同时刷新计划列表以获取最新的ExecutedSeconds
                     if (lastCreated is not null)
@@ -1731,6 +1828,7 @@ else
     {
         _planPollCts?.Cancel();
         planIsPolling = false;
+        if (!stepIsPolling) StopProgressAnimationTimer(); // 只有当步进战斗也不在轮询时才停止定时器
     }
 
     // 批量模拟器
@@ -1774,5 +1872,72 @@ else
             isBusy = false;
             StateHasChanged();
         }
+    }
+
+    // ====== 攻击进度平滑化计算 ======
+    /// <summary>
+    /// 更新攻击间隔追踪信息
+    /// </summary>
+    /// <param name="interval">攻击间隔引用</param>
+    /// <param name="prevNextTriggerAt">上次的下次触发时间引用</param>
+    /// <param name="currentNextTriggerAt">当前的下次触发时间</param>
+    /// <param name="lastUpdateTime">最后更新时间引用</param>
+    private void UpdateProgressTracking(ref double interval, ref double? prevNextTriggerAt, double? currentNextTriggerAt, ref DateTime lastUpdateTime)
+    {
+        // 更新最后更新时间
+        lastUpdateTime = DateTime.UtcNow;
+
+        // 如果当前没有下次触发时间，重置状态
+        if (!currentNextTriggerAt.HasValue)
+        {
+            interval = 0;
+            prevNextTriggerAt = null;
+            return;
+        }
+
+        // 如果有上次的触发时间，且当前触发时间大于上次（说明攻击已触发，进入下一个周期）
+        // 则计算攻击间隔
+        if (prevNextTriggerAt.HasValue && currentNextTriggerAt.Value > prevNextTriggerAt.Value)
+        {
+            double calculatedInterval = currentNextTriggerAt.Value - prevNextTriggerAt.Value;
+            // 只有当间隔合理时才更新（避免异常值）
+            if (calculatedInterval > 0.1 && calculatedInterval < 100)
+            {
+                interval = calculatedInterval;
+            }
+        }
+
+        // 更新上次的触发时间
+        prevNextTriggerAt = currentNextTriggerAt.Value;
+    }
+
+    /// <summary>
+    /// 计算平滑的攻击进度百分比
+    /// </summary>
+    /// <param name="currentTime">服务器当前战斗时间</param>
+    /// <param name="nextTriggerAt">下次触发时间</param>
+    /// <param name="interval">攻击间隔（从追踪变量获取）</param>
+    /// <param name="lastUpdateTime">上次服务器更新的客户端时间</param>
+    /// <returns>0.0 到 1.0 之间的进度值</returns>
+    private double CalculateSmoothProgress(double currentTime, double nextTriggerAt, double interval, DateTime lastUpdateTime)
+    {
+        // 如果没有有效的攻击间隔，使用简单的二元判断
+        if (interval <= 0)
+        {
+            return currentTime >= nextTriggerAt ? 1.0 : 0.0;
+        }
+
+        // 计算上次攻击时间
+        double lastTriggerAt = nextTriggerAt - interval;
+
+        // 计算基于服务器时间的进度
+        double serverProgress = (currentTime - lastTriggerAt) / interval;
+
+        // 添加客户端时间插值以实现平滑动画
+        double clientElapsedSeconds = (DateTime.UtcNow - lastUpdateTime).TotalSeconds;
+        double interpolatedProgress = serverProgress + (clientElapsedSeconds / interval);
+
+        // 限制在 0 到 1 之间
+        return Math.Clamp(interpolatedProgress, 0.0, 1.0);
     }
 }
