@@ -264,21 +264,21 @@ DamageCalc()
 ### Phase 状态追踪
 
 ```
-[ ] Phase 1: 基础架构准备 (Week 1-2)
-    [ ] P1.1: 定义 ICombatant 接口
-    [ ] P1.2: 创建 CombatantState 枚举
-    [ ] P1.3: 创建 PlayerCombatant 包装类
-    [ ] P1.4: 创建 EnemyCombatant 包装类
-    [ ] P1.5: 更新 BattleContext
-    [ ] P1.6: 单元测试
+[x] Phase 1: 基础架构准备 (Week 1-2) ✅ 已完成 (2025-01)
+    [x] P1.1: 定义 ICombatant 接口
+    [x] P1.2: 创建 CombatantState 枚举
+    [x] P1.3: 创建 PlayerCombatant 包装类
+    [x] P1.4: 创建 EnemyCombatant 包装类
+    [x] P1.5: 更新 BattleContext
+    [x] P1.6: 单元测试
     
-[ ] Phase 2: 目标选取系统 (Week 3-4)
-    [ ] P2.1: 创建 TargetSelector 类
-    [ ] P2.2: 在 BattleContext 中添加 TargetSelector
-    [ ] P2.3: 更新攻击事件
-    [ ] P2.4: 更新技能释放
-    [ ] P2.5: 添加 ThreatWeight 配置
-    [ ] P2.6: 单元测试
+[x] Phase 2: 目标选取系统 (Week 3-4) ✅ 已完成 (2025-01)
+    [x] P2.1: 创建 TargetSelector 类
+    [x] P2.2: 在 BattleContext 中添加 TargetSelector
+    [x] P2.3: 更新攻击事件
+    [x] P2.4: 更新技能释放
+    [x] P2.5: 添加 ThreatWeight 配置
+    [x] P2.6: 单元测试 (11 个测试全部通过)
     
 [ ] Phase 3: 玩家死亡与复活 (Week 5-7)
     [ ] P3.1: 扩展 PlayerCombatant
