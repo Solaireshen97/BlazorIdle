@@ -364,7 +364,59 @@ else
                     <div class="col-md-4"><b>Mode:</b> @(currentPlanBattle.Mode ?? "duration")</div>
                     <div class="col-md-4"><b>Gold:</b> @currentPlanBattle.Gold, <b>Exp:</b> @currentPlanBattle.Exp</div>
                 </div>
-                
+                    <!-- 战斗实况增强部分 -->
+                    <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #ddd;">
+                        <h6>⚔️ 战斗实况</h6>
+
+                        <!-- 玩家血量 -->
+                        <div style="margin-bottom: 12px;">
+                            <div style="display: flex; align-items: center; margin-bottom: 4px;">
+                                <span style="min-width: 80px;"><b>玩家血量:</b></span>
+                                <div style="flex: 1; background: #e0e0e0; height: 24px; border-radius: 4px; overflow: hidden; position: relative;">
+                                    <div style="background: linear-gradient(90deg, #4caf50, #81c784); height: 100%; width: @(currentPlanBattle.PlayerHpPercent * 100)%; transition: width 0.3s;"></div>
+                                    <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-weight: bold; font-size: 12px;">
+                                        @((int)(currentPlanBattle.PlayerMaxHp * currentPlanBattle.PlayerHpPercent)) / @currentPlanBattle.PlayerMaxHp (@((currentPlanBattle.PlayerHpPercent * 100).ToString("0"))%)
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 攻击进度 -->
+                        @if (currentPlanBattle.NextAttackAt.HasValue || currentPlanBattle.NextSpecialAt.HasValue)
+                        {
+                            <div style="margin-bottom: 12px;">
+                                <div><b>攻击进度:</b></div>
+                                @if (currentPlanBattle.NextAttackAt.HasValue)
+                                {
+                                    var attackProgress = currentPlanBattle.CurrentTime >= currentPlanBattle.NextAttackAt.Value ? 1.0 : 0.0;
+                                    var attackTime = currentPlanBattle.NextAttackAt.Value - currentPlanBattle.CurrentTime;
+                                    <div style="display: flex; align-items: center; margin-top: 4px;">
+                                        <span style="min-width: 100px; font-size: 12px;">普通攻击:</span>
+                                        <div style="flex: 1; background: #e0e0e0; height: 16px; border-radius: 3px; overflow: hidden; position: relative;">
+                                            <div style="background: linear-gradient(90deg, #2196f3, #64b5f6); height: 100%; width: @(attackProgress * 100)%; transition: width 0.1s;"></div>
+                                            <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-size: 10px;">
+                                                @(attackTime > 0 ? $"{attackTime:0.00}s" : "就绪")
+                                            </span>
+                                        </div>
+                                    </div>
+                                }
+                                @if (currentPlanBattle.NextSpecialAt.HasValue)
+                                {
+                                    var specialProgress = currentPlanBattle.CurrentTime >= currentPlanBattle.NextSpecialAt.Value ? 1.0 : 0.0;
+                                    var specialTime = currentPlanBattle.NextSpecialAt.Value - currentPlanBattle.CurrentTime;
+                                    <div style="display: flex; align-items: center; margin-top: 4px;">
+                                        <span style="min-width: 100px; font-size: 12px;">特殊攻击:</span>
+                                        <div style="flex: 1; background: #e0e0e0; height: 16px; border-radius: 3px; overflow: hidden; position: relative;">
+                                            <div style="background: linear-gradient(90deg, #ff9800, #ffb74d); height: 100%; width: @(specialProgress * 100)%; transition: width 0.1s;"></div>
+                                            <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-size: 10px;">
+                                                @(specialTime > 0 ? $"{specialTime:0.00}s" : "就绪")
+                                            </span>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
                 <!-- 战斗实况 -->
                 @if (currentPlanBattle.Enemies?.Count > 0)
                 {
@@ -407,6 +459,7 @@ else
                 }
             </div>
         }
+    
     </div>
 }
 
