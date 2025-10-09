@@ -6,6 +6,7 @@ namespace BlazorIdle.Server.Domain.Combat;
 /// <summary>
 /// 玩家复活事件：恢复满血、恢复存活状态、恢复轨道
 /// Phase 3: 玩家死亡与复活系统
+/// Phase 4: 怪物攻击会通过 CanBeTargeted() 检测自动恢复
 /// </summary>
 public record PlayerReviveEvent(double ExecuteAt) : IGameEvent
 {
@@ -18,7 +19,7 @@ public record PlayerReviveEvent(double ExecuteAt) : IGameEvent
         // 执行复活
         player.Revive(ExecuteAt);
         
-        // 恢复所有轨道：重新开始攻击循环
+        // 恢复所有玩家轨道：重新开始攻击循环
         // 设置 NextTriggerAt 为当前时间 + 完整间隔
         foreach (var track in context.Tracks)
         {
@@ -32,6 +33,18 @@ public record PlayerReviveEvent(double ExecuteAt) : IGameEvent
             else if (track.TrackType == TrackType.Special)
             {
                 context.Scheduler.Schedule(new SpecialPulseEvent(track.NextTriggerAt, track));
+            }
+        }
+        
+        // Phase 4: 恢复所有怪物攻击轨道
+        foreach (var enemy in context.EnemyCombatants)
+        {
+            if (enemy.AttackTrack != null && enemy.CanAct())
+            {
+                // 重新激活怪物攻击：设置下次攻击时间为当前时间 + 攻击间隔
+                enemy.AttackTrack.NextTriggerAt = ExecuteAt + enemy.AttackTrack.CurrentInterval;
+                context.Scheduler.Schedule(new EnemyAttackEvent(enemy.AttackTrack.NextTriggerAt, enemy));
+                context.SegmentCollector.OnTag("enemy_attack_resumed", 1);
             }
         }
         

@@ -1,4 +1,6 @@
-﻿namespace BlazorIdle.Server.Domain.Combat.Enemies;
+﻿using BlazorIdle.Server.Domain.Combat.Damage;
+
+namespace BlazorIdle.Server.Domain.Combat.Enemies;
 
 public class EnemyDefinition
 {
@@ -11,6 +13,15 @@ public class EnemyDefinition
     public double VulnerabilityPhysical { get; } = 0.0; // 额外易伤（+0.1 = +10% 伤害）
     public double VulnerabilityMagic { get; } = 0.0;
     public double VulnerabilityTrue { get; } = 0.0;
+    
+    /// <summary>Phase 4: 怪物基础攻击伤害</summary>
+    public int BaseDamage { get; }
+    
+    /// <summary>Phase 4: 怪物攻击伤害类型</summary>
+    public DamageType AttackDamageType { get; }
+    
+    /// <summary>Phase 4: 怪物攻击间隔（秒）</summary>
+    public double AttackIntervalSeconds { get; }
 
     public EnemyDefinition(
         string id,
@@ -21,7 +32,10 @@ public class EnemyDefinition
         double magicResist = 0,
         double vulnPhys = 0,
         double vulnMagic = 0,
-        double vulnTrue = 0)
+        double vulnTrue = 0,
+        int baseDamage = 0,
+        DamageType attackDamageType = DamageType.Physical,
+        double attackIntervalSeconds = 3.0)
     {
         Id = id;
         Name = name;
@@ -32,5 +46,8 @@ public class EnemyDefinition
         VulnerabilityPhysical = vulnPhys;
         VulnerabilityMagic = vulnMagic;
         VulnerabilityTrue = vulnTrue;
+        BaseDamage = baseDamage;
+        AttackDamageType = attackDamageType;
+        AttackIntervalSeconds = attackIntervalSeconds;
     }
 }
