@@ -1,5 +1,6 @@
 ﻿using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Buffs;
+using BlazorIdle.Server.Domain.Combat.Combatants;
 using BlazorIdle.Server.Domain.Combat.Damage;
 using BlazorIdle.Server.Domain.Combat.Enemies;
 using BlazorIdle.Server.Domain.Combat.Procs;
@@ -34,6 +35,11 @@ public class BattleContext
 
     public CharacterStats Stats { get; }
 
+    /// <summary>
+    /// Phase 1: 玩家战斗单位抽象
+    /// </summary>
+    public PlayerCombatant? Player { get; private set; }
+
     public BattleContext(
         Battle battle,
         IGameClock clock,
@@ -44,7 +50,9 @@ public class BattleContext
         RngContext rng,
         Encounter? encounter = null,
         EncounterGroup? encounterGroup = null,
-        CharacterStats? stats = null)
+        CharacterStats? stats = null,
+        int stamina = 10,
+        string? characterName = null)
     {
         Battle = battle;
         Clock = clock;
@@ -57,6 +65,14 @@ public class BattleContext
 
         EncounterGroup = encounterGroup ?? (encounter != null ? Enemies.EncounterGroup.FromSingle(encounter) : null);
         Encounter = EncounterGroup?.PrimaryAlive() ?? encounter;
+
+        // Phase 1: 创建 PlayerCombatant
+        Player = new PlayerCombatant(
+            Stats,
+            battle.CharacterId.ToString(),
+            characterName ?? "Player",
+            stamina
+        );
 
         // DoT：Haste/AP/SP 快照委托 + DoT 命中回调到 Procs（isDot=true）
         Buffs = new BuffManager(
