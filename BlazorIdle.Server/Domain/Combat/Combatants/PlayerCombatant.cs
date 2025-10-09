@@ -66,16 +66,60 @@ public class PlayerCombatant : ICombatant
     
     /// <summary>
     /// 接收伤害
-    /// Phase 1: 不实际扣血，保持兼容性
+    /// Phase 3: 实际扣血并标记死亡状态
     /// </summary>
     /// <param name="amount">伤害数值</param>
     /// <param name="type">伤害类型</param>
     /// <param name="now">当前战斗时间</param>
-    /// <returns>实际造成的伤害（Phase 1: 始终返回 0）</returns>
+    /// <returns>实际造成的伤害（如果已死亡则返回 0）</returns>
     public int ReceiveDamage(int amount, DamageType type, double now)
     {
-        // Phase 1: 玩家不受伤害，保持现有逻辑
-        return 0;
+        if (State == CombatantState.Dead)
+            return 0;
+
+        var actualDamage = Math.Min(amount, CurrentHp);
+        CurrentHp -= actualDamage;
+        
+        // Phase 3: 检测死亡
+        if (CurrentHp <= 0 && State == CombatantState.Alive)
+        {
+            CurrentHp = 0;
+            State = CombatantState.Dead;
+            DeathTime = now;
+            
+            // 设置复活时间（如果启用自动复活）
+            if (AutoReviveEnabled)
+            {
+                ReviveAt = now + ReviveDurationSeconds;
+            }
+            
+            // 注意：死亡事件需要由调用者在检测到死亡后手动调度到事件系统
+            // 这里只标记状态，不直接操作 BattleContext
+        }
+        
+        return actualDamage;
+    }
+    
+    /// <summary>
+    /// 执行复活
+    /// </summary>
+    /// <param name="now">当前战斗时间</param>
+    public void Revive(double now)
+    {
+        CurrentHp = MaxHp;
+        State = CombatantState.Alive;
+        DeathTime = null;
+        ReviveAt = null;
+    }
+    
+    /// <summary>
+    /// 检查是否需要调度死亡事件
+    /// 由外部调用以在伤害应用后触发死亡处理
+    /// </summary>
+    /// <returns>如果刚刚死亡且需要处理，返回 true</returns>
+    public bool ShouldTriggerDeathEvent()
+    {
+        return State == CombatantState.Dead && DeathTime.HasValue;
     }
     
     /// <summary>

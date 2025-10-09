@@ -59,7 +59,7 @@ public class CombatantTests
     }
 
     [Fact]
-    public void PlayerCombatant_ReceiveDamage_Phase1_ShouldNotTakeDamage()
+    public void PlayerCombatant_ReceiveDamage_Phase3_ShouldTakeDamage()
     {
         // Arrange
         var player = new PlayerCombatant("p1", "Player", new CharacterStats(), stamina: 10);
@@ -68,9 +68,9 @@ public class CombatantTests
         // Act
         var actualDamage = player.ReceiveDamage(50, DamageType.Physical, 1.0);
 
-        // Assert - Phase 1: 玩家不受伤害
-        Assert.Equal(0, actualDamage);
-        Assert.Equal(initialHp, player.CurrentHp);
+        // Assert - Phase 3: 玩家实际受伤害
+        Assert.Equal(50, actualDamage);
+        Assert.Equal(initialHp - 50, player.CurrentHp);
         Assert.False(player.IsDead);
         Assert.Equal(CombatantState.Alive, player.State);
     }

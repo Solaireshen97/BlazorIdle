@@ -280,17 +280,17 @@ DamageCalc()
     [x] P2.5: 添加 ThreatWeight 配置
     [x] P2.6: 单元测试
     
-[ ] Phase 3: 玩家死亡与复活 (Week 5-7)
-    [ ] P3.1: 扩展 PlayerCombatant
-    [ ] P3.2: 实现死亡检测
-    [ ] P3.3: 创建 PlayerDeathEvent
-    [ ] P3.4: 创建 PlayerReviveEvent
-    [ ] P3.5: 更新 AttackTickEvent
-    [ ] P3.6: 更新 SpecialPulseEvent
-    [ ] P3.7: 更新 BattleEngine 结束条件
-    [ ] P3.8: 配置复活时长
-    [ ] P3.9: UI 状态同步
-    [ ] P3.10: 单元测试
+[x] Phase 3: 玩家死亡与复活 (Week 5-7) ✅ COMPLETED
+    [x] P3.1: 扩展 PlayerCombatant
+    [x] P3.2: 实现死亡检测
+    [x] P3.3: 创建 PlayerDeathEvent
+    [x] P3.4: 创建 PlayerReviveEvent
+    [x] P3.5: 更新 AttackTickEvent
+    [x] P3.6: 更新 SpecialPulseEvent
+    [x] P3.7: 更新 BattleEngine 结束条件
+    [x] P3.8: 配置复活时长
+    [x] P3.9: UI 状态同步
+    [x] P3.10: 单元测试
     
 [ ] Phase 4: 怪物攻击能力 (Week 8-10)
     [ ] P4.1: 扩展 EnemyDefinition
