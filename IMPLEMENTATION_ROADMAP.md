@@ -272,13 +272,13 @@ DamageCalc()
     [ ] P1.5: 更新 BattleContext
     [ ] P1.6: 单元测试
     
-[ ] Phase 2: 目标选取系统 (Week 3-4)
-    [ ] P2.1: 创建 TargetSelector 类
-    [ ] P2.2: 在 BattleContext 中添加 TargetSelector
-    [ ] P2.3: 更新攻击事件
-    [ ] P2.4: 更新技能释放
-    [ ] P2.5: 添加 ThreatWeight 配置
-    [ ] P2.6: 单元测试
+[x] Phase 2: 目标选取系统 (Week 3-4)
+    [x] P2.1: 创建 TargetSelector 类
+    [x] P2.2: 在 BattleContext 中添加 TargetSelector
+    [x] P2.3: 更新攻击事件
+    [x] P2.4: 更新技能释放
+    [x] P2.5: 添加 ThreatWeight 配置
+    [x] P2.6: 单元测试
     
 [ ] Phase 3: 玩家死亡与复活 (Week 5-7)
     [ ] P3.1: 扩展 PlayerCombatant
