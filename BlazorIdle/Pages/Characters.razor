@@ -388,8 +388,10 @@ else
                                 <div><b>攻击进度:</b></div>
                                 @if (currentPlanBattle.NextAttackAt.HasValue)
                                 {
-                                    var attackProgress = currentPlanBattle.CurrentTime >= currentPlanBattle.NextAttackAt.Value ? 1.0 : 0.0;
                                     var attackTime = currentPlanBattle.NextAttackAt.Value - currentPlanBattle.CurrentTime;
+                                    var attackProgress = currentPlanBattle.AttackIntervalSeconds > 0
+                                        ? Math.Max(0.0, Math.Min(1.0, 1.0 - attackTime / currentPlanBattle.AttackIntervalSeconds))
+                                        : (attackTime <= 0 ? 1.0 : 0.0);
                                     <div style="display: flex; align-items: center; margin-top: 4px;">
                                         <span style="min-width: 100px; font-size: 12px;">普通攻击:</span>
                                         <div style="flex: 1; background: #e0e0e0; height: 16px; border-radius: 3px; overflow: hidden; position: relative;">
@@ -402,8 +404,10 @@ else
                                 }
                                 @if (currentPlanBattle.NextSpecialAt.HasValue)
                                 {
-                                    var specialProgress = currentPlanBattle.CurrentTime >= currentPlanBattle.NextSpecialAt.Value ? 1.0 : 0.0;
                                     var specialTime = currentPlanBattle.NextSpecialAt.Value - currentPlanBattle.CurrentTime;
+                                    var specialProgress = currentPlanBattle.SpecialIntervalSeconds > 0
+                                        ? Math.Max(0.0, Math.Min(1.0, 1.0 - specialTime / currentPlanBattle.SpecialIntervalSeconds))
+                                        : (specialTime <= 0 ? 1.0 : 0.0);
                                     <div style="display: flex; align-items: center; margin-top: 4px;">
                                         <span style="min-width: 100px; font-size: 12px;">特殊攻击:</span>
                                         <div style="flex: 1; background: #e0e0e0; height: 16px; border-radius: 3px; overflow: hidden; position: relative;">
@@ -652,8 +656,10 @@ else
                             <div><b>攻击进度:</b></div>
                             @if (stepStatus.NextAttackAt.HasValue)
                             {
-                                var attackProgress = stepStatus.CurrentTime >= stepStatus.NextAttackAt.Value ? 1.0 : 0.0;
                                 var attackTime = stepStatus.NextAttackAt.Value - stepStatus.CurrentTime;
+                                var attackProgress = stepStatus.AttackIntervalSeconds > 0
+                                    ? Math.Max(0.0, Math.Min(1.0, 1.0 - attackTime / stepStatus.AttackIntervalSeconds))
+                                    : (attackTime <= 0 ? 1.0 : 0.0);
                                 <div style="display: flex; align-items: center; margin-top: 4px;">
                                     <span style="min-width: 100px; font-size: 12px;">普通攻击:</span>
                                     <div style="flex: 1; background: #e0e0e0; height: 16px; border-radius: 3px; overflow: hidden; position: relative;">
@@ -666,8 +672,10 @@ else
                             }
                             @if (stepStatus.NextSpecialAt.HasValue)
                             {
-                                var specialProgress = stepStatus.CurrentTime >= stepStatus.NextSpecialAt.Value ? 1.0 : 0.0;
                                 var specialTime = stepStatus.NextSpecialAt.Value - stepStatus.CurrentTime;
+                                var specialProgress = stepStatus.SpecialIntervalSeconds > 0
+                                    ? Math.Max(0.0, Math.Min(1.0, 1.0 - specialTime / stepStatus.SpecialIntervalSeconds))
+                                    : (specialTime <= 0 ? 1.0 : 0.0);
                                 <div style="display: flex; align-items: center; margin-top: 4px;">
                                     <span style="min-width: 100px; font-size: 12px;">特殊攻击:</span>
                                     <div style="flex: 1; background: #e0e0e0; height: 16px; border-radius: 3px; overflow: hidden; position: relative;">

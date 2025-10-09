@@ -47,6 +47,8 @@ public sealed class StepStatusResponse
     public List<EnemyHealthStatusDto> Enemies { get; set; } = new();
     public double? NextAttackAt { get; set; }
     public double? NextSpecialAt { get; set; }
+    public double AttackIntervalSeconds { get; set; }
+    public double SpecialIntervalSeconds { get; set; }
     public double CurrentTime { get; set; }
 }
 

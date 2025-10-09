@@ -49,6 +49,16 @@ public sealed class BattleEngine
 
     private void ClearDeathMarks() => _markedDead.Clear();
 
+    // 重置攻击进度：将攻击Track的下次触发时间设为当前时间 + 攻击间隔
+    private void ResetAttackProgress()
+    {
+        var attackTrack = Context.Tracks.FirstOrDefault(t => t.TrackType == TrackType.Attack);
+        if (attackTrack is not null)
+        {
+            attackTrack.NextTriggerAt = Clock.CurrentTime + attackTrack.CurrentInterval;
+        }
+    }
+
     public BattleEngine(
         Guid battleId,
         Guid characterId,
@@ -190,6 +200,9 @@ public sealed class BattleEngine
             {
                 Context.RefreshPrimaryEncounter();
                 Collector.OnTag("retarget_primary", 1);
+                
+                // 重置攻击进度：切换目标后从0开始
+                ResetAttackProgress();
             }
         }
     }
@@ -262,6 +275,9 @@ public sealed class BattleEngine
 
             // 新一波开始：清理死亡标记，避免与新实例混淆
             ClearDeathMarks();
+
+            // 重置攻击进度：怪物刷新后从0开始
+            ResetAttackProgress();
 
             Collector.OnTag("spawn_performed", 1);
         }
