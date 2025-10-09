@@ -141,8 +141,20 @@ public sealed class StepBattleCoordinator
             mode = "expected";
         }
 
-        // 计算玩家最大血量（基于耐力：每点耐力 = 10 血量）
-        int playerMaxHp = rb.Stamina * 10;
+        // Phase 3: 获取玩家状态信息
+        var player = rb.Context.Player;
+        int playerMaxHp = player.MaxHp;
+        int playerCurrentHp = player.CurrentHp;
+        double playerHpPercent = playerMaxHp > 0 ? (double)playerCurrentHp / playerMaxHp : 1.0;
+        bool playerIsDead = player.IsDead;
+        double? playerReviveAt = player.ReviveAt;
+        
+        // 计算复活倒计时（如果玩家死亡且有复活时间）
+        double? reviveCountdownSeconds = null;
+        if (playerIsDead && playerReviveAt.HasValue)
+        {
+            reviveCountdownSeconds = Math.Max(0, playerReviveAt.Value - rb.Clock.CurrentTime);
+        }
         
         // 收集敌人血量状态
         var enemyHealthList = new List<EnemyHealthStatusDto>();
@@ -219,9 +231,12 @@ public sealed class StepBattleCoordinator
             LootExpected = lootExp ?? new(),
             LootSampled = lootSampled ?? new(),
             
-            // 实时战斗信息
+            // Phase 3: 实时战斗信息（包含玩家死亡状态）
             PlayerMaxHp = playerMaxHp,
-            PlayerHpPercent = 1.0, // 当前游戏机制下玩家不受伤害
+            PlayerCurrentHp = playerCurrentHp,
+            PlayerHpPercent = playerHpPercent,
+            PlayerIsDead = playerIsDead,
+            PlayerReviveCountdownSeconds = reviveCountdownSeconds,
             Enemies = enemyHealthList,
             NextAttackAt = nextAttackAt,
             NextSpecialAt = nextSpecialAt,
@@ -489,8 +504,17 @@ public sealed class StepBattleStatusDto
     /// <summary>玩家最大血量（基于耐力计算，用于显示）</summary>
     public int PlayerMaxHp { get; set; }
     
-    /// <summary>玩家当前血量百分比（当前游戏机制下始终为 100%）</summary>
+    /// <summary>玩家当前血量（Phase 3: 实际血量）</summary>
+    public int PlayerCurrentHp { get; set; }
+    
+    /// <summary>玩家当前血量百分比（Phase 3: 实际百分比）</summary>
     public double PlayerHpPercent { get; set; } = 1.0;
+    
+    /// <summary>玩家是否死亡（Phase 3）</summary>
+    public bool PlayerIsDead { get; set; }
+    
+    /// <summary>玩家复活倒计时（秒）（Phase 3: 如果死亡且有复活时间）</summary>
+    public double? PlayerReviveCountdownSeconds { get; set; }
     
     /// <summary>敌人血量状态列表（支持多怪物）</summary>
     public List<EnemyHealthStatusDto> Enemies { get; set; } = new();
