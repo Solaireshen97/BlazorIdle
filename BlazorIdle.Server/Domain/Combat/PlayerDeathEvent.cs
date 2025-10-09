@@ -33,6 +33,12 @@ public record PlayerDeathEvent(double ExecuteAt) : IGameEvent
             context.AutoCaster.ClearCasting();
         }
         
+        // Phase 4: 暂停所有怪物攻击轨道
+        foreach (var (enemyId, track) in context.EnemyAttackTracks)
+        {
+            track.Pause(ExecuteAt);
+        }
+        
         // 如果启用自动复活，调度复活事件
         if (player.AutoReviveEnabled && player.ReviveAt.HasValue)
         {

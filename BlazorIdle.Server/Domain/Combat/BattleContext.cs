@@ -40,6 +40,9 @@ public class BattleContext
     
     /// <summary>目标选取管理器（Phase 2: 基于权重的随机目标选择）</summary>
     public TargetSelector TargetSelector { get; private set; }
+    
+    /// <summary>怪物攻击轨道映射（Phase 4: 怪物攻击能力）</summary>
+    public Dictionary<string, TrackState> EnemyAttackTracks { get; } = new();
 
     public BattleContext(
         Battle battle,

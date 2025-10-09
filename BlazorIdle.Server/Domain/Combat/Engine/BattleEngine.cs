@@ -141,8 +141,43 @@ public sealed class BattleEngine
         Scheduler.Schedule(new SpecialPulseEvent(specialTrack.NextTriggerAt, specialTrack));
         Scheduler.Schedule(new ProcPulseEvent(Clock.CurrentTime + 1.0, 1.0));
 
+        // Phase 4: 初始化怪物攻击轨道
+        InitializeEnemyAttackTracks(initialGroup);
+
         // 统一：应用上下文标签（ctx.*）
         ApplyMetaTags(meta);
+    }
+
+    /// <summary>
+    /// Phase 4: 为每个怪物创建攻击轨道并调度首次攻击事件
+    /// </summary>
+    private void InitializeEnemyAttackTracks(EncounterGroup group)
+    {
+        if (group is null) return;
+
+        int index = 0;
+        foreach (var encounter in group.All)
+        {
+            // 只为配置了攻击的怪物创建攻击轨道
+            if (encounter.Enemy.BaseDamage > 0)
+            {
+                var enemyId = $"enemy_{index}";
+                var enemyCombatant = new Combatants.EnemyCombatant(enemyId, encounter);
+                
+                // 创建攻击轨道，首次攻击在间隔时间后触发
+                var track = new TrackState(
+                    TrackType.EnemyAttack, 
+                    encounter.Enemy.AttackIntervalSeconds, 
+                    encounter.Enemy.AttackIntervalSeconds
+                );
+                
+                Context.EnemyAttackTracks[enemyId] = track;
+                
+                // 调度首次攻击事件
+                Scheduler.Schedule(new EnemyAttackEvent(track.NextTriggerAt, enemyCombatant, track));
+            }
+            index++;
+        }
     }
 
     private void ApplyMetaTags(BattleMeta? meta)
@@ -278,6 +313,13 @@ public sealed class BattleEngine
 
             // 新一波开始：清理死亡标记，避免与新实例混淆
             ClearDeathMarks();
+
+            // Phase 4: 清理旧的怪物攻击轨道并为新波次初始化
+            Context.EnemyAttackTracks.Clear();
+            if (Context.EncounterGroup != null)
+            {
+                InitializeEnemyAttackTracks(Context.EncounterGroup);
+            }
 
             Collector.OnTag("spawn_performed", 1);
         }

@@ -35,6 +35,26 @@ public record PlayerReviveEvent(double ExecuteAt) : IGameEvent
             }
         }
         
+        // Phase 4: 恢复怪物攻击轨道
+        if (context.EncounterGroup != null)
+        {
+            int index = 0;
+            foreach (var encounter in context.EncounterGroup.All)
+            {
+                var enemyId = $"enemy_{index}";
+                if (context.EnemyAttackTracks.TryGetValue(enemyId, out var enemyTrack) && !encounter.IsDead)
+                {
+                    // 恢复怪物攻击轨道
+                    enemyTrack.Resume(ExecuteAt);
+                    
+                    // 重新调度怪物攻击事件
+                    var enemyCombatant = new Combatants.EnemyCombatant(enemyId, encounter);
+                    context.Scheduler.Schedule(new EnemyAttackEvent(enemyTrack.NextTriggerAt, enemyCombatant, enemyTrack));
+                }
+                index++;
+            }
+        }
+        
         // 记录复活事件
         context.SegmentCollector.OnTag("player_revive", 1);
     }
