@@ -176,6 +176,35 @@ public sealed class BattleEngine
         return grp.All.All(e => e.IsDead);
     }
 
+    // 重置攻击进度：将攻击轨道的下次触发时间重置为当前时间+完整间隔
+    private void ResetAttackProgress()
+    {
+        var attackTrack = Context.Tracks.FirstOrDefault(t => t.TrackType == TrackType.Attack);
+        if (attackTrack is null) return;
+
+        // 移除现有的攻击事件
+        var existingEvents = new List<IGameEvent>();
+        while (Scheduler.Count > 0)
+        {
+            var ev = Scheduler.PopNext();
+            if (ev is not null && ev is not AttackTickEvent)
+            {
+                existingEvents.Add(ev);
+            }
+        }
+
+        // 恢复非攻击事件
+        foreach (var ev in existingEvents)
+        {
+            Scheduler.Schedule(ev);
+        }
+
+        // 重新调度攻击事件：从当前时间开始计算完整间隔
+        attackTrack.NextTriggerAt = Clock.CurrentTime + attackTrack.CurrentInterval;
+        Scheduler.Schedule(new AttackTickEvent(attackTrack.NextTriggerAt, attackTrack));
+        Collector.OnTag("attack_progress_reset", 1);
+    }
+
     // 若主目标已死而波未清空，立刻重选主目标
     private void TryRetargetPrimaryIfDead()
     {
@@ -189,6 +218,7 @@ public sealed class BattleEngine
             if (next is not null && !next.IsDead)
             {
                 Context.RefreshPrimaryEncounter();
+                ResetAttackProgress();
                 Collector.OnTag("retarget_primary", 1);
             }
         }
@@ -213,6 +243,9 @@ public sealed class BattleEngine
             _pendingNextGroup = nextGroup;
             _pendingSpawnAt = Clock.CurrentTime + delay;
             _waitingSpawn = true;
+
+            // 重置攻击进度：怪物死亡等待刷新
+            ResetAttackProgress();
 
             if (runCompleted) Collector.OnTag("dungeon_run_complete", 1);
             Collector.OnTag("spawn_scheduled", 1);
