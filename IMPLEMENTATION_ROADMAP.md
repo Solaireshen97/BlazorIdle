@@ -292,13 +292,13 @@ DamageCalc()
     [x] P3.9: UI 状态同步
     [x] P3.10: 单元测试
     
-[ ] Phase 4: 怪物攻击能力 (Week 8-10)
-    [ ] P4.1: 扩展 EnemyDefinition
-    [ ] P4.2: 初始化怪物攻击轨道
-    [ ] P4.3: 创建 EnemyAttackEvent
-    [ ] P4.4: 怪物无目标时暂停
-    [ ] P4.5: 伤害平衡调整
-    [ ] P4.6: 单元测试
+[x] Phase 4: 怪物攻击能力 (Week 8-10) ✅ COMPLETED (2025-01)
+    [x] P4.1: 扩展 EnemyDefinition (添加 BaseDamage, AttackDamageType, AttackIntervalSeconds)
+    [x] P4.2: 初始化怪物攻击轨道 (在 BattleEngine 中创建 EnemyAttackTracks)
+    [x] P4.3: 创建 EnemyAttackEvent (实现怪物攻击玩家逻辑)
+    [x] P4.4: 怪物无目标时暂停 (玩家死亡暂停，复活恢复)
+    [x] P4.5: 伤害平衡调整 (配置所有注册怪物的攻击属性)
+    [x] P4.6: 单元测试 (15个测试用例，全部通过)
     
 [ ] Phase 5: 怪物技能系统 (Week 11-13)
     [ ] P5.1: 定义 EnemySkillDefinition

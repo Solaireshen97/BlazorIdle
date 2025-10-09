@@ -12,7 +12,10 @@ public static class EnemyRegistry
             level: 1,
             maxHp: 150,
             armor: 50,
-            magicResist: 0.1
+            magicResist: 0.1,
+            baseDamage: 5,                              // Phase 4: Weak attack for training
+            attackDamageType: Damage.DamageType.Physical,
+            attackIntervalSeconds: 2.0
         ),
         ["tank"] = new EnemyDefinition(
             id: "tank",
@@ -20,7 +23,10 @@ public static class EnemyRegistry
             level: 10,
             maxHp: 500,
             armor: 400,
-            magicResist: 0.15
+            magicResist: 0.15,
+            baseDamage: 15,                             // Phase 4: Moderate attack, 7.5 DPS
+            attackDamageType: Damage.DamageType.Physical,
+            attackIntervalSeconds: 2.0
         ),
         ["magebane"] = new EnemyDefinition(
             id: "magebane",
@@ -28,7 +34,10 @@ public static class EnemyRegistry
             level: 10,
             maxHp: 380,
             armor: 120,
-            magicResist: 0.35
+            magicResist: 0.35,
+            baseDamage: 12,                             // Phase 4: Magic attack, 6 DPS
+            attackDamageType: Damage.DamageType.Magic,
+            attackIntervalSeconds: 2.0
         ),
         ["paper"] = new EnemyDefinition(
             id: "paper",
@@ -38,7 +47,10 @@ public static class EnemyRegistry
             armor: 0,
             magicResist: 0.0,
             vulnPhys: 0.1,
-            vulnMagic: 0.1
+            vulnMagic: 0.1,
+            baseDamage: 8,                              // Phase 4: Fast but weak attack, 5.3 DPS
+            attackDamageType: Damage.DamageType.Physical,
+            attackIntervalSeconds: 1.5
         ),
     };
 
