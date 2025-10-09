@@ -27,6 +27,7 @@ public sealed class RunningBattle
     public double TargetDurationSeconds { get; }
     public string EnemyId { get; }
     public int EnemyCount { get; }
+    public int Stamina { get; }
 
     public StepBattleMode Mode { get; }
     public string? DungeonId { get; }
@@ -79,7 +80,8 @@ public sealed class RunningBattle
         double? continuousRespawnDelaySeconds = null,
         double? dungeonWaveDelaySeconds = null,
         double? dungeonRunDelaySeconds = null,
-        IProfessionModule? module = null)
+        IProfessionModule? module = null,
+        int stamina = 10)
     {
         Id = id;
         CharacterId = characterId;
@@ -87,6 +89,7 @@ public sealed class RunningBattle
         TargetDurationSeconds = targetSeconds;
         EnemyId = enemyDef.Id;
         EnemyCount = Math.Max(1, enemyCount);
+        Stamina = stamina;
         Mode = mode;
         DungeonId = dungeonId;
         Seed = seed;
