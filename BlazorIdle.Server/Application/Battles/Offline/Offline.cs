@@ -54,6 +54,7 @@ public sealed class OfflineSettlementService
     private readonly OfflineFastForwardEngine _engine;
     private readonly GameDbContext _db;
     private readonly Func<Guid, CancellationToken, Task<ActivityPlan?>>? _tryStartNextPlan;
+    private readonly Func<Guid, CancellationToken, Task<Guid>>? _startPlan;
 
     public OfflineSettlementService(
         ICharacterRepository characters, 
@@ -61,7 +62,8 @@ public sealed class OfflineSettlementService
         IActivityPlanRepository plans,
         OfflineFastForwardEngine engine,
         GameDbContext db,
-        Func<Guid, CancellationToken, Task<ActivityPlan?>>? tryStartNextPlan = null)
+        Func<Guid, CancellationToken, Task<ActivityPlan?>>? tryStartNextPlan = null,
+        Func<Guid, CancellationToken, Task<Guid>>? startPlan = null)
     {
         _characters = characters;
         _simulator = simulator;
@@ -69,6 +71,7 @@ public sealed class OfflineSettlementService
         _engine = engine;
         _db = db;
         _tryStartNextPlan = tryStartNextPlan;
+        _startPlan = startPlan;
     }
 
     /// <summary>
@@ -146,7 +149,7 @@ public sealed class OfflineSettlementService
         await _db.SaveChangesAsync(ct);
 
         // 7. 如果计划完成，尝试启动下一个（实现自动衔接）
-        // 如果计划未完成且之前是暂停状态，需要恢复运行（通过 _tryStartNextPlan 或重新启动）
+        // 如果计划未完成且之前是暂停状态，需要恢复运行
         Guid? nextPlanId = null;
         bool nextPlanStarted = false;
         if (result.PlanCompleted && _tryStartNextPlan is not null)
@@ -158,12 +161,22 @@ public sealed class OfflineSettlementService
                 nextPlanStarted = true;
             }
         }
-        else if (!result.PlanCompleted && wasPaused && _tryStartNextPlan is not null)
+        else if (!result.PlanCompleted && wasPaused && _startPlan is not null)
         {
-            // 计划未完成且之前是暂停的，尝试恢复运行
-            // 由于计划现在仍然是某个状态（Running 或 Paused），我们需要等待玩家操作来恢复
-            // 或者可以在这里自动恢复，但这需要 ActivityPlanService 支持
-            // 暂时保持当前状态，等待用户登录后通过其他机制恢复
+            // 计划未完成且之前是暂停的，需要恢复运行
+            // 将状态改回 Paused，然后通过 StartPlanAsync 恢复（会创建新的 BattleId）
+            runningPlan.State = ActivityState.Paused;
+            await _plans.UpdateAsync(runningPlan, ct);
+            
+            try
+            {
+                // 调用 StartPlanAsync 恢复计划（会创建新的 BattleId 和战斗实例）
+                await _startPlan(runningPlan.Id, ct);
+            }
+            catch (Exception)
+            {
+                // 如果恢复失败，保持 Paused 状态，用户可以稍后手动恢复
+            }
         }
 
         return new OfflineCheckResult
