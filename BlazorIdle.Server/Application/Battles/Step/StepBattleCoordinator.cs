@@ -141,12 +141,17 @@ public sealed class StepBattleCoordinator
             mode = "expected";
         }
 
-        // 计算玩家最大血量（基于耐力：每点耐力 = 10 血量）
-        int playerMaxHp = rb.Stamina * 10;
-        
         // 收集敌人血量状态
         var enemyHealthList = new List<EnemyHealthStatusDto>();
         var ctx2 = rb.Context;
+        
+        // 获取玩家血量信息（Phase 3: 从 PlayerCombatant 获取）
+        var player = ctx2.Player;
+        int playerMaxHp = player.MaxHp;
+        int playerCurrentHp = player.CurrentHp;
+        double playerHpPercent = playerMaxHp > 0 ? (double)playerCurrentHp / playerMaxHp : 1.0;
+        bool playerIsDead = player.IsDead;
+        double? playerReviveAt = player.ReviveAt;
         if (ctx2.EncounterGroup != null)
         {
             foreach (var enc in ctx2.EncounterGroup.All)
@@ -221,7 +226,10 @@ public sealed class StepBattleCoordinator
             
             // 实时战斗信息
             PlayerMaxHp = playerMaxHp,
-            PlayerHpPercent = 1.0, // 当前游戏机制下玩家不受伤害
+            PlayerCurrentHp = playerCurrentHp,
+            PlayerHpPercent = playerHpPercent,
+            PlayerIsDead = playerIsDead,
+            PlayerReviveAt = playerReviveAt,
             Enemies = enemyHealthList,
             NextAttackAt = nextAttackAt,
             NextSpecialAt = nextSpecialAt,
@@ -489,8 +497,17 @@ public sealed class StepBattleStatusDto
     /// <summary>玩家最大血量（基于耐力计算，用于显示）</summary>
     public int PlayerMaxHp { get; set; }
     
-    /// <summary>玩家当前血量百分比（当前游戏机制下始终为 100%）</summary>
+    /// <summary>玩家当前血量</summary>
+    public int PlayerCurrentHp { get; set; }
+    
+    /// <summary>玩家当前血量百分比</summary>
     public double PlayerHpPercent { get; set; } = 1.0;
+    
+    /// <summary>玩家是否死亡</summary>
+    public bool PlayerIsDead { get; set; }
+    
+    /// <summary>玩家复活时间（如果正在复活）</summary>
+    public double? PlayerReviveAt { get; set; }
     
     /// <summary>敌人血量状态列表（支持多怪物）</summary>
     public List<EnemyHealthStatusDto> Enemies { get; set; } = new();
