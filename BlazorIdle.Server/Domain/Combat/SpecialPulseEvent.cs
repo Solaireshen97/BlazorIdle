@@ -8,6 +8,15 @@ public record SpecialPulseEvent(double ExecuteAt, TrackState Track) : IGameEvent
 
     public void Execute(BattleContext context)
     {
+        // Phase 3: 检查玩家是否存活，死亡时不触发特殊脉冲
+        if (!context.Player.CanAct())
+        {
+            // 玩家死亡，跳过特殊脉冲，等待复活
+            Track.NextTriggerAt = ExecuteAt + Track.CurrentInterval;
+            context.Scheduler.Schedule(new SpecialPulseEvent(Track.NextTriggerAt, Track));
+            return;
+        }
+        
         // 基础 Tag（维持以前统计）
         context.SegmentCollector.OnTag("special_pulse", 1);
 

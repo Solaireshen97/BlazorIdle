@@ -65,17 +65,85 @@ public class PlayerCombatant : ICombatant
     }
     
     /// <summary>
-    /// 接收伤害
-    /// Phase 1: 不实际扣血，保持兼容性
+    /// 接收伤害（实现接口方法）
+    /// Phase 3: 实际扣血，触发死亡检测
     /// </summary>
     /// <param name="amount">伤害数值</param>
     /// <param name="type">伤害类型</param>
     /// <param name="now">当前战斗时间</param>
-    /// <returns>实际造成的伤害（Phase 1: 始终返回 0）</returns>
+    /// <returns>实际造成的伤害</returns>
     public int ReceiveDamage(int amount, DamageType type, double now)
     {
-        // Phase 1: 玩家不受伤害，保持现有逻辑
-        return 0;
+        return ReceiveDamageInternal(amount, type, now, null);
+    }
+    
+    /// <summary>
+    /// 接收伤害（带上下文的版本）
+    /// Phase 3: 实际扣血，触发死亡检测，调度死亡事件
+    /// </summary>
+    /// <param name="amount">伤害数值</param>
+    /// <param name="type">伤害类型</param>
+    /// <param name="now">当前战斗时间</param>
+    /// <param name="context">战斗上下文（用于调度死亡事件）</param>
+    /// <returns>实际造成的伤害</returns>
+    public int ReceiveDamageWithContext(int amount, DamageType type, double now, BattleContext context)
+    {
+        return ReceiveDamageInternal(amount, type, now, context);
+    }
+    
+    /// <summary>
+    /// 内部伤害处理逻辑
+    /// </summary>
+    private int ReceiveDamageInternal(int amount, DamageType type, double now, BattleContext? context)
+    {
+        if (State != CombatantState.Alive)
+            return 0; // 死亡状态不受伤害
+            
+        var actualDamage = Math.Min(amount, CurrentHp);
+        CurrentHp -= actualDamage;
+        
+        // Phase 3: 死亡检测
+        if (CurrentHp <= 0 && State == CombatantState.Alive)
+        {
+            OnDeath(now, context);
+        }
+        
+        return actualDamage;
+    }
+    
+    /// <summary>
+    /// 处理死亡
+    /// Phase 3: 状态转换，记录死亡时间，调度死亡事件
+    /// </summary>
+    private void OnDeath(double now, BattleContext? context)
+    {
+        State = CombatantState.Dead;
+        DeathTime = now;
+        CurrentHp = 0;
+        
+        // 计算复活时间
+        if (AutoReviveEnabled)
+        {
+            ReviveAt = now + ReviveDurationSeconds;
+        }
+        
+        // 调度死亡事件（如果有上下文）
+        if (context != null)
+        {
+            context.Scheduler.Schedule(new PlayerDeathEvent(now, this));
+        }
+    }
+    
+    /// <summary>
+    /// 处理复活
+    /// Phase 3: 恢复满血，状态转换为 Alive
+    /// </summary>
+    public void OnRevive(double now)
+    {
+        State = CombatantState.Alive;
+        CurrentHp = MaxHp;
+        DeathTime = null;
+        ReviveAt = null;
     }
     
     /// <summary>

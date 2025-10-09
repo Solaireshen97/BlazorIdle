@@ -12,6 +12,15 @@ public record AttackTickEvent(double ExecuteAt, TrackState Track) : IGameEvent
 
     public void Execute(BattleContext context)
     {
+        // Phase 3: 检查玩家是否存活，死亡时不攻击
+        if (!context.Player.CanAct())
+        {
+            // 玩家死亡，跳过攻击，等待复活
+            Track.NextTriggerAt = ExecuteAt + Track.CurrentInterval;
+            context.Scheduler.Schedule(new AttackTickEvent(Track.NextTriggerAt, Track));
+            return;
+        }
+        
         // 检查攻击进度是否被重置（如切换目标或等待刷新）
         // 如果 Track.NextTriggerAt 大于当前事件的 ExecuteAt，说明进度已被重置，跳过执行并调度新事件
         if (Track.NextTriggerAt > ExecuteAt + 1e-9)
