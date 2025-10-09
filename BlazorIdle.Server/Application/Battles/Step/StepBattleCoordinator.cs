@@ -176,15 +176,23 @@ public sealed class StepBattleCoordinator
             });
         }
         
-        // 获取下次攻击时间
+        // 获取下次攻击时间和攻击间隔
         double? nextAttackAt = null;
         double? nextSpecialAt = null;
+        double? attackInterval = null;
+        double? specialInterval = null;
         foreach (var track in ctx2.Tracks)
         {
             if (track.TrackType == Domain.Combat.TrackType.Attack)
+            {
                 nextAttackAt = track.NextTriggerAt;
+                attackInterval = track.CurrentInterval;
+            }
             else if (track.TrackType == Domain.Combat.TrackType.Special)
+            {
                 nextSpecialAt = track.NextTriggerAt;
+                specialInterval = track.CurrentInterval;
+            }
         }
 
         return (true, new StepBattleStatusDto
@@ -225,6 +233,8 @@ public sealed class StepBattleCoordinator
             Enemies = enemyHealthList,
             NextAttackAt = nextAttackAt,
             NextSpecialAt = nextSpecialAt,
+            AttackInterval = attackInterval,
+            SpecialInterval = specialInterval,
             CurrentTime = rb.Clock.CurrentTime
         });
     }
@@ -500,6 +510,12 @@ public sealed class StepBattleStatusDto
     
     /// <summary>下次特殊攻击时间</summary>
     public double? NextSpecialAt { get; set; }
+    
+    /// <summary>普通攻击间隔（秒）</summary>
+    public double? AttackInterval { get; set; }
+    
+    /// <summary>特殊攻击间隔（秒）</summary>
+    public double? SpecialInterval { get; set; }
     
     /// <summary>当前战斗时间</summary>
     public double CurrentTime { get; set; }

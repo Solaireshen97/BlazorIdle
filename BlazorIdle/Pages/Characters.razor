@@ -388,12 +388,11 @@ else
                                 <div><b>攻击进度:</b></div>
                                 @if (currentPlanBattle.NextAttackAt.HasValue)
                                 {
-                                    var attackProgress = currentPlanBattle.CurrentTime >= currentPlanBattle.NextAttackAt.Value ? 1.0 : 0.0;
-                                    var attackTime = currentPlanBattle.NextAttackAt.Value - currentPlanBattle.CurrentTime;
+                                    var (attackProgress, attackTime) = CalculatePlanAttackProgress();
                                     <div style="display: flex; align-items: center; margin-top: 4px;">
                                         <span style="min-width: 100px; font-size: 12px;">普通攻击:</span>
                                         <div style="flex: 1; background: #e0e0e0; height: 16px; border-radius: 3px; overflow: hidden; position: relative;">
-                                            <div style="background: linear-gradient(90deg, #2196f3, #64b5f6); height: 100%; width: @(attackProgress * 100)%; transition: width 0.1s;"></div>
+                                            <div style="background: linear-gradient(90deg, #2196f3, #64b5f6); height: 100%; width: @(attackProgress * 100)%;"></div>
                                             <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-size: 10px;">
                                                 @(attackTime > 0 ? $"{attackTime:0.00}s" : "就绪")
                                             </span>
@@ -402,12 +401,11 @@ else
                                 }
                                 @if (currentPlanBattle.NextSpecialAt.HasValue)
                                 {
-                                    var specialProgress = currentPlanBattle.CurrentTime >= currentPlanBattle.NextSpecialAt.Value ? 1.0 : 0.0;
-                                    var specialTime = currentPlanBattle.NextSpecialAt.Value - currentPlanBattle.CurrentTime;
+                                    var (specialProgress, specialTime) = CalculatePlanSpecialProgress();
                                     <div style="display: flex; align-items: center; margin-top: 4px;">
                                         <span style="min-width: 100px; font-size: 12px;">特殊攻击:</span>
                                         <div style="flex: 1; background: #e0e0e0; height: 16px; border-radius: 3px; overflow: hidden; position: relative;">
-                                            <div style="background: linear-gradient(90deg, #ff9800, #ffb74d); height: 100%; width: @(specialProgress * 100)%; transition: width 0.1s;"></div>
+                                            <div style="background: linear-gradient(90deg, #ff9800, #ffb74d); height: 100%; width: @(specialProgress * 100)%;"></div>
                                             <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-size: 10px;">
                                                 @(specialTime > 0 ? $"{specialTime:0.00}s" : "就绪")
                                             </span>
@@ -652,12 +650,11 @@ else
                             <div><b>攻击进度:</b></div>
                             @if (stepStatus.NextAttackAt.HasValue)
                             {
-                                var attackProgress = stepStatus.CurrentTime >= stepStatus.NextAttackAt.Value ? 1.0 : 0.0;
-                                var attackTime = stepStatus.NextAttackAt.Value - stepStatus.CurrentTime;
+                                var (attackProgress, attackTime) = CalculateStepAttackProgress();
                                 <div style="display: flex; align-items: center; margin-top: 4px;">
                                     <span style="min-width: 100px; font-size: 12px;">普通攻击:</span>
                                     <div style="flex: 1; background: #e0e0e0; height: 16px; border-radius: 3px; overflow: hidden; position: relative;">
-                                        <div style="background: linear-gradient(90deg, #2196f3, #64b5f6); height: 100%; width: @(attackProgress * 100)%; transition: width 0.1s;"></div>
+                                        <div style="background: linear-gradient(90deg, #2196f3, #64b5f6); height: 100%; width: @(attackProgress * 100)%;"></div>
                                         <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-size: 10px;">
                                             @(attackTime > 0 ? $"{attackTime:0.00}s" : "就绪")
                                         </span>
@@ -666,12 +663,11 @@ else
                             }
                             @if (stepStatus.NextSpecialAt.HasValue)
                             {
-                                var specialProgress = stepStatus.CurrentTime >= stepStatus.NextSpecialAt.Value ? 1.0 : 0.0;
-                                var specialTime = stepStatus.NextSpecialAt.Value - stepStatus.CurrentTime;
+                                var (specialProgress, specialTime) = CalculateStepSpecialProgress();
                                 <div style="display: flex; align-items: center; margin-top: 4px;">
                                     <span style="min-width: 100px; font-size: 12px;">特殊攻击:</span>
                                     <div style="flex: 1; background: #e0e0e0; height: 16px; border-radius: 3px; overflow: hidden; position: relative;">
-                                        <div style="background: linear-gradient(90deg, #ff9800, #ffb74d); height: 100%; width: @(specialProgress * 100)%; transition: width 0.1s;"></div>
+                                        <div style="background: linear-gradient(90deg, #ff9800, #ffb74d); height: 100%; width: @(specialProgress * 100)%;"></div>
                                         <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-size: 10px;">
                                             @(specialTime > 0 ? $"{specialTime:0.00}s" : "就绪")
                                         </span>
@@ -1314,6 +1310,17 @@ else
     Dictionary<string, int> stepAggBySource = new();
     Dictionary<string, int> stepAggByType = new();
 
+    // 攻击进度平滑追踪
+    private DateTime _lastStepUpdateTime = DateTime.UtcNow;
+    private double _lastServerCurrentTime = 0;
+    private double? _lastServerNextAttackAt = null;
+    private double? _lastServerNextSpecialAt = null;
+    private double? _lastServerAttackInterval = null;
+    private double? _lastServerSpecialInterval = null;
+    
+    // UI 刷新定时器（用于平滑进度条动画）
+    private System.Timers.Timer? _uiRefreshTimer;
+
     CancellationTokenSource? _stepPollCts;
     bool stepIsPolling;
     int _stepSinceIndex = 0;
@@ -1367,6 +1374,9 @@ else
         _stepPollCts?.Cancel();
         _stepPollCts = new CancellationTokenSource();
         stepIsPolling = true;
+        
+        // 启动 UI 刷新定时器
+        StartUiRefreshTimer();
 
         try
         {
@@ -1380,14 +1390,29 @@ else
         }
         catch (TaskCanceledException) { }
         catch (Exception ex) { stepError = $"轮询异常: {ex.Message}"; }
-        finally { stepIsPolling = false; await InvokeAsync(StateHasChanged); }
+        finally 
+        { 
+            stepIsPolling = false; 
+            StopUiRefreshTimer();
+            await InvokeAsync(StateHasChanged); 
+        }
     }
 
     async Task PollStepOnceAsync(CancellationToken ct)
     {
         if (stepBattleId is null) return;
         var s = await Api.GetStepBattleStatusAsync(stepBattleId.Value, stepDropMode, ct);
-        if (s is not null) stepStatus = s;
+        if (s is not null)
+        {
+            stepStatus = s;
+            // 更新攻击进度追踪状态
+            _lastStepUpdateTime = DateTime.UtcNow;
+            _lastServerCurrentTime = s.CurrentTime;
+            _lastServerNextAttackAt = s.NextAttackAt;
+            _lastServerNextSpecialAt = s.NextSpecialAt;
+            _lastServerAttackInterval = s.AttackInterval;
+            _lastServerSpecialInterval = s.SpecialInterval;
+        }
 
         var segList = await Api.GetStepBattleSegmentsAsync(stepBattleId.Value, _stepSinceIndex, ct);
         if (segList is { Count: > 0 })
@@ -1410,7 +1435,13 @@ else
         }
     }
 
-    void StopStepPolling() { _stepPollCts?.Cancel(); stepIsPolling = false; StateHasChanged(); }
+    void StopStepPolling() 
+    { 
+        _stepPollCts?.Cancel(); 
+        stepIsPolling = false; 
+        StopUiRefreshTimer();
+        StateHasChanged(); 
+    }
 
     void ResetStep()
     {
@@ -1466,7 +1497,14 @@ else
 
     async Task OpenSummary(Guid id) { var url = $"/api/battles/{id}/summary"; await JS.InvokeVoidAsync("open", url, "_blank"); }
 
-    public void Dispose() { StopPolling(); StopStepPolling(); StopDebugAutoPolling(); StopPlanPolling(); }
+    public void Dispose() 
+    { 
+        StopPolling(); 
+        StopStepPolling(); 
+        StopDebugAutoPolling(); 
+        StopPlanPolling(); 
+        StopUiRefreshTimer();
+    }
 
     // ====== 活动计划管理 ======
     string planActivityType = "combat";  // combat | dungeon
@@ -1483,6 +1521,14 @@ else
     StepStatusResponse? currentPlanBattle;
     CancellationTokenSource? _planPollCts;
     bool planIsPolling;
+
+    // 活动计划攻击进度平滑追踪
+    private DateTime _lastPlanUpdateTime = DateTime.UtcNow;
+    private double _lastPlanServerCurrentTime = 0;
+    private double? _lastPlanServerNextAttackAt = null;
+    private double? _lastPlanServerNextSpecialAt = null;
+    private double? _lastPlanServerAttackInterval = null;
+    private double? _lastPlanServerSpecialInterval = null;
 
     async Task CreateActivityPlanAsync()
     {
@@ -1695,6 +1741,9 @@ else
         _planPollCts?.Cancel();
         _planPollCts = new CancellationTokenSource();
         planIsPolling = true;
+        
+        // 启动 UI 刷新定时器
+        StartUiRefreshTimer();
 
         try
         {
@@ -1702,7 +1751,18 @@ else
             {
                 try
                 {
-                    currentPlanBattle = await Api.GetStepBattleStatusAsync(battleId, "sampled", _planPollCts.Token);
+                    var s = await Api.GetStepBattleStatusAsync(battleId, "sampled", _planPollCts.Token);
+                    if (s is not null)
+                    {
+                        currentPlanBattle = s;
+                        // 更新攻击进度追踪状态
+                        _lastPlanUpdateTime = DateTime.UtcNow;
+                        _lastPlanServerCurrentTime = s.CurrentTime;
+                        _lastPlanServerNextAttackAt = s.NextAttackAt;
+                        _lastPlanServerNextSpecialAt = s.NextSpecialAt;
+                        _lastPlanServerAttackInterval = s.AttackInterval;
+                        _lastPlanServerSpecialInterval = s.SpecialInterval;
+                    }
                     
                     // 同时刷新计划列表以获取最新的ExecutedSeconds
                     if (lastCreated is not null)
@@ -1724,6 +1784,7 @@ else
         finally
         {
             planIsPolling = false;
+            StopUiRefreshTimer();
         }
     }
 
@@ -1731,6 +1792,7 @@ else
     {
         _planPollCts?.Cancel();
         planIsPolling = false;
+        StopUiRefreshTimer();
     }
 
     // 批量模拟器
@@ -1774,5 +1836,114 @@ else
             isBusy = false;
             StateHasChanged();
         }
+    }
+
+    // ====== UI 刷新定时器管理 ======
+    
+    /// <summary>
+    /// 启动 UI 刷新定时器（用于平滑进度条动画）
+    /// </summary>
+    private void StartUiRefreshTimer()
+    {
+        // 如果定时器已存在，直接返回
+        if (_uiRefreshTimer != null) return;
+        
+        _uiRefreshTimer = new System.Timers.Timer(100); // 每100ms刷新一次UI
+        _uiRefreshTimer.Elapsed += async (_, _) => await InvokeAsync(StateHasChanged);
+        _uiRefreshTimer.AutoReset = true;
+        _uiRefreshTimer.Start();
+    }
+    
+    /// <summary>
+    /// 停止 UI 刷新定时器
+    /// </summary>
+    private void StopUiRefreshTimer()
+    {
+        _uiRefreshTimer?.Stop();
+        _uiRefreshTimer?.Dispose();
+        _uiRefreshTimer = null;
+    }
+    
+    // ====== 攻击进度平滑计算辅助方法 ======
+    
+    /// <summary>
+    /// 计算当前平滑的攻击进度（Step 战斗）
+    /// </summary>
+    private (double progress, double timeRemaining) CalculateStepAttackProgress()
+    {
+        if (stepStatus?.NextAttackAt == null || stepStatus?.AttackInterval == null)
+            return (0.0, 0.0);
+
+        // 计算从上次服务器更新到现在经过的客户端时间
+        var clientElapsed = (DateTime.UtcNow - _lastStepUpdateTime).TotalSeconds;
+        
+        // 估算当前服务器时间（基于客户端时间推进）
+        var estimatedServerTime = _lastServerCurrentTime + clientElapsed;
+        
+        // 计算攻击进度起始时间（NextAttackAt - AttackInterval）
+        var attackStartTime = _lastServerNextAttackAt!.Value - _lastServerAttackInterval!.Value;
+        
+        // 计算进度（0.0 到 1.0）
+        var elapsedSinceStart = estimatedServerTime - attackStartTime;
+        var progress = Math.Clamp(elapsedSinceStart / _lastServerAttackInterval!.Value, 0.0, 1.0);
+        
+        // 计算剩余时间
+        var timeRemaining = Math.Max(0, _lastServerNextAttackAt!.Value - estimatedServerTime);
+        
+        return (progress, timeRemaining);
+    }
+    
+    /// <summary>
+    /// 计算当前平滑的特殊攻击进度（Step 战斗）
+    /// </summary>
+    private (double progress, double timeRemaining) CalculateStepSpecialProgress()
+    {
+        if (stepStatus?.NextSpecialAt == null || stepStatus?.SpecialInterval == null)
+            return (0.0, 0.0);
+
+        var clientElapsed = (DateTime.UtcNow - _lastStepUpdateTime).TotalSeconds;
+        var estimatedServerTime = _lastServerCurrentTime + clientElapsed;
+        var specialStartTime = _lastServerNextSpecialAt!.Value - _lastServerSpecialInterval!.Value;
+        var elapsedSinceStart = estimatedServerTime - specialStartTime;
+        var progress = Math.Clamp(elapsedSinceStart / _lastServerSpecialInterval!.Value, 0.0, 1.0);
+        var timeRemaining = Math.Max(0, _lastServerNextSpecialAt!.Value - estimatedServerTime);
+        
+        return (progress, timeRemaining);
+    }
+    
+    /// <summary>
+    /// 计算当前平滑的攻击进度（活动计划战斗）
+    /// </summary>
+    private (double progress, double timeRemaining) CalculatePlanAttackProgress()
+    {
+        if (currentPlanBattle?.NextAttackAt == null || currentPlanBattle?.AttackInterval == null)
+            return (0.0, 0.0);
+
+        var clientElapsed = (DateTime.UtcNow - _lastPlanUpdateTime).TotalSeconds;
+        var estimatedServerTime = _lastPlanServerCurrentTime + clientElapsed;
+        var attackStartTime = _lastPlanServerNextAttackAt!.Value - _lastPlanServerAttackInterval!.Value;
+        var elapsedSinceStart = estimatedServerTime - attackStartTime;
+        var progress = Math.Clamp(elapsedSinceStart / _lastPlanServerAttackInterval!.Value, 0.0, 1.0);
+        var timeRemaining = Math.Max(0, _lastPlanServerNextAttackAt!.Value - estimatedServerTime);
+        
+        return (progress, timeRemaining);
+    }
+    
+    /// <summary>
+    /// 计算当前平滑的特殊攻击进度（活动计划战斗）
+    /// </summary>
+    private (double progress, double timeRemaining) CalculatePlanSpecialProgress()
+    {
+        if (currentPlanBattle?.NextSpecialAt == null || currentPlanBattle?.SpecialInterval == null)
+            return (0.0, 0.0);
+
+        var clientElapsed = (DateTime.UtcNow - _lastPlanUpdateTime).TotalSeconds;
+        var estimatedServerTime = _lastPlanServerCurrentTime + clientElapsed;
+        var specialStartTime = _lastPlanServerNextSpecialAt!.Value - _lastPlanServerSpecialInterval!.Value;
+        var elapsedSinceStart = estimatedServerTime - specialStartTime;
+        var progress = Math.Clamp(elapsedSinceStart / _lastPlanServerSpecialInterval!.Value, 0.0, 1.0);
+        var timeRemaining = Math.Max(0, _lastPlanServerNextSpecialAt!.Value - estimatedServerTime);
+        
+        return (progress, timeRemaining);
     }
 }
