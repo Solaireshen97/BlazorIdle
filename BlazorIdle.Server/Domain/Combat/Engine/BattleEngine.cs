@@ -144,6 +144,9 @@ public sealed class BattleEngine
 
         // Phase 4: 初始化怪物攻击轨道
         InitializeEnemyAttacks(initialGroup);
+        
+        // Phase 5: 初始化怪物技能系统
+        InitializeEnemySkills(initialGroup);
 
         // 统一：应用上下文标签（ctx.*）
         ApplyMetaTags(meta);
@@ -598,6 +601,56 @@ public sealed class BattleEngine
             }
             
             enemyIndex++;
+        }
+    }
+
+    /// <summary>
+    /// Phase 5: 初始化怪物技能系统
+    /// 为配置了技能的怪物创建技能管理器并调度技能检查事件
+    /// </summary>
+    private void InitializeEnemySkills(EncounterGroup encounterGroup)
+    {
+        if (encounterGroup == null || encounterGroup.All.Count == 0)
+            return;
+
+        double combatStartTime = Clock.CurrentTime;
+        bool hasAnySkills = false;
+
+        // 遍历已创建的 EnemyCombatants
+        foreach (var enemyCombatant in Context.EnemyCombatants)
+        {
+            var enemy = enemyCombatant.Encounter.Enemy;
+            
+            // 只为配置了技能的怪物创建技能管理器
+            if (enemy.Skills != null && enemy.Skills.Count > 0)
+            {
+                // 为每个怪物创建独立的 RNG 子流（用于技能触发概率）
+                var skillRng = Context.Rng.Split((ulong)enemyCombatant.Id.GetHashCode());
+                
+                // 创建技能管理器
+                var skillManager = new Enemies.EnemySkillManager(
+                    enemyCombatant,
+                    enemy.Skills,
+                    combatStartTime,
+                    skillRng
+                );
+                
+                enemyCombatant.SkillManager = skillManager;
+                hasAnySkills = true;
+                
+                Collector.OnTag("enemy_skill_manager_initialized", 1);
+            }
+        }
+
+        // 如果有任何怪物配置了技能，调度定期技能检查事件
+        if (hasAnySkills)
+        {
+            // 每 0.5 秒检查一次技能触发条件（平衡性能和响应速度）
+            const double SKILL_CHECK_INTERVAL = 0.5;
+            Scheduler.Schedule(new Enemies.EnemySkillCheckEvent(
+                Clock.CurrentTime + SKILL_CHECK_INTERVAL,
+                SKILL_CHECK_INTERVAL
+            ));
         }
     }
 }
