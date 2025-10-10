@@ -85,6 +85,17 @@ else
     <InventoryPanel CharacterId="@lastCreated.Id" CharacterName="@lastCreated.Name" />
 }
 
+<!-- 1.6) 装备系统界面（Step 5: 装备系统UI预留） -->
+@if (lastCreated is not null)
+{
+    <EquipmentPanel 
+        CharacterId="@lastCreated.Id" 
+        IsLoading="@isLoadingEquipment"
+        ErrorMessage="@equipmentError"
+        Slots="@equipmentSlots"
+        TotalStats="@equipmentStats" />
+}
+
 <!-- 2) 同步战斗 -->
 @if (lastCreated is not null)
 {
@@ -1134,6 +1145,12 @@ else
     List<BattleSegmentDto>? segments;
     System.Timers.Timer? pollTimer;
 
+    // ====== 装备系统（Step 5: 装备系统UI预留） ======
+    bool isLoadingEquipment = false;
+    string equipmentError = "";
+    List<EquipmentSlotDto> equipmentSlots = new();
+    Dictionary<string, double> equipmentStats = new();
+
     bool CanStartBattle => !isBusy && lastCreated is not null && !battleInProgress;
 
     async Task CreateCharacter()
@@ -1164,12 +1181,41 @@ else
             
             ResetBattleState();
             await RefreshPlansAsync();  // 加载角色的活动计划
+            await LoadEquipmentAsync();  // 加载装备信息
         }
         catch (Exception ex)
         {
             userMessage = $"创建角色失败: {ex.Message}";
         }
         finally { isBusy = false; }
+    }
+
+    /// <summary>
+    /// 加载装备信息（Step 5: 装备系统UI预留）
+    /// </summary>
+    async Task LoadEquipmentAsync()
+    {
+        if (lastCreated == null) return;
+
+        isLoadingEquipment = true;
+        equipmentError = "";
+        try
+        {
+            var response = await Api.GetEquipmentAsync(lastCreated.Id);
+            if (response != null)
+            {
+                equipmentSlots = response.Slots;
+                equipmentStats = response.TotalStats;
+            }
+        }
+        catch (Exception ex)
+        {
+            equipmentError = $"加载装备失败: {ex.Message}";
+        }
+        finally
+        {
+            isLoadingEquipment = false;
+        }
     }
 
     void ResetBattleState()

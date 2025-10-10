@@ -1,0 +1,209 @@
+@using BlazorIdle.Client.Services
+
+@* 装备面板组件 - Step 5: 装备系统UI预留 *@
+<div class="equipment-panel" style="margin-top: 16px; padding: 16px; background: @BackgroundColor; border-radius: 4px; border: 1px solid @BorderColor;">
+    <h6 style="margin: 0 0 12px 0; font-size: 14px; font-weight: bold;">🎒 @Title</h6>
+    
+    @if (IsLoading)
+    {
+        <div style="text-align: center; padding: 20px; color: #999;">
+            <em>加载中...</em>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(ErrorMessage))
+    {
+        <div style="padding: 12px; background: #ffebee; border: 1px solid #ef5350; border-radius: 4px; color: #c62828;">
+            ⚠️ @ErrorMessage
+        </div>
+    }
+    else
+    {
+        @* 装备槽布局 *@
+        <div class="equipment-slots" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px;">
+            @* 第一行：空 - 头盔 - 空 *@
+            <div></div>
+            @RenderSlot("head", "头盔", "🪖")
+            <div></div>
+
+            @* 第二行：武器 - 胸甲 - 副手 *@
+            @RenderSlot("weapon", "武器", "⚔️")
+            @RenderSlot("chest", "胸甲", "🛡️")
+            @RenderSlot("offhand", "副手", "🔰")
+
+            @* 第三行：腰带 - 腿部 - 鞋子 *@
+            @RenderSlot("waist", "腰带", "🎗️")
+            @RenderSlot("legs", "腿部", "🦵")
+            @RenderSlot("feet", "鞋子", "👢")
+
+            @* 第四行：空 - 饰品1 - 饰品2 *@
+            <div></div>
+            @RenderSlot("trinket1", "饰品1", "💍")
+            @RenderSlot("trinket2", "饰品2", "💍")
+        </div>
+
+        @* 总属性面板 *@
+        <div class="equipment-stats" style="padding: 12px; background: #f5f5f5; border-radius: 4px; border: 1px solid #e0e0e0;">
+            <div style="font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #555;">📊 总属性</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 11px;">
+                <div style="display: flex; justify-content: space-between;">
+                    <span>⚔️ 攻击力:</span>
+                    <span style="font-weight: bold; color: #d32f2f;">@GetStatValue("AttackPower")</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>🛡️ 护甲:</span>
+                    <span style="font-weight: bold; color: #1976d2;">@GetStatValue("Armor")</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>⚡ 急速:</span>
+                    <span style="font-weight: bold; color: #f57c00;">@GetStatPercent("HastePercent")</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>💥 暴击:</span>
+                    <span style="font-weight: bold; color: #7b1fa2;">@GetStatPercent("CritChance")</span>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>角色ID</summary>
+    [Parameter] public Guid CharacterId { get; set; }
+    
+    /// <summary>标题</summary>
+    [Parameter] public string Title { get; set; } = "装备与属性";
+    
+    /// <summary>背景颜色</summary>
+    [Parameter] public string BackgroundColor { get; set; } = "#fff8e1";
+    
+    /// <summary>边框颜色</summary>
+    [Parameter] public string BorderColor { get; set; } = "#ffb74d";
+    
+    /// <summary>是否正在加载</summary>
+    [Parameter] public bool IsLoading { get; set; }
+    
+    /// <summary>错误消息</summary>
+    [Parameter] public string ErrorMessage { get; set; } = "";
+    
+    /// <summary>装备槽列表</summary>
+    [Parameter] public List<EquipmentSlotDto> Slots { get; set; } = new();
+    
+    /// <summary>总属性</summary>
+    [Parameter] public Dictionary<string, double> TotalStats { get; set; } = new();
+
+    /// <summary>渲染单个装备槽</summary>
+    private RenderFragment RenderSlot(string slotType, string slotName, string defaultIcon) => builder =>
+    {
+        var slot = Slots.FirstOrDefault(s => s.SlotType == slotType);
+        var hasItem = slot?.Item != null;
+        var bgColor = hasItem ? "#e8f5e9" : "#fafafa";
+        var borderColor = hasItem ? "#66bb6a" : "#e0e0e0";
+        var icon = hasItem ? (slot!.Item!.Icon ?? defaultIcon) : defaultIcon;
+        var itemName = hasItem ? slot!.Item!.Name : slotName;
+        var opacity = hasItem ? "1.0" : "0.4";
+
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "equipment-slot");
+        builder.AddAttribute(2, "style", $"position: relative; padding: 8px; background: {bgColor}; border: 2px solid {borderColor}; border-radius: 6px; text-align: center; cursor: pointer; opacity: {opacity}; min-height: 60px; display: flex; flex-direction: column; align-items: center; justify-content: center;");
+        builder.AddAttribute(3, "title", hasItem ? GetItemTooltip(slot!.Item!) : $"空 - {slotName}");
+
+        // 图标
+        builder.OpenElement(4, "div");
+        builder.AddAttribute(5, "style", "font-size: 24px; margin-bottom: 2px;");
+        builder.AddContent(6, icon);
+        builder.CloseElement();
+
+        // 名称
+        builder.OpenElement(7, "div");
+        builder.AddAttribute(8, "style", "font-size: 9px; color: #555; font-weight: bold; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;");
+        builder.AddContent(9, itemName);
+        builder.CloseElement();
+
+        // 品质标签（如果有装备）
+        if (hasItem)
+        {
+            var rarityColor = GetRarityColor(slot!.Item!.Rarity);
+            builder.OpenElement(10, "div");
+            builder.AddAttribute(11, "style", $"position: absolute; top: 2px; right: 2px; font-size: 8px; padding: 1px 4px; background: {rarityColor}; color: white; border-radius: 2px; font-weight: bold;");
+            builder.AddContent(12, GetRarityText(slot!.Item!.Rarity));
+            builder.CloseElement();
+        }
+
+        builder.CloseElement();
+    };
+
+    /// <summary>获取属性值</summary>
+    private string GetStatValue(string statId)
+    {
+        if (TotalStats.TryGetValue(statId, out var value))
+        {
+            return value > 0 ? $"+{value:F0}" : "0";
+        }
+        return "0";
+    }
+
+    /// <summary>获取百分比属性值</summary>
+    private string GetStatPercent(string statId)
+    {
+        if (TotalStats.TryGetValue(statId, out var value))
+        {
+            return value > 0 ? $"+{value * 100:F1}%" : "0%";
+        }
+        return "0%";
+    }
+
+    /// <summary>获取品质颜色</summary>
+    private string GetRarityColor(string rarity)
+    {
+        return rarity switch
+        {
+            "Common" => "#9e9e9e",
+            "Rare" => "#2196f3",
+            "Epic" => "#9c27b0",
+            "Legendary" => "#ff9800",
+            _ => "#9e9e9e"
+        };
+    }
+
+    /// <summary>获取品质文本</summary>
+    private string GetRarityText(string rarity)
+    {
+        return rarity switch
+        {
+            "Common" => "普通",
+            "Rare" => "稀有",
+            "Epic" => "史诗",
+            "Legendary" => "传说",
+            _ => "未知"
+        };
+    }
+
+    /// <summary>获取装备提示信息</summary>
+    private string GetItemTooltip(GearInstanceDto item)
+    {
+        var tooltip = $"{item.Name}\n";
+        tooltip += $"品质: {GetRarityText(item.Rarity)} (T{item.Tier})\n";
+        tooltip += $"物品等级: {item.ItemLevel}\n";
+        tooltip += $"装备评分: {item.QualityScore}\n";
+        
+        if (item.Stats.Count > 0)
+        {
+            tooltip += "\n属性:\n";
+            foreach (var stat in item.Stats)
+            {
+                tooltip += $"  {stat.Key}: +{stat.Value:F0}\n";
+            }
+        }
+        
+        if (item.Affixes.Count > 0)
+        {
+            tooltip += "\n词条:\n";
+            foreach (var affix in item.Affixes)
+            {
+                tooltip += $"  {affix.DisplayText}\n";
+            }
+        }
+        
+        return tooltip;
+    }
+}

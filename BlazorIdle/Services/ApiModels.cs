@@ -182,3 +182,49 @@ public sealed class InventoryResponse
     public long Experience { get; set; }
     public List<InventoryItemDto> Items { get; set; } = new();
 }
+
+// 装备系统数据模型（Step 5: 装备系统UI预留）
+
+/// <summary>装备栏响应</summary>
+public sealed class EquipmentResponse
+{
+    public Guid CharacterId { get; set; }
+    public string CharacterName { get; set; } = "";
+    public List<EquipmentSlotDto> Slots { get; set; } = new();
+    public Dictionary<string, double> TotalStats { get; set; } = new();
+}
+
+/// <summary>装备槽</summary>
+public sealed class EquipmentSlotDto
+{
+    public string SlotType { get; set; } = "";        // "head", "weapon", "chest", "offhand", "waist", "legs", "feet", "trinket1", "trinket2"
+    public string SlotName { get; set; } = "";        // "头盔", "武器", "胸甲", "副手", "腰带", "腿部", "鞋子", "饰品1", "饰品2"
+    public GearInstanceDto? Item { get; set; }        // null表示空槽
+    public bool IsLocked { get; set; }                // 是否锁定
+}
+
+/// <summary>装备实例</summary>
+public sealed class GearInstanceDto
+{
+    public Guid Id { get; set; }
+    public string DefinitionId { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Icon { get; set; } = "⚔️";
+    public string Rarity { get; set; } = "Common";    // Common, Rare, Epic, Legendary
+    public int Tier { get; set; }                     // 1-3
+    public int ItemLevel { get; set; }
+    public int QualityScore { get; set; }             // 装备评分
+    public List<AffixDto> Affixes { get; set; } = new();
+    public string? SetId { get; set; }                // 套装ID
+    public Dictionary<string, double> Stats { get; set; } = new();
+}
+
+/// <summary>装备词条</summary>
+public sealed class AffixDto
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string StatId { get; set; } = "";
+    public double Value { get; set; }
+    public string DisplayText { get; set; } = "";     // 例如: "+5% 暴击率"
+}
