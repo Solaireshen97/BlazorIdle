@@ -1,5 +1,6 @@
 ﻿using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Buffs;
+using BlazorIdle.Server.Domain.Combat.Combatants;
 using BlazorIdle.Server.Domain.Combat.Damage;
 using BlazorIdle.Server.Domain.Combat.Enemies;
 using BlazorIdle.Server.Domain.Combat.Procs;
@@ -140,6 +141,9 @@ public sealed class BattleEngine
         Scheduler.Schedule(new AttackTickEvent(attackTrack.NextTriggerAt, attackTrack));
         Scheduler.Schedule(new SpecialPulseEvent(specialTrack.NextTriggerAt, specialTrack));
         Scheduler.Schedule(new ProcPulseEvent(Clock.CurrentTime + 1.0, 1.0));
+
+        // Phase 4: 初始化怪物攻击轨道
+        InitializeEnemyAttacks(initialGroup);
 
         // 统一：应用上下文标签（ctx.*）
         ApplyMetaTags(meta);
@@ -559,5 +563,41 @@ public sealed class BattleEngine
 
         // Note: WaveIndex and RunCount are managed by the provider, 
         // so we don't restore them here to avoid breaking the provider's state machine
+    }
+
+    /// <summary>
+    /// Phase 4: 初始化怪物攻击轨道
+    /// 为每个怪物创建攻击轨道并调度第一个攻击事件
+    /// </summary>
+    private void InitializeEnemyAttacks(EncounterGroup encounterGroup)
+    {
+        if (encounterGroup == null || encounterGroup.All.Count == 0)
+            return;
+
+        int enemyIndex = 0;
+        foreach (var encounter in encounterGroup.All)
+        {
+            // 只为配置了攻击能力的怪物创建攻击轨道
+            if (encounter.Enemy.BaseDamage > 0 && encounter.Enemy.AttackIntervalSeconds > 0)
+            {
+                var enemyId = $"enemy_{enemyIndex}";
+                var enemyCombatant = new EnemyCombatant(enemyId, encounter);
+                
+                // 创建攻击轨道（类似玩家的攻击轨道）
+                var attackInterval = encounter.Enemy.AttackIntervalSeconds;
+                var attackTrack = new TrackState(TrackType.Attack, attackInterval, attackInterval);
+                enemyCombatant.AttackTrack = attackTrack;
+                
+                // 存储到 Context 以便后续访问（例如玩家复活时重新激活）
+                Context.EnemyCombatants.Add(enemyCombatant);
+                
+                // 调度第一个攻击事件
+                Scheduler.Schedule(new EnemyAttackEvent(attackTrack.NextTriggerAt, enemyCombatant));
+                
+                Collector.OnTag("enemy_attack_initialized", 1);
+            }
+            
+            enemyIndex++;
+        }
     }
 }

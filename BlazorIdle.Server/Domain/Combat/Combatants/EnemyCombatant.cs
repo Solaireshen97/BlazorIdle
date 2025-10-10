@@ -1,4 +1,5 @@
 using BlazorIdle.Server.Domain.Combat.Damage;
+using BlazorWebGame.Domain.Combat;
 
 namespace BlazorIdle.Server.Domain.Combat.Combatants;
 
@@ -6,6 +7,7 @@ namespace BlazorIdle.Server.Domain.Combat.Combatants;
 /// 敌人战斗单位包装类
 /// 包装现有 Encounter，实现 ICombatant 接口
 /// Phase 1: 基础封装，保持与现有 Encounter 一致的行为
+/// Phase 4: 添加攻击轨道支持
 /// </summary>
 public class EnemyCombatant : ICombatant
 {
@@ -38,6 +40,9 @@ public class EnemyCombatant : ICombatant
     
     /// <summary>仇恨权重（默认 1.0）</summary>
     public double ThreatWeight { get; set; }
+    
+    /// <summary>Phase 4: 怪物攻击轨道（类似玩家的 AttackTrack）</summary>
+    public TrackState? AttackTrack { get; set; }
     
     /// <summary>
     /// 构造函数

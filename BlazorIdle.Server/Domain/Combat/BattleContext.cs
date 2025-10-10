@@ -40,6 +40,9 @@ public class BattleContext
     
     /// <summary>目标选取管理器（Phase 2: 基于权重的随机目标选择）</summary>
     public TargetSelector TargetSelector { get; private set; }
+    
+    /// <summary>Phase 4: 当前战斗中的敌人战斗单位列表（用于怪物攻击）</summary>
+    public List<EnemyCombatant> EnemyCombatants { get; } = new();
 
     public BattleContext(
         Battle battle,
