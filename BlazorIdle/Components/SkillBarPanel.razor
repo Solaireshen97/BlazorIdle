@@ -1,0 +1,140 @@
+@using BlazorIdle.Client.Services
+
+@* 技能栏面板组件 *@
+@if (Skills != null && Skills.Count > 0)
+{
+    <div class="skill-bar-panel" style="margin-top: 12px; padding: 8px; background: @BackgroundColor; border-radius: 4px; border: 1px solid @BorderColor;">
+        <h6 style="margin: 0 0 8px 0; font-size: 13px;">@Title</h6>
+        <div class="skill-list" style="display: flex; flex-wrap: wrap; gap: 6px;">
+            @foreach (var skill in Skills.OrderBy(s => s.Priority))
+            {
+                var isReady = skill.IsReady;
+                var iconBg = isReady ? "#e3f2fd" : "#f5f5f5";
+                var iconBorder = isReady ? "#42a5f5" : "#bdbdbd";
+                
+                <div class="skill-item" 
+                     style="position: relative; width: 48px; height: 48px; background: @iconBg; border: 2px solid @iconBorder; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: help;"
+                     title="@GetSkillTooltip(skill)">
+                    
+                    @* 技能图标 *@
+                    <div style="font-size: 20px;">@GetSkillIcon(skill.Id)</div>
+                    
+                    @* 充能层数显示（如果有） *@
+                    @if (skill.MaxCharges.HasValue && skill.MaxCharges.Value > 1)
+                    {
+                        <div style="position: absolute; bottom: 2px; right: 3px; font-size: 9px; font-weight: bold; color: #333; background: rgba(255,255,255,0.9); padding: 0 3px; border-radius: 2px;">
+                            @skill.CurrentCharges/@skill.MaxCharges
+                        </div>
+                    }
+                    
+                    @* 冷却倒计时显示 *@
+                    @if (!isReady && skill.RemainingCooldown > 0)
+                    {
+                        <div style="position: absolute; top: 2px; left: 2px; font-size: 8px; font-weight: bold; color: #fff; background: rgba(0,0,0,0.7); padding: 1px 3px; border-radius: 2px;">
+                            @FormatCooldown(skill.RemainingCooldown)
+                        </div>
+                    }
+                    
+                    @* 就绪标记 *@
+                    @if (isReady)
+                    {
+                        <div style="position: absolute; top: 2px; left: 2px; font-size: 8px; font-weight: bold; color: #fff; background: rgba(76,175,80,0.9); padding: 1px 3px; border-radius: 2px;">
+                            就绪
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>技能列表</summary>
+    [Parameter] public List<SkillStatusDto> Skills { get; set; } = new();
+    
+    /// <summary>标题</summary>
+    [Parameter] public string Title { get; set; } = "🎯 技能状态";
+    
+    /// <summary>背景颜色</summary>
+    [Parameter] public string BackgroundColor { get; set; } = "#e8eaf6";
+    
+    /// <summary>边框颜色</summary>
+    [Parameter] public string BorderColor { get; set; } = "#9fa8da";
+    
+    /// <summary>获取技能图标（使用emoji）</summary>
+    private string GetSkillIcon(string skillId)
+    {
+        return skillId.ToLowerInvariant() switch
+        {
+            // 战士技能
+            "heroic_strike" => "🗡️",
+            "shield_bash" => "🛡️",
+            "whirlwind" => "🌀",
+            "charge" => "⚡",
+            "mortal_strike" => "💥",
+            "execute" => "💀",
+            
+            // 游侠技能
+            "power_shot" => "🏹",
+            "bleed_shot" => "🔥",
+            "quick_shot" => "💨",
+            "aimed_shot" => "🎯",
+            "multi_shot" => "🌟",
+            "explosive_shot" => "💣",
+            
+            // 默认图标
+            _ => "⚔️"
+        };
+    }
+    
+    /// <summary>格式化冷却时间</summary>
+    private string FormatCooldown(double seconds)
+    {
+        if (seconds < 10)
+            return $"{seconds:0.1}";
+        else if (seconds < 60)
+            return $"{(int)seconds}";
+        else
+            return $"{(int)(seconds / 60)}m";
+    }
+    
+    /// <summary>获取技能提示文本</summary>
+    private string GetSkillTooltip(SkillStatusDto skill)
+    {
+        var tooltip = $"{skill.Name}\n";
+        
+        // 消耗
+        if (!string.IsNullOrEmpty(skill.CostResourceId))
+        {
+            var resourceName = skill.CostResourceId switch
+            {
+                "rage" => "怒气",
+                "focus" => "集中",
+                "mana" => "法力",
+                _ => skill.CostResourceId
+            };
+            tooltip += $"消耗: {skill.CostAmount} {resourceName}\n";
+        }
+        
+        // 冷却
+        tooltip += $"冷却: {skill.CooldownSeconds:0.0}秒\n";
+        
+        // 状态
+        if (skill.IsReady)
+        {
+            tooltip += "状态: 就绪 ✓";
+        }
+        else
+        {
+            tooltip += $"状态: 冷却中 ({skill.RemainingCooldown:0.1}秒)";
+        }
+        
+        // 充能信息
+        if (skill.MaxCharges.HasValue && skill.MaxCharges.Value > 1)
+        {
+            tooltip += $"\n充能: {skill.CurrentCharges}/{skill.MaxCharges}";
+        }
+        
+        return tooltip;
+    }
+}

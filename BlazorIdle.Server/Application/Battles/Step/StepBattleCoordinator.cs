@@ -247,6 +247,53 @@ public sealed class StepBattleCoordinator
                 }
             }
         }
+        
+        // Step 4: 收集技能状态
+        var skills = new List<SkillStatusDto>();
+        var autoCast = ctx2.AutoCaster;
+        if (autoCast != null)
+        {
+            foreach (var slot in autoCast.Slots)
+            {
+                var runtime = slot.Runtime;
+                var def = runtime.Definition;
+                
+                // 计算剩余冷却时间
+                double remainingCooldown = 0;
+                bool isReady = runtime.IsReady(currentTime);
+                
+                if (def.MaxCharges > 1)
+                {
+                    // 多充能技能：使用NextChargeReadyAt
+                    if (runtime.NextChargeReadyAt.HasValue && runtime.NextChargeReadyAt.Value > currentTime)
+                    {
+                        remainingCooldown = Math.Max(0, runtime.NextChargeReadyAt.Value - currentTime);
+                    }
+                }
+                else
+                {
+                    // 单充能技能：使用NextAvailableTime
+                    if (runtime.NextAvailableTime > currentTime)
+                    {
+                        remainingCooldown = Math.Max(0, runtime.NextAvailableTime - currentTime);
+                    }
+                }
+                
+                skills.Add(new SkillStatusDto
+                {
+                    Id = def.Id,
+                    Name = def.Name,
+                    Priority = def.Priority,
+                    CooldownSeconds = def.CooldownSeconds,
+                    RemainingCooldown = remainingCooldown,
+                    IsReady = isReady,
+                    CurrentCharges = def.MaxCharges > 1 ? runtime.Charges : null,
+                    MaxCharges = def.MaxCharges > 1 ? def.MaxCharges : null,
+                    CostResourceId = def.CostResourceId,
+                    CostAmount = def.CostAmount
+                });
+            }
+        }
 
         return (true, new StepBattleStatusDto
         {
@@ -294,7 +341,10 @@ public sealed class StepBattleCoordinator
             
             // Step 3: Buff状态显示
             PlayerBuffs = playerBuffs,
-            EnemyBuffs = enemyBuffs
+            EnemyBuffs = enemyBuffs,
+            
+            // Step 4: 技能状态显示
+            Skills = skills
         });
     }
     
@@ -680,6 +730,9 @@ public sealed class StepBattleStatusDto
     
     /// <summary>敌人Buff列表（所有敌人的Buff汇总）</summary>
     public List<BuffStatusDto> EnemyBuffs { get; set; } = new();
+    
+    /// <summary>技能状态列表</summary>
+    public List<SkillStatusDto> Skills { get; set; } = new();
 }
 
 /// <summary>

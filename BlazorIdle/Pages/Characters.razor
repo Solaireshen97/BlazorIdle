@@ -409,6 +409,16 @@ else
                             }
                         </div>
                         
+                        <!-- 技能状态显示 -->
+                        @if (currentPlanBattle.Skills != null && currentPlanBattle.Skills.Count > 0)
+                        {
+                            <SkillBarPanel 
+                                Skills="@currentPlanBattle.Skills"
+                                Title="🎯 技能状态"
+                                BackgroundColor="#e8eaf6"
+                                BorderColor="#9fa8da" />
+                        }
+                        
                         <!-- 地下城进度面板（仅地下城模式） -->
                         @if (currentPlanBattle.Mode == "dungeonsingle" || currentPlanBattle.Mode == "dungeonloop")
                         {
@@ -589,6 +599,16 @@ else
                                 BorderColor="#ef5350" />
                         }
                     </div>
+                    
+                    <!-- 技能状态显示 -->
+                    @if (stepStatus.Skills != null && stepStatus.Skills.Count > 0)
+                    {
+                        <SkillBarPanel 
+                            Skills="@stepStatus.Skills"
+                            Title="🎯 技能状态"
+                            BackgroundColor="#e8eaf6"
+                            BorderColor="#9fa8da" />
+                    }
                     
                     <!-- 地下城进度面板（仅地下城模式） -->
                     @if (stepStatus.Mode == "dungeonsingle" || stepStatus.Mode == "dungeonloop")

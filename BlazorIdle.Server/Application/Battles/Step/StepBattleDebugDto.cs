@@ -3,6 +3,21 @@ using System.Collections.Generic;
 
 namespace BlazorIdle.Server.Application.Battles.Step;
 
+// 技能状态传输对象（用于主状态API）
+public sealed class SkillStatusDto
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public int Priority { get; set; }
+    public double CooldownSeconds { get; set; }
+    public double RemainingCooldown { get; set; }
+    public bool IsReady { get; set; }
+    public int? CurrentCharges { get; set; }
+    public int? MaxCharges { get; set; }
+    public string? CostResourceId { get; set; }
+    public int CostAmount { get; set; }
+}
+
 public sealed class StepBattleDebugDto
 {
     public Guid StepBattleId { get; set; }
