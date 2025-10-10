@@ -544,4 +544,131 @@ public class BattleReplayTests
     }
 
     #endregion
+
+    #region P7.4: Offline Fast-Forward Consistency Tests
+
+    [Fact]
+    public void OnlineVsOffline_SameSeed_ShouldProduceSameResults()
+    {
+        // Arrange
+        const ulong seed = 123456UL;
+        const double duration = 15.0;
+
+        // Act - "Online" battle (normal step battle)
+        var onlineBattle = CreateBattle(seed, duration);
+        RunBattle(onlineBattle, duration);
+
+        // Act - "Offline" battle (same seed, same duration, simulating offline settlement)
+        var offlineBattle = CreateBattle(seed, duration);
+        RunBattle(offlineBattle, duration);
+
+        // Assert - Results should be identical
+        Assert.Equal(onlineBattle.Segments.Count, offlineBattle.Segments.Count);
+        Assert.Equal(onlineBattle.SeedIndexEnd, offlineBattle.SeedIndexEnd);
+
+        var onlineTotalDmg = onlineBattle.Segments.Sum(s => s.TotalDamage);
+        var offlineTotalDmg = offlineBattle.Segments.Sum(s => s.TotalDamage);
+        Assert.Equal(onlineTotalDmg, offlineTotalDmg);
+
+        Assert.Equal(onlineBattle.Killed, offlineBattle.Killed);
+    }
+
+    [Fact]
+    public void BattleSimulator_SameSeed_ShouldBeReproducible()
+    {
+        // Arrange
+        const ulong seed = 654321UL;
+        const double duration = 10.0;
+
+        var simulator = new BlazorIdle.Server.Application.Battles.BattleSimulator();
+        var enemy = CreateTestEnemy();
+        var stats = CreateTestStats();
+
+        var config1 = new BlazorIdle.Server.Application.Battles.BattleSimulator.BattleConfig
+        {
+            BattleId = Guid.NewGuid(),
+            CharacterId = Guid.NewGuid(),
+            Profession = Profession.Warrior,
+            Stats = stats,
+            Seed = seed,
+            EnemyDef = enemy,
+            EnemyCount = 1
+        };
+
+        var config2 = new BlazorIdle.Server.Application.Battles.BattleSimulator.BattleConfig
+        {
+            BattleId = Guid.NewGuid(),
+            CharacterId = Guid.NewGuid(),
+            Profession = Profession.Warrior,
+            Stats = stats,
+            Seed = seed,
+            EnemyDef = enemy,
+            EnemyCount = 1
+        };
+
+        // Act
+        var result1 = simulator.RunForDuration(config1, duration);
+        var result2 = simulator.RunForDuration(config2, duration);
+
+        // Assert
+        Assert.Equal(result1.Segments.Count, result2.Segments.Count);
+        Assert.Equal(result1.SeedIndexEnd, result2.SeedIndexEnd);
+
+        var totalDmg1 = result1.Segments.Sum(s => s.TotalDamage);
+        var totalDmg2 = result2.Segments.Sum(s => s.TotalDamage);
+        Assert.Equal(totalDmg1, totalDmg2);
+    }
+
+    [Fact]
+    public void BattleSimulator_WithRngContext_ShouldRespectProvidedContext()
+    {
+        // Arrange
+        const ulong seed = 789012UL;
+        const double duration = 10.0;
+
+        var simulator = new BlazorIdle.Server.Application.Battles.BattleSimulator();
+        var enemy = CreateTestEnemy();
+        var stats = CreateTestStats();
+
+        // Create two RNG contexts with the same seed
+        var rng1 = new RngContext(seed);
+        var rng2 = new RngContext(seed);
+
+        var config1 = new BlazorIdle.Server.Application.Battles.BattleSimulator.BattleConfig
+        {
+            BattleId = Guid.NewGuid(),
+            CharacterId = Guid.NewGuid(),
+            Profession = Profession.Warrior,
+            Stats = stats,
+            Seed = 0, // Seed is ignored when Rng is provided
+            Rng = rng1,
+            EnemyDef = enemy,
+            EnemyCount = 1
+        };
+
+        var config2 = new BlazorIdle.Server.Application.Battles.BattleSimulator.BattleConfig
+        {
+            BattleId = Guid.NewGuid(),
+            CharacterId = Guid.NewGuid(),
+            Profession = Profession.Warrior,
+            Stats = stats,
+            Seed = 0,
+            Rng = rng2,
+            EnemyDef = enemy,
+            EnemyCount = 1
+        };
+
+        // Act
+        var result1 = simulator.RunForDuration(config1, duration);
+        var result2 = simulator.RunForDuration(config2, duration);
+
+        // Assert
+        Assert.Equal(result1.Segments.Count, result2.Segments.Count);
+        
+        var totalDmg1 = result1.Segments.Sum(s => s.TotalDamage);
+        var totalDmg2 = result2.Segments.Sum(s => s.TotalDamage);
+        Assert.Equal(totalDmg1, totalDmg2);
+    }
+
+    #endregion
 }
