@@ -43,6 +43,9 @@ public class BattleContext
     
     /// <summary>Phase 4: 当前战斗中的敌人战斗单位列表（用于怪物攻击）</summary>
     public List<EnemyCombatant> EnemyCombatants { get; } = new();
+    
+    /// <summary>Phase 6: 当前副本定义（如果有）</summary>
+    public DungeonDefinition? CurrentDungeon { get; private set; }
 
     public BattleContext(
         Battle battle,
@@ -57,7 +60,8 @@ public class BattleContext
         CharacterStats? stats = null,
         int stamina = 10,
         string? characterId = null,
-        string? characterName = null)
+        string? characterName = null,
+        DungeonDefinition? dungeon = null)
     {
         Battle = battle;
         Clock = clock;
@@ -71,6 +75,9 @@ public class BattleContext
         EncounterGroup = encounterGroup ?? (encounter != null ? Enemies.EncounterGroup.FromSingle(encounter) : null);
         Encounter = EncounterGroup?.PrimaryAlive() ?? encounter;
         
+        // Phase 6: 设置副本定义
+        CurrentDungeon = dungeon;
+        
         // Phase 1: 初始化玩家战斗单位
         Player = new PlayerCombatant(
             id: characterId ?? battle?.CharacterId.ToString() ?? "unknown",
@@ -78,6 +85,12 @@ public class BattleContext
             stats: Stats,
             stamina: stamina
         );
+        
+        // Phase 6: 根据副本配置设置玩家自动复活
+        if (dungeon != null)
+        {
+            Player.AutoReviveEnabled = dungeon.AllowAutoRevive;
+        }
         
         // Phase 2: 初始化目标选取管理器
         TargetSelector = new TargetSelector(rng);

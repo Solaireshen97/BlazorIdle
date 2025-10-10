@@ -116,13 +116,15 @@ public class BattlesController : ControllerBase
         if (!string.IsNullOrWhiteSpace(dungeonId))
         {
             var d = DungeonRegistry.Resolve(dungeonId!);
+            // Phase 6: 应用强化掉落倍率
+            var finalDropMultiplier = d.DropChanceMultiplier * d.EnhancedDropMultiplier;
             ctx = new EconomyContext
             {
                 Seed = seedValue,
                 RunCompletedCount = runCompleted,
                 GoldMultiplier = d.GoldMultiplier,
                 ExpMultiplier = d.ExpMultiplier,
-                DropChanceMultiplier = d.DropChanceMultiplier,
+                DropChanceMultiplier = finalDropMultiplier,
                 RunRewardGold = d.RunRewardGold,
                 RunRewardExp = d.RunRewardExp,
                 RunRewardLootTableId = d.RunRewardLootTableId,

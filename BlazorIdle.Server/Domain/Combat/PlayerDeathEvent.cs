@@ -40,6 +40,14 @@ public record PlayerDeathEvent(double ExecuteAt) : IGameEvent
         {
             context.Scheduler.Schedule(new PlayerReviveEvent(player.ReviveAt.Value));
         }
+        // Phase 6: 如果禁用自动复活且副本要求重置
+        else if (!player.AutoReviveEnabled && context.CurrentDungeon?.ResetOnPlayerDeath == true)
+        {
+            // 记录副本重置标记
+            context.SegmentCollector.OnTag("dungeon_reset_on_death", 1);
+            // 注意：实际重置逻辑由 BattleEngine 检测并处理
+            // 这里只标记事件，不直接操作 provider 或 wave index
+        }
         
         // 记录死亡事件
         context.SegmentCollector.OnTag("player_death", 1);
