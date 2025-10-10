@@ -699,41 +699,69 @@ GET /api/battles/step/{battleId}/buffs
 
 ---
 
-### Step 3: Buff状态显示（第5周）
+### Step 3: Buff状态显示（第5周）⭐ **已完成**
 
-#### Step 3.1: Buff图标资源准备
+#### Step 3.1: Buff图标资源准备 ✅
 **任务**：
-- 定义Buff图标映射表
-- 准备常用Buff图标（可使用emoji或SVG）
-- 创建Buff图标样式
+- ✅ 定义Buff图标映射表（GetBuffIcon方法）
+- ✅ 准备常用Buff图标（使用emoji，支持40+种类型）
+- ✅ 创建Buff图标样式（内联样式）
 
 **产出**：
-- Buff图标资源文件
-- CSS样式定义
+- ✅ GetBuffIcon() 方法实现智能图标映射
+- ✅ BuffBarPanel 组件CSS样式
 
-#### Step 3.2: Buff栏组件开发
+**实施内容**：
+- 实现了 GetBuffIcon() 方法，支持战士、法师、游侠等职业的Buff图标识别
+- 使用 emoji 作为图标资源（无需额外资源文件）
+- 支持通用增益、减益效果的图标映射
+- 默认图标：✨
+
+#### Step 3.2: Buff栏组件开发 ✅
 **任务**：
-- 创建 `BuffBarPanel.razor` 组件
-- 实现图标化显示
-- 添加倒计时动画
-- 实现鼠标悬停详情
+- ✅ 创建 `BuffBarPanel.razor` 组件
+- ✅ 实现图标化显示（48x48像素卡片）
+- ✅ 添加倒计时显示（格式化：∞/分钟/秒）
+- ✅ 实现鼠标悬停详情（title属性）
 
 **产出**：
-- Buff可视化组件
+- ✅ BuffBarPanel.razor 独立可复用组件
+- ✅ 支持增益/减益效果区分（IsDebuffBar参数）
+- ✅ 可选的Buff名称列表显示（ShowBuffNames参数）
 
-#### Step 3.3: Buff数据集成
+**实施内容**：
+- 创建了独立的 BuffBarPanel.razor 组件（约100行）
+- 实现了Buff图标卡片布局（flex-wrap响应式）
+- 层数显示（右上角）、倒计时显示（底部）
+- 绿色边框（增益）、红色边框（减益）
+- 悬停提示显示完整Buff信息
+
+#### Step 3.3: Buff数据集成 ✅
 **任务**：
-- 扩展 `StepBattleStatusDto` 添加Buff列表
-- 修改 `StepBattleCoordinator.GetStatus()` 包含Buff信息
-- 前端集成显示
+- ✅ 扩展 `StepBattleStatusDto` 添加Buff列表
+- ✅ 修改 `StepBattleCoordinator.GetStatus()` 包含Buff信息
+- ✅ 前端集成显示
 
 **产出**：
-- 完整的Buff显示功能
+- ✅ 完整的Buff显示功能
+- ✅ 服务端和客户端DTO同步
+- ✅ Characters.razor 集成完成
+
+**实施内容**：
+- 创建了 BuffStatusDto 类（服务端和客户端）
+- 扩展 StepBattleStatusDto 添加 PlayerBuffs 和 EnemyBuffs 列表
+- 在 GetStatus() 中从 BattleContext.Buffs.Active 提取Buff信息
+- 客户端 ApiModels.cs 同步更新
+- 在 Characters.razor 的 Step战斗和活动计划区域集成 BuffBarPanel
+- 使用 LINQ 过滤增益和减益Buff
 
 **验证**：
-- 启动战士角色战斗，查看"破甲"、"精准"Buff
-- 检查层数显示正确性
-- 测试倒计时准确性
+- ✅ 编译测试通过（服务端、客户端、整体解决方案）
+- ✅ 代码质量符合规范（中文注释、最小化修改）
+- ✅ 向后兼容（Buff列表为空时不显示）
+- ⏸️ 运行时测试：启动战士角色战斗，查看"破甲"、"精准"Buff（需要实际运行环境）
+- ⏸️ 检查层数显示正确性（需要实际运行环境）
+- ⏸️ 测试倒计时准确性（需要实际运行环境）
 
 ---
 
@@ -1125,19 +1153,30 @@ public class EquipmentSlotDto
   - 提高代码可维护性和可复用性
   - 保持现有代码风格和向后兼容性
 
+- ✅ **Step 3.1-3.3**: Buff状态显示（2025-10-10）
+  - 创建 BuffStatusDto 数据模型（服务端和客户端）
+  - 扩展 StepBattleStatusDto 添加 PlayerBuffs 和 EnemyBuffs
+  - 实现 GetBuffIcon() 图标映射方法（40+种Buff类型）
+  - 修改 StepBattleCoordinator.GetStatus() 提取Buff信息
+  - 创建 BuffBarPanel.razor 独立组件
+  - 集成到 Characters.razor（Step战斗和活动计划）
+  - 支持增益/减益效果区分显示
+  - 实现层数、倒计时、悬停提示功能
+  - 编译测试通过，代码质量良好
+
 ### 待实施
 - ⏸️ **Step 1.3 扩展**: 前端根据服务器提示动态调整轮询（可选优化）
 - ⏸️ **Step 2.5**: UI运行时测试和截图（需要实际运行环境）
+- ⏸️ **Step 3.4**: Buff显示运行时测试（需要实际运行环境验证Buff显示效果）
 
 ### 待完成
-- ⏸️ Step 3: Buff状态显示（第5周）
 - ⏸️ Step 4: 技能系统UI设计（第6-8周）
 - ⏸️ Step 5: 装备系统UI预留设计（第9-10周）
 - ⏸️ Step 6: 整体测试与优化（第11-12周）
 
 ---
 
-**文档版本**: 1.2  
+**文档版本**: 1.3  
 **最后更新**: 2025-10-10  
-**当前状态**: Step 2 已完成 ✅  
-**下一步**: Step 3 - Buff状态显示
+**当前状态**: Step 3 已完成 ✅  
+**下一步**: Step 4 - 技能系统UI设计（可选）或运行时测试验证
