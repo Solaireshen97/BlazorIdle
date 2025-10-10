@@ -300,14 +300,14 @@ DamageCalc()
     [x] P4.5: 伤害平衡调整
     [x] P4.6: 单元测试
     
-[ ] Phase 5: 怪物技能系统 (Week 11-13)
-    [ ] P5.1: 定义 EnemySkillDefinition
-    [ ] P5.2: 创建 EnemySkillSlot
-    [ ] P5.3: 创建 EnemySkillManager
-    [ ] P5.4: 创建 EnemySkillCastEvent
-    [ ] P5.5: 集成到 BattleEngine
-    [ ] P5.6: 配置示例技能
-    [ ] P5.7: 单元测试
+[x] Phase 5: 怪物技能系统 (Week 11-13) ✅ COMPLETED
+    [x] P5.1: 定义 EnemySkillDefinition
+    [x] P5.2: 创建 EnemySkillSlot
+    [x] P5.3: 创建 EnemySkillManager
+    [x] P5.4: 创建 EnemySkillCastEvent
+    [x] P5.5: 集成到 BattleEngine
+    [x] P5.6: 配置示例技能
+    [x] P5.7: 单元测试
     
 [ ] Phase 6: 强化型地下城 (Week 14-15)
     [ ] P6.1: 扩展 DungeonDefinition
