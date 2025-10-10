@@ -1330,7 +1330,6 @@ else
     Dictionary<string, int> stepAggBySource = new();
     Dictionary<string, int> stepAggByType = new();
 
-    CancellationTokenSource? _stepPollCts;
     bool stepIsPolling;
     int _stepSinceIndex = 0;
     string? stepError;
@@ -1345,7 +1344,6 @@ else
     StepBattleDebugDto? stepDebug;
     bool stepAutoDebug = false;
     int stepDebugPollMs = 1000;
-    CancellationTokenSource? _stepDebugCts;
 
     async Task StartStepBattle()
     {
@@ -1387,24 +1385,13 @@ else
     async Task StartStepPollingAsync()
     {
         if (stepBattleId is null) return;
-        _stepPollCts?.Cancel();
-        _stepPollCts = new CancellationTokenSource();
+        
         stepIsPolling = true;
-        StartProgressAnimationTimer(); // 启动平滑动画定时器
-
-        try
-        {
-            while (!_stepPollCts.IsCancellationRequested)
-            {
-                await PollStepOnceAsync(_stepPollCts.Token);
-                await InvokeAsync(StateHasChanged);
-                if (stepStatus?.Completed == true && stepMode != "continuous" && stepMode != "dungeonloop") break; // 持续/循环不中断
-                await Task.Delay(stepPollMs, _stepPollCts.Token);
-            }
-        }
-        catch (TaskCanceledException) { }
-        catch (Exception ex) { stepError = $"轮询异常: {ex.Message}"; }
-        finally { stepIsPolling = false; await InvokeAsync(StateHasChanged); }
+        
+        _pollingCoordinator ??= new BattlePollingCoordinator(this);
+        _pollingCoordinator.StartStepBattlePolling(stepPollMs);
+        
+        await InvokeAsync(StateHasChanged);
     }
 
     async Task PollStepOnceAsync(CancellationToken ct)
@@ -1452,9 +1439,8 @@ else
 
     void StopStepPolling() 
     { 
-        _stepPollCts?.Cancel(); 
         stepIsPolling = false; 
-        if (!planIsPolling) StopProgressAnimationTimer(); // 只有当计划战斗也不在轮询时才停止定时器
+        _pollingCoordinator?.StopStepBattlePolling();
         StateHasChanged(); 
     }
 
@@ -1494,49 +1480,282 @@ else
     async Task StartDebugAutoPollingAsync()
     {
         if (stepBattleId is null) return;
-        _stepDebugCts?.Cancel();
-        _stepDebugCts = new CancellationTokenSource();
-        try
-        {
-            while (!_stepDebugCts.IsCancellationRequested)
-            {
-                await RefreshRuntimeDebug();
-                if (stepStatus?.Completed == true && stepMode != "continuous" && stepMode != "dungeonloop") break;
-                await Task.Delay(stepDebugPollMs, _stepDebugCts.Token);
-            }
-        }
-        catch (TaskCanceledException) { }
-        catch (Exception ex) { stepError = $"Debug 轮询异常: {ex.Message}"; }
+        
+        _pollingCoordinator ??= new BattlePollingCoordinator(this);
+        _pollingCoordinator.StartDebugPolling(stepDebugPollMs);
+        
+        await InvokeAsync(StateHasChanged);
     }
-    void StopDebugAutoPolling() { _stepDebugCts?.Cancel(); }
+    
+    void StopDebugAutoPolling() 
+    { 
+        _pollingCoordinator?.StopDebugPolling();
+    }
 
     async Task OpenSummary(Guid id) { var url = $"/api/battles/{id}/summary"; await JS.InvokeVoidAsync("open", url, "_blank"); }
 
     public void Dispose() 
     { 
+        _pollingCoordinator?.Dispose();
         StopPolling(); 
-        StopStepPolling(); 
-        StopDebugAutoPolling(); 
-        StopPlanPolling(); 
-        StopProgressAnimationTimer();
     }
     
-    // 进度条平滑动画定时器
-    private System.Threading.Timer? _progressAnimationTimer;
+    // ====== 统一轮询协调器 ======
+    private BattlePollingCoordinator? _pollingCoordinator;
     
-    private void StartProgressAnimationTimer()
+    /// <summary>
+    /// 统一轮询协调器 - 管理所有战斗相关的轮询任务
+    /// </summary>
+    private class BattlePollingCoordinator : IDisposable
     {
-        // 每100ms刷新一次UI以实现平滑动画
-        _progressAnimationTimer ??= new System.Threading.Timer(_ =>
+        private readonly Characters _parent;
+        private CancellationTokenSource? _masterCts;
+        private System.Threading.Timer? _progressAnimationTimer;
+        private bool _isRunning;
+        
+        // 轮询状态标记
+        private bool _stepBattleActive;
+        private bool _planBattleActive;
+        private bool _debugModeActive;
+        
+        // 轮询间隔配置
+        private int _stepPollIntervalMs = 500;
+        private int _planPollIntervalMs = 2000;
+        private int _debugPollIntervalMs = 1000;
+        private const int ProgressAnimationIntervalMs = 100;
+        
+        public BattlePollingCoordinator(Characters parent)
         {
-            InvokeAsync(StateHasChanged);
-        }, null, TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(100));
-    }
-    
-    private void StopProgressAnimationTimer()
-    {
-        _progressAnimationTimer?.Dispose();
-        _progressAnimationTimer = null;
+            _parent = parent;
+        }
+        
+        /// <summary>
+        /// 启动步进战斗轮询
+        /// </summary>
+        public void StartStepBattlePolling(int pollIntervalMs = 500)
+        {
+            _stepPollIntervalMs = pollIntervalMs;
+            _stepBattleActive = true;
+            EnsureRunning();
+        }
+        
+        /// <summary>
+        /// 停止步进战斗轮询
+        /// </summary>
+        public void StopStepBattlePolling()
+        {
+            _stepBattleActive = false;
+            CheckStopAll();
+        }
+        
+        /// <summary>
+        /// 启动计划战斗轮询
+        /// </summary>
+        public void StartPlanBattlePolling()
+        {
+            _planBattleActive = true;
+            EnsureRunning();
+        }
+        
+        /// <summary>
+        /// 停止计划战斗轮询
+        /// </summary>
+        public void StopPlanBattlePolling()
+        {
+            _planBattleActive = false;
+            CheckStopAll();
+        }
+        
+        /// <summary>
+        /// 启动调试模式轮询
+        /// </summary>
+        public void StartDebugPolling(int pollIntervalMs = 1000)
+        {
+            _debugPollIntervalMs = pollIntervalMs;
+            _debugModeActive = true;
+            EnsureRunning();
+        }
+        
+        /// <summary>
+        /// 停止调试模式轮询
+        /// </summary>
+        public void StopDebugPolling()
+        {
+            _debugModeActive = false;
+            CheckStopAll();
+        }
+        
+        /// <summary>
+        /// 检查是否需要停止所有轮询
+        /// </summary>
+        private void CheckStopAll()
+        {
+            if (!_stepBattleActive && !_planBattleActive && !_debugModeActive)
+            {
+                StopAll();
+            }
+        }
+        
+        /// <summary>
+        /// 确保协调器正在运行
+        /// </summary>
+        private void EnsureRunning()
+        {
+            if (_isRunning) return;
+            
+            _isRunning = true;
+            _masterCts = new CancellationTokenSource();
+            
+            // 启动进度条动画定时器
+            StartProgressAnimationTimer();
+            
+            // 启动各个轮询任务
+            if (_stepBattleActive)
+            {
+                _ = RunStepBattlePollingAsync(_masterCts.Token);
+            }
+            if (_planBattleActive)
+            {
+                _ = RunPlanBattlePollingAsync(_masterCts.Token);
+            }
+            if (_debugModeActive)
+            {
+                _ = RunDebugPollingAsync(_masterCts.Token);
+            }
+        }
+        
+        /// <summary>
+        /// 停止所有轮询
+        /// </summary>
+        private void StopAll()
+        {
+            _isRunning = false;
+            _masterCts?.Cancel();
+            _masterCts?.Dispose();
+            _masterCts = null;
+            StopProgressAnimationTimer();
+        }
+        
+        /// <summary>
+        /// 步进战斗轮询循环
+        /// </summary>
+        private async Task RunStepBattlePollingAsync(CancellationToken ct)
+        {
+            try
+            {
+                while (!ct.IsCancellationRequested && _stepBattleActive)
+                {
+                    await _parent.PollStepOnceAsync(ct);
+                    await _parent.InvokeAsync(_parent.StateHasChanged);
+                    
+                    // 检查是否需要自动停止（非持续/循环模式下战斗完成）
+                    if (_parent.stepStatus?.Completed == true && 
+                        _parent.stepMode != "continuous" && 
+                        _parent.stepMode != "dungeonloop")
+                    {
+                        break;
+                    }
+                    
+                    await Task.Delay(_stepPollIntervalMs, ct);
+                }
+            }
+            catch (TaskCanceledException) { }
+            catch (Exception ex) 
+            { 
+                _parent.stepError = $"轮询异常: {ex.Message}"; 
+            }
+            finally
+            {
+                _stepBattleActive = false;
+                _parent.stepIsPolling = false;
+                await _parent.InvokeAsync(_parent.StateHasChanged);
+                CheckStopAll();
+            }
+        }
+        
+        /// <summary>
+        /// 计划战斗轮询循环
+        /// </summary>
+        private async Task RunPlanBattlePollingAsync(CancellationToken ct)
+        {
+            try
+            {
+                while (!ct.IsCancellationRequested && _planBattleActive)
+                {
+                    await _parent.PollPlanBattleOnceAsync(ct);
+                    await _parent.InvokeAsync(_parent.StateHasChanged);
+                    await Task.Delay(_planPollIntervalMs, ct);
+                }
+            }
+            catch (TaskCanceledException) { }
+            catch (Exception) { }
+            finally
+            {
+                _planBattleActive = false;
+                _parent.planIsPolling = false;
+                CheckStopAll();
+            }
+        }
+        
+        /// <summary>
+        /// 调试信息轮询循环
+        /// </summary>
+        private async Task RunDebugPollingAsync(CancellationToken ct)
+        {
+            try
+            {
+                while (!ct.IsCancellationRequested && _debugModeActive)
+                {
+                    await _parent.RefreshRuntimeDebug();
+                    
+                    // 检查是否需要自动停止
+                    if (_parent.stepStatus?.Completed == true && 
+                        _parent.stepMode != "continuous" && 
+                        _parent.stepMode != "dungeonloop")
+                    {
+                        break;
+                    }
+                    
+                    await Task.Delay(_debugPollIntervalMs, ct);
+                }
+            }
+            catch (TaskCanceledException) { }
+            catch (Exception ex) 
+            { 
+                _parent.stepError = $"Debug 轮询异常: {ex.Message}"; 
+            }
+            finally
+            {
+                _debugModeActive = false;
+                CheckStopAll();
+            }
+        }
+        
+        /// <summary>
+        /// 启动进度条动画定时器
+        /// </summary>
+        private void StartProgressAnimationTimer()
+        {
+            _progressAnimationTimer ??= new System.Threading.Timer(_ =>
+            {
+                _parent.InvokeAsync(_parent.StateHasChanged);
+            }, null, TimeSpan.FromMilliseconds(ProgressAnimationIntervalMs), 
+                     TimeSpan.FromMilliseconds(ProgressAnimationIntervalMs));
+        }
+        
+        /// <summary>
+        /// 停止进度条动画定时器
+        /// </summary>
+        private void StopProgressAnimationTimer()
+        {
+            _progressAnimationTimer?.Dispose();
+            _progressAnimationTimer = null;
+        }
+        
+        public void Dispose()
+        {
+            StopAll();
+        }
     }
 
     // ====== 活动计划管理 ======
@@ -1552,7 +1771,6 @@ else
 
     List<ActivityPlanDto>? characterPlans;
     StepStatusResponse? currentPlanBattle;
-    CancellationTokenSource? _planPollCts;
     bool planIsPolling;
     
     // 攻击进度平滑化追踪变量（计划战斗）
@@ -1768,67 +1986,62 @@ else
         }
     }
 
-    async Task StartPlanPollingAsync(Guid battleId)
+    async Task PollPlanBattleOnceAsync(CancellationToken ct)
     {
-        _planPollCts?.Cancel();
-        _planPollCts = new CancellationTokenSource();
-        planIsPolling = true;
-        StartProgressAnimationTimer(); // 启动平滑动画定时器
-
+        if (_currentPlanBattleId is null) return;
+        
         try
         {
-            while (!_planPollCts.IsCancellationRequested)
+            var newBattleStatus = await Api.GetStepBattleStatusAsync(_currentPlanBattleId.Value, "sampled", ct);
+            
+            // 更新攻击间隔追踪
+            if (newBattleStatus != null)
             {
-                try
-                {
-                    var newBattleStatus = await Api.GetStepBattleStatusAsync(battleId, "sampled", _planPollCts.Token);
-                    
-                    // 更新攻击间隔追踪
-                    if (newBattleStatus != null)
-                    {
-                        UpdateProgressTracking(
-                            ref _planAttackInterval, 
-                            ref _planPrevNextAttackAt, 
-                            newBattleStatus.NextAttackAt,
-                            ref _planLastUpdateTime);
-                        
-                        UpdateProgressTracking(
-                            ref _planSpecialInterval, 
-                            ref _planPrevNextSpecialAt, 
-                            newBattleStatus.NextSpecialAt,
-                            ref _planLastUpdateTime);
-                        
-                        currentPlanBattle = newBattleStatus;
-                    }
-                    
-                    // 同时刷新计划列表以获取最新的ExecutedSeconds
-                    if (lastCreated is not null)
-                    {
-                        characterPlans = await Api.GetCharacterPlansAsync(lastCreated.Id);
-                    }
-                    
-                    // 更新心跳时间（每次刷新计划状态时）
-                    await UpdateHeartbeatIfNeededAsync();
-                    
-                    await InvokeAsync(StateHasChanged);
-                }
-                catch (Exception) { }
-
-                await Task.Delay(2000, _planPollCts.Token);
+                UpdateProgressTracking(
+                    ref _planAttackInterval, 
+                    ref _planPrevNextAttackAt, 
+                    newBattleStatus.NextAttackAt,
+                    ref _planLastUpdateTime);
+                
+                UpdateProgressTracking(
+                    ref _planSpecialInterval, 
+                    ref _planPrevNextSpecialAt, 
+                    newBattleStatus.NextSpecialAt,
+                    ref _planLastUpdateTime);
+                
+                currentPlanBattle = newBattleStatus;
             }
+            
+            // 同时刷新计划列表以获取最新的ExecutedSeconds
+            if (lastCreated is not null)
+            {
+                characterPlans = await Api.GetCharacterPlansAsync(lastCreated.Id);
+            }
+            
+            // 更新心跳时间（每次刷新计划状态时）
+            await UpdateHeartbeatIfNeededAsync();
         }
-        catch (TaskCanceledException) { }
-        finally
-        {
-            planIsPolling = false;
-        }
+        catch (Exception) { }
+    }
+
+    private Guid? _currentPlanBattleId;
+
+    async Task StartPlanPollingAsync(Guid battleId)
+    {
+        _currentPlanBattleId = battleId;
+        planIsPolling = true;
+        
+        _pollingCoordinator ??= new BattlePollingCoordinator(this);
+        _pollingCoordinator.StartPlanBattlePolling();
+        
+        await InvokeAsync(StateHasChanged);
     }
 
     void StopPlanPolling()
     {
-        _planPollCts?.Cancel();
+        _currentPlanBattleId = null;
         planIsPolling = false;
-        if (!stepIsPolling) StopProgressAnimationTimer(); // 只有当步进战斗也不在轮询时才停止定时器
+        _pollingCoordinator?.StopPlanBattlePolling();
     }
 
     // 批量模拟器
