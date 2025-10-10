@@ -124,20 +124,14 @@ public record EnemySkillCastEvent(
         }
         
         // 对施法者自己施加 Buff（怪物增益）
+        // 记录统计标签（始终记录，保持向后兼容）
+        context.SegmentCollector.OnTag($"enemy_skill_buff:{skill.Id}", 1);
+        context.SegmentCollector.OnTag($"enemy_buff_applied:{skill.BuffId}", 1);
+        
+        // 如果有 BuffManager，实际应用 Buff
         if (Caster.BuffManager != null)
         {
-            // 实际应用 Buff
             Caster.BuffManager.Apply(skill.BuffId, ExecuteAt);
-            
-            // 记录统计标签
-            context.SegmentCollector.OnTag($"enemy_skill_buff:{skill.Id}", 1);
-            context.SegmentCollector.OnTag($"enemy_buff_applied:{skill.BuffId}", 1);
-        }
-        else
-        {
-            // 如果 BuffManager 未初始化，只记录标签（向后兼容）
-            context.SegmentCollector.OnTag($"enemy_skill_buff:{skill.Id}", 1);
-            context.SegmentCollector.OnTag($"enemy_buff_applied:{skill.BuffId}_no_manager", 1);
         }
     }
 
