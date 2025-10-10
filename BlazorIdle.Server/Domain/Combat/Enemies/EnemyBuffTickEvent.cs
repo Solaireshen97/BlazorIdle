@@ -1,4 +1,5 @@
 using BlazorWebGame.Domain.Combat;
+using System.Linq;
 
 namespace BlazorIdle.Server.Domain.Combat.Enemies;
 
@@ -15,15 +16,26 @@ public record EnemyBuffTickEvent(
     public void Execute(BattleContext context)
     {
         // Tick 所有敌人的 BuffManager
+        bool hasActiveBuffs = false;
         foreach (var enemy in context.EnemyCombatants)
         {
             if (enemy.Buffs != null && enemy.CanAct())
             {
                 enemy.Buffs.Tick(ExecuteAt);
+                
+                // Check if this enemy has any active buffs
+                if (enemy.Buffs.Active.Any())
+                {
+                    hasActiveBuffs = true;
+                }
             }
         }
 
-        // 递归调度下一次 Buff Tick
-        context.Scheduler.Schedule(new EnemyBuffTickEvent(ExecuteAt + Interval, Interval));
+        // Only schedule next tick if there are active buffs
+        // This reduces event count when no buffs are active
+        if (hasActiveBuffs || ExecuteAt < 1.0)  // Always tick for first second to catch early buffs
+        {
+            context.Scheduler.Schedule(new EnemyBuffTickEvent(ExecuteAt + Interval, Interval));
+        }
     }
 }

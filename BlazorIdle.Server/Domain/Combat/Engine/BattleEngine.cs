@@ -687,9 +687,11 @@ public sealed class BattleEngine
         }
         
         // 调度定期 Buff Tick 事件（处理 DoT/HoT 等周期效果）
-        if (Context.EnemyCombatants.Count > 0)
+        // 只在有技能的怪物时才调度 buff tick，以减少事件数量
+        // 使用 1.0 秒间隔以减少事件数量，大多数 Buff DoT/HoT 间隔都是 2 秒以上
+        if (hasAnySkills && Context.EnemyCombatants.Count > 0)
         {
-            const double BUFF_TICK_INTERVAL = 0.1;  // 每 0.1 秒 tick 一次 buff
+            const double BUFF_TICK_INTERVAL = 1.0;  // 每 1.0 秒 tick 一次 buff
             Scheduler.Schedule(new Enemies.EnemyBuffTickEvent(
                 Clock.CurrentTime + BUFF_TICK_INTERVAL,
                 BUFF_TICK_INTERVAL
