@@ -20,6 +20,17 @@ else
 {
 <h3>角色 & 战斗测试</h3>
 
+<!-- Step 6: 全局加载指示器 -->
+@if (isBusy)
+{
+    <div class="loading-indicator">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">加载中...</span>
+        </div>
+        <span class="ms-2">处理中...</span>
+    </div>
+}
+
 <!-- 用户信息显示 -->
 @if (currentUser is not null)
 {
@@ -43,7 +54,8 @@ else
             {
                 var isSelected = selectedCharacter?.Id == character.Id;
                 var cardClass = isSelected ? "character-card selected" : "character-card";
-                <div class="@cardClass" @onclick="() => SelectCharacter(character)" style="cursor: pointer; border: 2px solid @(isSelected ? "#007bff" : "#ddd"); padding: 12px; border-radius: 8px; min-width: 200px;">
+                <!-- Step 6: 添加 @key 优化列表渲染 -->
+                <div class="@cardClass" @key="@character.Id" @onclick="() => SelectCharacter(character)" style="cursor: pointer; border: 2px solid @(isSelected ? "#007bff" : "#ddd"); padding: 12px; border-radius: 8px; min-width: 200px;">
                     <h5 style="margin: 0 0 8px 0;">@character.Name @(isSelected ? "✓" : "")</h5>
                     <div><b>职业:</b> @character.Profession</div>
                     <div><b>等级:</b> @character.Level</div>
@@ -154,7 +166,11 @@ else
 
         @if (segmentsLoading)
         {
-            <p>加载段数据中...</p>
+            <!-- Step 6: 改进加载提示 -->
+            <div class="loading-indicator-inline">
+                <span class="spinner-border spinner-border-sm" role="status"></span>
+                <span class="ms-2">加载段数据中...</span>
+            </div>
         }
         @if (segments is null)
         {
@@ -177,7 +193,8 @@ else
                     @for (int i = 0; i < segments.Count; i++)
                     {
                         var s = segments[i];
-                        <tr>
+                        <!-- Step 6: 添加 @key 优化列表渲染 -->
+                        <tr @key="@i">
                             <td>@i</td>
                             <td>@s.StartTime - @s.EndTime</td>
                             <td>@s.EventCount</td>
