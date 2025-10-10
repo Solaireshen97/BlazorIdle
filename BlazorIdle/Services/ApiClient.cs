@@ -194,6 +194,13 @@ public class ApiClient
         return _http.GetFromJsonAsync<InventoryResponse>($"/api/inventory/{characterId}", ct);
     }
 
+    // ===== 装备系统（Step 5: 装备系统UI预留） =====
+    public Task<EquipmentResponse?> GetEquipmentAsync(Guid characterId, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        return _http.GetFromJsonAsync<EquipmentResponse>($"/api/equipment/{characterId}", ct);
+    }
+
     // ===== 活动计划 =====
     public async Task<ActivityPlanDto> CreateCombatPlanAsync(
         Guid characterId,
