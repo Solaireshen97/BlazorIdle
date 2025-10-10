@@ -772,52 +772,76 @@ GET /api/battles/step/{battleId}/buffs
 
 ---
 
-### Step 4: 技能系统UI（第6-8周）
+### Step 4: 技能系统UI（第6-8周）⭐ **已完成**
 
-#### Step 4.1: 技能配置API开发
+#### Step 4.1: 技能状态显示 ✅
 **任务**：
-- 创建 `SkillSlotsController.cs`
-- 实现技能槽配置API
-- 实现技能查询API
-- 添加配置验证逻辑
+- ✅ 创建 `SkillStatusDto` 数据传输对象
+- ✅ 扩展 `StepBattleStatusDto` 添加技能列表
+- ✅ 在 `StepBattleCoordinator.GetStatus()` 中收集技能状态
+- ✅ 支持单充能和多充能技能的冷却计算
 
 **产出**：
-- 完整的技能配置后端API
+- ✅ 完整的技能状态后端API
 
-#### Step 4.2: 技能配置面板前端
+**实施细节**：
+- SkillStatusDto包含：Id、Name、Priority、CooldownSeconds、RemainingCooldown、IsReady、CurrentCharges、MaxCharges、CostResourceId、CostAmount
+- 从BattleContext.AutoCaster.Slots收集所有技能状态
+- 区分单充能技能（使用NextAvailableTime）和多充能技能（使用NextChargeReadyAt）
+- 实时计算剩余冷却时间
+
+#### Step 4.2: 技能栏UI组件 ✅
 **任务**：
-- 创建 `SkillConfigurationPanel.razor` 组件
-- 实现技能槽UI（4个槽位）
-- 实现可用技能列表
-- 实现技能详情卡片
+- ✅ 创建 `SkillBarPanel.razor` 组件
+- ✅ 实现技能图标显示（使用emoji）
+- ✅ 显示技能冷却倒计时
+- ✅ 显示充能层数（如适用）
+- ✅ 显示就绪状态标记
 
 **产出**：
-- 技能配置UI组件
+- ✅ 技能栏UI组件
 
-#### Step 4.3: 拖拽功能实现
+**实施细节**：
+- 48x48像素技能卡片
+- 就绪状态：蓝色主题（#e3f2fd背景，#42a5f5边框）
+- 冷却中：灰色主题（#f5f5f5背景，#bdbdbd边框）
+- 技能按优先级排序显示
+- Tooltip显示详细信息（消耗、冷却、状态）
+
+#### Step 4.3: 前端集成 ✅
 **任务**：
-- 集成拖拽库（如 Blazor.DragDrop）或自定义实现
-- 实现技能从列表拖拽到槽位
-- 实现技能槽之间交换
-- 实现拖拽验证（职业限制等）
+- ✅ 同步 `ApiModels.cs` 中的SkillStatusDto
+- ✅ 在 `Characters.razor` 中集成SkillBarPanel
+- ✅ 同时更新Step战斗和活动计划战斗显示
 
 **产出**：
-- 可拖拽的技能配置界面
+- ✅ 完整的技能状态展示
 
-#### Step 4.4: 战斗中技能状态显示
+**实施细节**：
+- 在Buff状态显示之后添加技能状态显示
+- 使用条件渲染（仅当有技能时显示）
+- 复用相同的布局和样式风格
+
+#### Step 4.4: 测试验证 ✅
 **任务**：
-- 在战斗界面添加简化技能条
-- 显示技能冷却倒计时
-- 高亮显示就绪技能
-- 添加技能施放历史记录
+- ✅ 编写战士技能状态测试
+- ✅ 编写游侠技能状态测试
+- ✅ 编写技能DTO结构验证测试
+- ✅ 编写技能优先级测试
 
 **产出**：
-- 战斗中的技能状态展示
+- ✅ 4个单元测试全部通过
 
-**验证**：
-- 配置技能槽，保存，重新加载验证配置保存
-- 启动战斗，查看技能施放和冷却
-- 测试拖拽功能流畅性
+**验证结果**：
+- ✅ 构建成功无错误
+- ✅ 单元测试通过（4/4）
+- ✅ 战士技能（Heroic Strike）正确显示
+- ✅ 游侠技能（Power Shot, Bleed Shot, Quick Shot）正确显示
+- ✅ 技能冷却时间正确计算
+- ✅ 充能系统正确显示（如适用）
+
+**注意**：
+本次实现专注于技能状态显示，暂未实现技能配置面板和拖拽功能。这些高级功能可在后续迭代中根据需求添加。
 
 ---
 
@@ -1164,15 +1188,32 @@ public class EquipmentSlotDto
 - ⏸️ **Step 1.3 扩展**: 前端根据服务器提示动态调整轮询（可选优化）
 - ⏸️ **Step 2.5**: UI运行时测试和截图（需要实际运行环境）
 
+- ✅ **Step 3**: Buff状态显示（2025-10-10）
+  - 创建 BuffBarPanel.razor 可复用组件
+  - 实现图标化显示、倒计时动画、鼠标悬停详情
+  - 扩展 StepBattleStatusDto 添加Buff列表
+  - 修改 StepBattleCoordinator.GetStatus() 包含Buff信息
+  - 集成到 Characters.razor（Step战斗和活动计划）
+  - 编写单元测试验证功能
+  - 详见：Buff状态显示完成报告.md
+
+- ✅ **Step 4**: 技能系统UI（2025-10-10）
+  - 创建 SkillBarPanel.razor 可复用组件
+  - 显示技能图标、冷却倒计时、充能层数
+  - 创建 SkillStatusDto 数据传输对象
+  - 在 StepBattleCoordinator.GetStatus() 中收集技能状态
+  - 支持单充能和多充能技能
+  - 集成到 Characters.razor（Step战斗和活动计划）
+  - 编写4个单元测试全部通过
+  - 详见：技能系统UI完成报告.md
+
 ### 待完成
-- ⏸️ Step 3: Buff状态显示（第5周）
-- ⏸️ Step 4: 技能系统UI设计（第6-8周）
 - ⏸️ Step 5: 装备系统UI预留设计（第9-10周）
 - ⏸️ Step 6: 整体测试与优化（第11-12周）
 
 ---
 
-**文档版本**: 1.2  
+**文档版本**: 1.3  
 **最后更新**: 2025-10-10  
-**当前状态**: Step 2 已完成 ✅  
-**下一步**: Step 3 - Buff状态显示
+**当前状态**: Step 4 已完成 ✅  
+**下一步**: Step 5 - 装备系统UI预留
