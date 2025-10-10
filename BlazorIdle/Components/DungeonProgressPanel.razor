@@ -1,0 +1,190 @@
+@if (IsDungeonMode)
+{
+    <div class="dungeon-progress-panel">
+        <div class="panel-header">
+            <span class="dungeon-icon">🏰</span>
+            <strong>地下城进度</strong>
+            @if (!string.IsNullOrEmpty(DungeonId))
+            {
+                <span class="dungeon-name">(@DungeonId)</span>
+            }
+        </div>
+
+        <div class="progress-info">
+            <!-- 波次和轮次信息 -->
+            <div class="progress-section">
+                <div class="progress-item">
+                    <span class="progress-icon">⚔️</span>
+                    <span class="progress-label">波次:</span>
+                    <span class="progress-value">Wave @WaveIndex</span>
+                </div>
+                <div class="progress-item">
+                    <span class="progress-icon">🔄</span>
+                    <span class="progress-label">轮次:</span>
+                    <span class="progress-value">Run @RunCount</span>
+                </div>
+                @if (MonsterCount > 0)
+                {
+                    <div class="progress-item">
+                        <span class="progress-icon">👹</span>
+                        <span class="progress-label">怪物数:</span>
+                        <span class="progress-value">@MonsterCount</span>
+                    </div>
+                }
+            </div>
+
+            <!-- 收益统计 -->
+            @if (ShowRewards)
+            {
+                <div class="rewards-section">
+                    <div class="rewards-header">📊 实时收益:</div>
+                    <div class="rewards-row">
+                        <div class="reward-item">
+                            <span class="reward-icon">💰</span>
+                            <span class="reward-label">金币:</span>
+                            <span class="reward-value gold">@Gold.ToString("N0")</span>
+                        </div>
+                        <div class="reward-item">
+                            <span class="reward-icon">⭐</span>
+                            <span class="reward-label">经验:</span>
+                            <span class="reward-value exp">@Exp.ToString("N0")</span>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+<style>
+    .dungeon-progress-panel {
+        background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+        border: 2px solid #7e57c2;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 12px;
+    }
+
+    .panel-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 12px;
+        font-size: 14px;
+    }
+
+    .dungeon-icon {
+        font-size: 18px;
+    }
+
+    .dungeon-name {
+        color: #666;
+        font-size: 12px;
+        font-weight: normal;
+    }
+
+    .progress-info {
+        background: rgba(255, 255, 255, 0.8);
+        border-radius: 6px;
+        padding: 10px;
+    }
+
+    .progress-section {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-bottom: 12px;
+    }
+
+    .progress-item {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 13px;
+    }
+
+    .progress-icon {
+        font-size: 14px;
+    }
+
+    .progress-label {
+        color: #666;
+    }
+
+    .progress-value {
+        font-weight: bold;
+        color: #333;
+    }
+
+    .rewards-section {
+        border-top: 1px solid #e0e0e0;
+        padding-top: 10px;
+    }
+
+    .rewards-header {
+        font-size: 12px;
+        font-weight: 600;
+        color: #555;
+        margin-bottom: 6px;
+    }
+
+    .rewards-row {
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+    }
+
+    .reward-item {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 12px;
+    }
+
+    .reward-icon {
+        font-size: 14px;
+    }
+
+    .reward-label {
+        color: #666;
+    }
+
+    .reward-value {
+        font-weight: bold;
+        font-size: 13px;
+    }
+
+    .reward-value.gold {
+        color: #f57f17;
+    }
+
+    .reward-value.exp {
+        color: #1976d2;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public bool IsDungeonMode { get; set; }
+
+    [Parameter]
+    public string? DungeonId { get; set; }
+
+    [Parameter]
+    public int WaveIndex { get; set; }
+
+    [Parameter]
+    public int RunCount { get; set; }
+
+    [Parameter]
+    public int MonsterCount { get; set; }
+
+    [Parameter]
+    public bool ShowRewards { get; set; } = true;
+
+    [Parameter]
+    public long Gold { get; set; }
+
+    [Parameter]
+    public long Exp { get; set; }
+}

@@ -1,0 +1,328 @@
+@using BlazorIdle.Shared.Models
+@using BlazorIdle.Client.Services
+
+@if (BattleStatus is not null && CharacterName is not null)
+{
+    <div class="player-status-panel">
+        <div class="panel-header">
+            <h6>
+                @GetProfessionIcon(BattleStatus.Profession) 
+                <span class="character-name">@CharacterName</span>
+                @if (CharacterLevel > 0)
+                {
+                    <span class="character-level">Lv.@CharacterLevel</span>
+                }
+            </h6>
+        </div>
+
+        <!-- 玩家血量 -->
+        <div class="status-section">
+            <div class="status-label"><strong>玩家血量:</strong></div>
+            <div class="hp-bar-container">
+                <div class="hp-bar" style="width: @(BattleStatus.PlayerHpPercent * 100)%;"></div>
+                <span class="hp-text">
+                    @((int)(BattleStatus.PlayerMaxHp * BattleStatus.PlayerHpPercent)) / @BattleStatus.PlayerMaxHp 
+                    (@((BattleStatus.PlayerHpPercent * 100).ToString("0"))%)
+                </span>
+            </div>
+        </div>
+
+        <!-- 战斗状态 -->
+        <div class="status-section status-info">
+            <div class="status-item">
+                <span class="status-icon">@GetBattleStatusIcon()</span>
+                <span class="status-text">@GetBattleStatusText()</span>
+            </div>
+            @if (BattleElapsedSeconds > 0)
+            {
+                <div class="status-item">
+                    <span class="status-icon">⏱️</span>
+                    <span class="status-text">已战斗 @FormatDuration(BattleElapsedSeconds)</span>
+                </div>
+            }
+        </div>
+
+        <!-- 资源显示（占位，未来可扩展） -->
+        @if (ShowResourcePlaceholder)
+        {
+            <div class="status-section resources-section">
+                <div class="status-label"><strong>资源:</strong></div>
+                <div class="resource-placeholder">
+                    <small class="text-muted">（未实现：怒气、专注等资源显示）</small>
+                </div>
+            </div>
+        }
+
+        <!-- 攻击进度 -->
+        @if (BattleStatus.NextAttackAt.HasValue || BattleStatus.NextSpecialAt.HasValue)
+        {
+            <div class="status-section attack-progress-section">
+                <div class="status-label"><strong>⚔️ 攻击进度:</strong></div>
+                @if (BattleStatus.NextAttackAt.HasValue)
+                {
+                    var attackProgress = CalculateProgress(
+                        BattleStatus.CurrentTime, 
+                        BattleStatus.NextAttackAt.Value, 
+                        AttackInterval, 
+                        LastUpdateTime);
+                    var attackTime = BattleStatus.NextAttackAt.Value - BattleStatus.CurrentTime;
+                    <div class="progress-bar-row">
+                        <span class="progress-label">普通攻击:</span>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar normal-attack" style="width: @(attackProgress * 100)%;"></div>
+                            <span class="progress-text">
+                                @(attackTime > 0 ? $"{attackTime:0.00}s" : "就绪")
+                            </span>
+                        </div>
+                    </div>
+                }
+                @if (BattleStatus.NextSpecialAt.HasValue)
+                {
+                    var specialProgress = CalculateProgress(
+                        BattleStatus.CurrentTime, 
+                        BattleStatus.NextSpecialAt.Value, 
+                        SpecialInterval, 
+                        LastUpdateTime);
+                    var specialTime = BattleStatus.NextSpecialAt.Value - BattleStatus.CurrentTime;
+                    <div class="progress-bar-row">
+                        <span class="progress-label">特殊攻击:</span>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar special-attack" style="width: @(specialProgress * 100)%;"></div>
+                            <span class="progress-text">
+                                @(specialTime > 0 ? $"{specialTime:0.00}s" : "就绪")
+                            </span>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+<style>
+    .player-status-panel {
+        background: #f8f9fa;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 12px;
+    }
+
+    .panel-header h6 {
+        margin: 0 0 12px 0;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .character-name {
+        font-weight: bold;
+        color: #333;
+    }
+
+    .character-level {
+        color: #666;
+        font-size: 14px;
+    }
+
+    .status-section {
+        margin-bottom: 12px;
+    }
+
+    .status-section:last-child {
+        margin-bottom: 0;
+    }
+
+    .status-label {
+        margin-bottom: 4px;
+        font-size: 13px;
+    }
+
+    .hp-bar-container {
+        background: #e0e0e0;
+        height: 24px;
+        border-radius: 4px;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .hp-bar {
+        background: linear-gradient(90deg, #4caf50, #81c784);
+        height: 100%;
+        transition: width 0.3s;
+    }
+
+    .hp-text {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        color: #000;
+        font-weight: bold;
+        font-size: 12px;
+    }
+
+    .status-info {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .status-item {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 13px;
+    }
+
+    .status-icon {
+        font-size: 14px;
+    }
+
+    .resource-placeholder {
+        padding: 8px;
+        background: #fff;
+        border: 1px dashed #ccc;
+        border-radius: 4px;
+        text-align: center;
+    }
+
+    .attack-progress-section {
+        margin-top: 8px;
+    }
+
+    .progress-bar-row {
+        display: flex;
+        align-items: center;
+        margin-top: 4px;
+    }
+
+    .progress-label {
+        min-width: 100px;
+        font-size: 12px;
+    }
+
+    .progress-bar-bg {
+        flex: 1;
+        background: #e0e0e0;
+        height: 16px;
+        border-radius: 3px;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .progress-bar {
+        height: 100%;
+        transition: width 0.1s;
+    }
+
+    .progress-bar.normal-attack {
+        background: linear-gradient(90deg, #2196f3, #64b5f6);
+    }
+
+    .progress-bar.special-attack {
+        background: linear-gradient(90deg, #ff9800, #ffb74d);
+    }
+
+    .progress-text {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        color: #000;
+        font-size: 10px;
+        font-weight: 500;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public StepStatusResponse? BattleStatus { get; set; }
+
+    [Parameter]
+    public string? CharacterName { get; set; }
+
+    [Parameter]
+    public int CharacterLevel { get; set; }
+
+    [Parameter]
+    public double BattleElapsedSeconds { get; set; }
+
+    [Parameter]
+    public double AttackInterval { get; set; }
+
+    [Parameter]
+    public double SpecialInterval { get; set; }
+
+    [Parameter]
+    public DateTime LastUpdateTime { get; set; }
+
+    [Parameter]
+    public bool ShowResourcePlaceholder { get; set; } = false;
+
+    private string GetProfessionIcon(Profession profession)
+    {
+        return profession switch
+        {
+            Profession.Warrior => "⚔️",
+            Profession.Ranger => "🏹",
+            _ => "👤"
+        };
+    }
+
+    private string GetBattleStatusIcon()
+    {
+        if (BattleStatus is null) return "⭕";
+        
+        if (BattleStatus.Completed)
+            return "✅";
+        if (BattleStatus.PlayerHpPercent <= 0)
+            return "💀";
+        if (BattleStatus.PlayerHpPercent < 0.5)
+            return "⚠️";
+        
+        return "🗡️";
+    }
+
+    private string GetBattleStatusText()
+    {
+        if (BattleStatus is null) return "空闲";
+        
+        if (BattleStatus.Completed)
+            return "战斗完成";
+        if (BattleStatus.PlayerHpPercent <= 0)
+            return "已阵亡";
+        if (BattleStatus.PlayerHpPercent < 0.5)
+            return "危险！";
+        
+        return "战斗中";
+    }
+
+    private string FormatDuration(double seconds)
+    {
+        var ts = TimeSpan.FromSeconds(seconds);
+        if (ts.TotalHours >= 1)
+            return $"{(int)ts.TotalHours}h{ts.Minutes}m{ts.Seconds}s";
+        if (ts.TotalMinutes >= 1)
+            return $"{(int)ts.TotalMinutes}m{ts.Seconds}s";
+        return $"{(int)ts.TotalSeconds}s";
+    }
+
+    private double CalculateProgress(double currentTime, double nextEventTime, double interval, DateTime lastUpdate)
+    {
+        if (interval <= 0) return 0;
+        
+        var elapsed = (DateTime.Now - lastUpdate).TotalSeconds;
+        var adjustedCurrent = currentTime + elapsed;
+        
+        if (adjustedCurrent >= nextEventTime)
+            return 1.0;
+        
+        var timeSinceLastEvent = interval - (nextEventTime - adjustedCurrent);
+        if (timeSinceLastEvent < 0) timeSinceLastEvent = 0;
+        
+        var progress = timeSinceLastEvent / interval;
+        return Math.Clamp(progress, 0, 1.0);
+    }
+}
