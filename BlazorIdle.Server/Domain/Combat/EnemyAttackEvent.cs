@@ -37,15 +37,17 @@ public record EnemyAttackEvent(double ExecuteAt, EnemyCombatant Enemy) : IGameEv
             return;
         }
 
-        // 计算伤害（基础值，Phase 4 保持简单，不考虑暴击/穿透）
-        int damage = Enemy.Encounter.Enemy.BaseDamage;
+        // 计算伤害（应用 Buff 加成）
+        int baseDamage = Enemy.Encounter.Enemy.BaseDamage;
+        var damageType = Enemy.Encounter.Enemy.AttackDamageType;
+        int damage = Enemy.GetAttackDamage(baseDamage, damageType);
         
         if (damage > 0)
         {
             // 对玩家造成伤害
             var actualDamage = context.Player.ReceiveDamage(
                 damage, 
-                Enemy.Encounter.Enemy.AttackDamageType, 
+                damageType, 
                 ExecuteAt
             );
 

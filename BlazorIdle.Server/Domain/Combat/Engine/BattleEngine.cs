@@ -605,8 +605,8 @@ public sealed class BattleEngine
     }
 
     /// <summary>
-    /// Phase 5: 初始化怪物技能系统
-    /// 为配置了技能的怪物创建技能管理器并调度技能检查事件
+    /// Phase 5: 初始化怪物技能系统和 Buff 系统
+    /// 为配置了技能的怪物创建技能管理器、Buff 管理器并调度技能检查事件
     /// </summary>
     private void InitializeEnemySkills(EncounterGroup encounterGroup)
     {
@@ -616,10 +616,43 @@ public sealed class BattleEngine
         double combatStartTime = Clock.CurrentTime;
         bool hasAnySkills = false;
 
+        // 注册敌人 Buff 定义
+        var enemyBuffDefs = EnemyBuffDefinitionsRegistry.GetAll();
+
         // 遍历已创建的 EnemyCombatants
         foreach (var enemyCombatant in Context.EnemyCombatants)
         {
             var enemy = enemyCombatant.Encounter.Enemy;
+            
+            // 为每个怪物创建 BuffManager（支持 Buff 效果）
+            // 先创建一个占位对象，解决循环引用问题
+            BuffManager? buffManagerRef = null;
+            var buffManager = new BuffManager(
+                tagRecorder: (tag, count) => Collector.OnTag(tag, count),
+                resourceRecorder: (res, delta) => 
+                {
+                    // 处理资源恢复（例如治疗效果）
+                    if (res == "health" && delta > 0)
+                    {
+                        enemyCombatant.Encounter.ApplyHealing(delta);
+                        Collector.OnTag($"enemy_buff_heal:{enemyCombatant.Id}", delta);
+                    }
+                },
+                damageApplier: null,  // 敌人不会对自己造成伤害
+                resolveHasteFactor: () => buffManagerRef?.Aggregate.ApplyToBaseHaste(1.0) ?? 1.0,
+                resolveApsp: () => (0.0, 0.0),  // 敌人暂时不使用 AP/SP 系统
+                onDotDirectHit: null
+            );
+            buffManagerRef = buffManager;  // 设置引用以便回调使用
+            
+            // 注册所有敌人 Buff 定义
+            foreach (var buffDef in enemyBuffDefs)
+            {
+                buffManager.RegisterDefinition(buffDef);
+            }
+            
+            enemyCombatant.Buffs = buffManager;
+            Collector.OnTag("enemy_buff_manager_initialized", 1);
             
             // 只为配置了技能的怪物创建技能管理器
             if (enemy.Skills != null && enemy.Skills.Count > 0)
@@ -650,6 +683,16 @@ public sealed class BattleEngine
             Scheduler.Schedule(new Enemies.EnemySkillCheckEvent(
                 Clock.CurrentTime + SKILL_CHECK_INTERVAL,
                 SKILL_CHECK_INTERVAL
+            ));
+        }
+        
+        // 调度定期 Buff Tick 事件（处理 DoT/HoT 等周期效果）
+        if (Context.EnemyCombatants.Count > 0)
+        {
+            const double BUFF_TICK_INTERVAL = 0.1;  // 每 0.1 秒 tick 一次 buff
+            Scheduler.Schedule(new Enemies.EnemyBuffTickEvent(
+                Clock.CurrentTime + BUFF_TICK_INTERVAL,
+                BUFF_TICK_INTERVAL
             ));
         }
     }
