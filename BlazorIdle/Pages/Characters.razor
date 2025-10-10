@@ -389,6 +389,23 @@ else
                                 MaxOtherEnemies="2" />
                         </div>
                         
+                        <!-- Buff状态栏（Step 3） -->
+                        @if (currentPlanBattle.PlayerBuffs != null && currentPlanBattle.PlayerBuffs.Count > 0)
+                        {
+                            <BuffBarPanel 
+                                Buffs="@currentPlanBattle.PlayerBuffs.Where(b => !b.IsDebuff).ToList()"
+                                IsDebuffBar="false"
+                                ShowBuffNames="false" />
+                        }
+                        
+                        @if (currentPlanBattle.PlayerBuffs != null && currentPlanBattle.PlayerBuffs.Any(b => b.IsDebuff))
+                        {
+                            <BuffBarPanel 
+                                Buffs="@currentPlanBattle.PlayerBuffs.Where(b => b.IsDebuff).ToList()"
+                                IsDebuffBar="true"
+                                ShowBuffNames="false" />
+                        }
+                        
                         <!-- 地下城进度面板（仅地下城模式） -->
                         @if (currentPlanBattle.Mode == "dungeonsingle" || currentPlanBattle.Mode == "dungeonloop")
                         {
@@ -549,6 +566,23 @@ else
                             ModeInfo="@GetStepModeInfo(stepStatus)"
                             MaxOtherEnemies="4" />
                     </div>
+                    
+                    <!-- Buff状态栏（Step 3） -->
+                    @if (stepStatus.PlayerBuffs != null && stepStatus.PlayerBuffs.Count > 0)
+                    {
+                        <BuffBarPanel 
+                            Buffs="@stepStatus.PlayerBuffs.Where(b => !b.IsDebuff).ToList()"
+                            IsDebuffBar="false"
+                            ShowBuffNames="false" />
+                    }
+                    
+                    @if (stepStatus.PlayerBuffs != null && stepStatus.PlayerBuffs.Any(b => b.IsDebuff))
+                    {
+                        <BuffBarPanel 
+                            Buffs="@stepStatus.PlayerBuffs.Where(b => b.IsDebuff).ToList()"
+                            IsDebuffBar="true"
+                            ShowBuffNames="false" />
+                    }
                     
                     <!-- 地下城进度面板（仅地下城模式） -->
                     @if (stepStatus.Mode == "dungeonsingle" || stepStatus.Mode == "dungeonloop")

@@ -210,6 +210,35 @@ public sealed class StepBattleCoordinator
             nextSpecialAt,
             rb.Clock.CurrentTime
         );
+        
+        // 收集玩家Buff信息
+        var playerBuffs = new List<BuffStatusDto>();
+        var currentTime = rb.Clock.CurrentTime;
+        foreach (var buffInstance in ctx2.Buffs.Active)
+        {
+            var def = buffInstance.Definition;
+            var remainingSeconds = Math.Max(0, buffInstance.ExpiresAt - currentTime);
+            
+            // 根据 Buff ID 判断图标（简化实现，使用 emoji）
+            var icon = GetBuffIcon(def.Id);
+            
+            playerBuffs.Add(new BuffStatusDto
+            {
+                Id = def.Id,
+                Name = def.Name,
+                Icon = icon,
+                Stacks = buffInstance.Stacks,
+                MaxStacks = def.MaxStacks,
+                RemainingSeconds = Math.Round(remainingSeconds, 1),
+                IsDebuff = false, // 当前玩家的Buff都是增益，未来可以扩展
+                Source = null // 可以后续扩展记录来源技能
+            });
+        }
+        
+        // 收集敌人Buff信息（预留）
+        var enemyBuffs = new List<BuffStatusDto>();
+        // 注意：当前敌人Buff系统与玩家分离，暂时不实现
+        // 未来可以从 EnemyCombatants[].Buffs 提取
 
         return (true, new StepBattleStatusDto
         {
@@ -253,7 +282,11 @@ public sealed class StepBattleCoordinator
             NextAttackAt = nextAttackAt,
             NextSpecialAt = nextSpecialAt,
             CurrentTime = rb.Clock.CurrentTime,
-            PollingHint = pollingHint
+            PollingHint = pollingHint,
+            
+            // Step 3: Buff状态显示
+            PlayerBuffs = playerBuffs,
+            EnemyBuffs = enemyBuffs
         });
     }
     
@@ -318,6 +351,47 @@ public sealed class StepBattleCoordinator
             SuggestedIntervalMs = suggestedIntervalMs,
             NextSignificantEventAt = nextSignificantEventAt,
             IsStable = isStable
+        };
+    }
+    
+    /// <summary>
+    /// 根据Buff ID返回对应的图标（emoji或图标标识）
+    /// </summary>
+    private static string GetBuffIcon(string buffId)
+    {
+        // 根据Buff ID映射到对应的emoji图标
+        // 这是一个简化实现，未来可以从配置文件或数据库读取
+        return buffId.ToLowerInvariant() switch
+        {
+            // 战士Buff
+            var id when id.Contains("expose") || id.Contains("armor") => "🛡️",
+            var id when id.Contains("precision") || id.Contains("精准") => "⚡",
+            var id when id.Contains("fury") || id.Contains("狂暴") => "💪",
+            var id when id.Contains("bleed") || id.Contains("流血") => "💀",
+            
+            // 法师Buff
+            var id when id.Contains("frostbite") || id.Contains("冰霜") => "❄️",
+            var id when id.Contains("burn") || id.Contains("燃烧") => "🔥",
+            var id when id.Contains("arcane") || id.Contains("奥术") => "✨",
+            
+            // 游侠Buff
+            var id when id.Contains("poison") || id.Contains("中毒") => "🐍",
+            var id when id.Contains("hunter") || id.Contains("猎人") => "🏹",
+            var id when id.Contains("speed") || id.Contains("速度") => "⚡",
+            
+            // 通用增益
+            var id when id.Contains("haste") || id.Contains("急速") => "⏱️",
+            var id when id.Contains("strength") || id.Contains("力量") => "💪",
+            var id when id.Contains("shield") || id.Contains("护盾") => "🛡️",
+            var id when id.Contains("regen") || id.Contains("回复") => "💚",
+            
+            // 减益效果
+            var id when id.Contains("slow") || id.Contains("减速") => "🐌",
+            var id when id.Contains("stun") || id.Contains("眩晕") => "💫",
+            var id when id.Contains("silence") || id.Contains("沉默") => "🤐",
+            
+            // 默认图标
+            _ => "✨"
         };
     }
 
@@ -609,6 +683,12 @@ public sealed class StepBattleStatusDto
     
     /// <summary>轮询提示（服务器建议的轮询间隔）</summary>
     public PollingHint? PollingHint { get; set; }
+    
+    /// <summary>玩家的Buff列表</summary>
+    public List<BuffStatusDto> PlayerBuffs { get; set; } = new();
+    
+    /// <summary>敌人的Buff列表（可选，预留用于显示敌人的增益效果）</summary>
+    public List<BuffStatusDto> EnemyBuffs { get; set; } = new();
 }
 
 /// <summary>
@@ -660,4 +740,34 @@ public sealed class PollingHint
     
     /// <summary>战斗状态是否稳定（true表示可以使用较长轮询间隔）</summary>
     public bool IsStable { get; set; }
+}
+
+/// <summary>
+/// Buff状态数据传输对象（用于前端显示）
+/// </summary>
+public sealed class BuffStatusDto
+{
+    /// <summary>Buff唯一标识</summary>
+    public string Id { get; set; } = "";
+    
+    /// <summary>Buff显示名称</summary>
+    public string Name { get; set; } = "";
+    
+    /// <summary>Buff图标（emoji或图标ID）</summary>
+    public string Icon { get; set; } = "";
+    
+    /// <summary>当前层数</summary>
+    public int Stacks { get; set; }
+    
+    /// <summary>最大层数</summary>
+    public int MaxStacks { get; set; }
+    
+    /// <summary>剩余持续时间（秒）</summary>
+    public double RemainingSeconds { get; set; }
+    
+    /// <summary>是否为减益效果（true=debuff, false=buff）</summary>
+    public bool IsDebuff { get; set; }
+    
+    /// <summary>Buff来源（可选，如"英勇打击"）</summary>
+    public string? Source { get; set; }
 }

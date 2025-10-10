@@ -51,6 +51,23 @@ public sealed class StepStatusResponse
     
     // 轮询提示
     public PollingHint? PollingHint { get; set; }
+    
+    // Step 3: Buff状态显示
+    public List<BuffStatusDto> PlayerBuffs { get; set; } = new();
+    public List<BuffStatusDto> EnemyBuffs { get; set; } = new();
+}
+
+// Buff状态
+public sealed class BuffStatusDto
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Icon { get; set; } = "";
+    public int Stacks { get; set; }
+    public int MaxStacks { get; set; }
+    public double RemainingSeconds { get; set; }
+    public bool IsDebuff { get; set; }
+    public string? Source { get; set; }
 }
 
 // 敌人血量状态
