@@ -1,0 +1,106 @@
+@using BlazorIdle.Client.Services
+
+@* 怪物状态面板组件 *@
+<div class="monster-status-panel">
+    <div style="margin-bottom: 8px;">
+        <b>🎯 敌人状态:</b>
+        @if (!string.IsNullOrEmpty(ModeInfo))
+        {
+            <span style="margin-left: 8px; color: #666; font-size: 12px;">@ModeInfo</span>
+        }
+    </div>
+    
+    @if (Enemies == null || Enemies.Count == 0)
+    {
+        <div style="color: #999; font-size: 13px; padding: 8px 0;">无敌人</div>
+    }
+    else
+    {
+        @* 主要目标 - 第一个存活的敌人 *@
+        var primaryTarget = Enemies.FirstOrDefault(e => !e.IsDead) ?? Enemies.FirstOrDefault();
+        
+        @if (primaryTarget != null)
+        {
+            <div style="margin-bottom: 12px; padding: 8px; background: #f8f9fa; border-radius: 4px; border-left: 3px solid #ff5722;">
+                <div style="font-size: 13px; margin-bottom: 4px;">
+                    <b>@primaryTarget.EnemyName</b>
+                    @if (primaryTarget.IsDead)
+                    {
+                        <span style="color: #999; margin-left: 4px;">💀</span>
+                    }
+                </div>
+                <div style="display: flex; align-items: center;">
+                    <div style="flex: 1; background: #e0e0e0; height: 20px; border-radius: 3px; overflow: hidden; position: relative;">
+                        @if (primaryTarget.IsDead)
+                        {
+                            <div style="background: #999; height: 100%; width: 0%;"></div>
+                        }
+                        else
+                        {
+                            <div style="background: linear-gradient(90deg, #f44336, #e57373); height: 100%; width: @(primaryTarget.HpPercent * 100)%; transition: width 0.3s;"></div>
+                        }
+                        <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-weight: bold; font-size: 11px;">
+                            @primaryTarget.CurrentHp / @primaryTarget.MaxHp (@((primaryTarget.HpPercent * 100).ToString("0"))%)
+                        </span>
+                    </div>
+                </div>
+            </div>
+        }
+        
+        @* 其他敌人列表 *@
+        @if (Enemies.Count > 1)
+        {
+            var otherEnemies = primaryTarget != null 
+                ? Enemies.Where(e => e != primaryTarget).Take(MaxOtherEnemies) 
+                : Enemies.Skip(1).Take(MaxOtherEnemies);
+            
+            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">
+                其他敌人 (@(Enemies.Count - 1)):
+            </div>
+            
+            @foreach (var enemy in otherEnemies)
+            {
+                <div style="display: flex; align-items: center; margin-bottom: 4px;">
+                    <span style="min-width: 120px; font-size: 12px;">
+                        @enemy.EnemyName
+                        @if (enemy.IsDead)
+                        {
+                            <span style="color: #999;">💀</span>
+                        }
+                    </span>
+                    <div style="flex: 1; background: #e0e0e0; height: 14px; border-radius: 2px; overflow: hidden; position: relative;">
+                        @if (enemy.IsDead)
+                        {
+                            <div style="background: #999; height: 100%; width: 0%;"></div>
+                        }
+                        else
+                        {
+                            <div style="background: linear-gradient(90deg, #f44336, #e57373); height: 100%; width: @(enemy.HpPercent * 100)%; transition: width 0.3s;"></div>
+                        }
+                        <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-size: 9px;">
+                            @((enemy.HpPercent * 100).ToString("0"))%
+                        </span>
+                    </div>
+                </div>
+            }
+            
+            @if (Enemies.Count > MaxOtherEnemies + 1)
+            {
+                <div style="font-size: 11px; color: #999; margin-top: 4px;">
+                    ...还有 @(Enemies.Count - MaxOtherEnemies - 1) 个敌人
+                </div>
+            }
+        }
+    }
+</div>
+
+@code {
+    /// <summary>敌人列表</summary>
+    [Parameter] public List<EnemyHealthStatusDto> Enemies { get; set; } = new();
+    
+    /// <summary>模式信息（如波次、轮次等）</summary>
+    [Parameter] public string? ModeInfo { get; set; }
+    
+    /// <summary>最多显示多少个其他敌人（除主要目标外）</summary>
+    [Parameter] public int MaxOtherEnemies { get; set; } = 4;
+}
