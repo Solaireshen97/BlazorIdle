@@ -15,6 +15,9 @@ public sealed class DungeonEncounterProvider : IEncounterProvider
 
     // 新增：对外暴露 DungeonId，便于同步 Runner 打 ctx 标签
     public string DungeonId => _dungeon.Id;
+    
+    // Phase 6: 暴露 DungeonDefinition 便于读取强化副本配置
+    public DungeonDefinition Dungeon => _dungeon;
 
     public DungeonEncounterProvider(DungeonDefinition dungeon, bool loop, double? waveDelayOverride = null, double? runDelayOverride = null)
     {

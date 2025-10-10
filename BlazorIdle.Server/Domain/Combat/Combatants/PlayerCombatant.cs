@@ -43,8 +43,11 @@ public class PlayerCombatant : ICombatant
     /// <summary>复活持续时间（秒）</summary>
     public double ReviveDurationSeconds { get; set; } = 10.0;
     
-    /// <summary>是否允许自动复活</summary>
+    /// <summary>是否允许自动复活（默认 true）</summary>
     public bool AutoReviveEnabled { get; set; } = true;
+    
+    /// <summary>是否允许自动复活（由副本配置控制，Phase 6）</summary>
+    public bool AutoReviveAllowed { get; set; } = true;
     
     /// <summary>
     /// 构造函数
@@ -87,8 +90,9 @@ public class PlayerCombatant : ICombatant
             State = CombatantState.Dead;
             DeathTime = now;
             
-            // 设置复活时间（如果启用自动复活）
-            if (AutoReviveEnabled)
+            // 设置复活时间（如果启用自动复活且副本允许）
+            // Phase 6: AutoReviveAllowed 由副本配置控制
+            if (AutoReviveEnabled && AutoReviveAllowed)
             {
                 ReviveAt = now + ReviveDurationSeconds;
             }

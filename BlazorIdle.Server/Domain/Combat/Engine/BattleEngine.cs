@@ -50,6 +50,10 @@ public sealed class BattleEngine
 
     private void ClearDeathMarks() => _markedDead.Clear();
 
+    // Phase 6: 副本重置标记
+    public bool ResetTriggered { get; private set; }
+    public double? ResetTime { get; private set; }
+
     public BattleEngine(
         Guid battleId,
         Guid characterId,
@@ -129,6 +133,9 @@ public sealed class BattleEngine
 
         SeedIndexStart = rng.Index;
 
+        // Phase 6: 应用副本配置到玩家战斗单位
+        ApplyDungeonConfigToPlayer(provider);
+
         professionModule.RegisterBuffDefinitions(Context);
         professionModule.OnBattleStart(Context);
         professionModule.BuildSkills(Context, Context.AutoCaster);
@@ -170,6 +177,31 @@ public sealed class BattleEngine
             {
                 if (!string.IsNullOrWhiteSpace(tag))
                     Collector.OnTag(tag, val);
+            }
+        }
+    }
+
+    // Phase 6: 应用副本配置到玩家战斗单位
+    private void ApplyDungeonConfigToPlayer(IEncounterProvider? provider)
+    {
+        if (provider is DungeonEncounterProvider dungeonProvider)
+        {
+            var dungeonDef = dungeonProvider.Dungeon;
+            Context.Player.AutoReviveAllowed = dungeonDef.AllowAutoRevive;
+            
+            // 记录强化副本配置标签
+            if (!dungeonDef.AllowAutoRevive)
+            {
+                Collector.OnTag("ctx.enhanced_dungeon", 1);
+                Collector.OnTag("ctx.auto_revive_disabled", 1);
+            }
+            if (dungeonDef.ResetOnPlayerDeath)
+            {
+                Collector.OnTag("ctx.reset_on_death", 1);
+            }
+            if (dungeonDef.EnhancedDropMultiplier > 1.0)
+            {
+                Collector.OnTag("ctx.enhanced_drops", 1);
             }
         }
     }
@@ -270,6 +302,33 @@ public sealed class BattleEngine
                 _markedDead.Add(enc);
             }
         }
+    }
+
+    // Phase 6: 检查玩家死亡并触发副本重置（如果配置了 ResetOnPlayerDeath）
+    private bool CheckPlayerDeathReset()
+    {
+        var player = Context.Player;
+        
+        // 如果玩家死亡且不允许自动复活，触发重置
+        if (player.State == CombatantState.Dead && !player.AutoReviveAllowed && !ResetTriggered)
+        {
+            ResetTriggered = true;
+            ResetTime = Clock.CurrentTime;
+            
+            // 记录重置标签
+            Collector.OnTag("dungeon_reset_on_death", 1);
+            
+            // 清理现有的怪物和统计
+            // 注意：不清空 kill.* 标签，因为那些是已完成的战斗统计
+            // 只需要标记战斗失败状态，让外部系统处理
+            
+            // 标记战斗完成（失败）
+            Completed = true;
+            
+            return true;
+        }
+        
+        return false;
     }
 
     private void TryPerformPendingSpawn()
@@ -387,6 +446,12 @@ public sealed class BattleEngine
 
             // 新增：事件执行后捕获新死亡
             CaptureNewDeaths();
+
+            // Phase 6: 检查玩家死亡并触发重置（如果需要）
+            if (CheckPlayerDeathReset())
+            {
+                return; // 重置后停止当前切片
+            }
 
             Collector.Tick(Clock.CurrentTime);
             TryFlushSegment();

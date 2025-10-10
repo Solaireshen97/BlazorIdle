@@ -35,13 +35,24 @@ public record PlayerDeathEvent(double ExecuteAt) : IGameEvent
             context.AutoCaster.ClearCasting();
         }
         
-        // 如果启用自动复活，调度复活事件
-        if (player.AutoReviveEnabled && player.ReviveAt.HasValue)
+        // 如果启用自动复活且副本允许，调度复活事件
+        // Phase 6: 检查 AutoReviveAllowed，强化副本可能禁用自动复活
+        if (player.AutoReviveEnabled && player.AutoReviveAllowed && player.ReviveAt.HasValue)
         {
             context.Scheduler.Schedule(new PlayerReviveEvent(player.ReviveAt.Value));
+            context.SegmentCollector.OnTag("player_death", 1);
         }
-        
-        // 记录死亡事件
-        context.SegmentCollector.OnTag("player_death", 1);
+        else if (!player.AutoReviveAllowed)
+        {
+            // Phase 6: 如果副本禁用自动复活，触发重置逻辑
+            context.SegmentCollector.OnTag("player_death_no_revive", 1);
+            // 注意：实际重置逻辑在 BattleEngine 中处理
+            // 这里只标记死亡，BattleEngine 会检测此状态并执行重置
+        }
+        else
+        {
+            // 正常死亡但未调度复活（可能 AutoReviveEnabled = false）
+            context.SegmentCollector.OnTag("player_death", 1);
+        }
     }
 }
