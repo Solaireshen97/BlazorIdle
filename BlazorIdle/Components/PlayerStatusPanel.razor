@@ -1,0 +1,127 @@
+@using BlazorIdle.Client.Services
+@using BlazorIdle.Shared.Models
+
+@* 玩家状态面板组件 *@
+<div class="player-status-panel">
+    <h6>👤 玩家状态</h6>
+    
+    <!-- 职业和等级 -->
+    <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 20px;">@GetProfessionIcon(Profession)</span>
+        <span><b>@CharacterName</b></span>
+        @if (BattleDurationSeconds.HasValue)
+        {
+            <span style="margin-left: auto; color: #666; font-size: 12px;">
+                ⏱️ @FormatDuration(BattleDurationSeconds.Value)
+            </span>
+        }
+    </div>
+    
+    <!-- 血量条 -->
+    <div style="margin-bottom: 12px;">
+        <div style="display: flex; align-items: center; margin-bottom: 4px;">
+            <span style="min-width: 60px; font-size: 13px;"><b>HP:</b></span>
+            <div style="flex: 1; background: #e0e0e0; height: 24px; border-radius: 4px; overflow: hidden; position: relative;">
+                <div style="background: linear-gradient(90deg, #4caf50, #81c784); height: 100%; width: @(HpPercent * 100)%; transition: width 0.3s;"></div>
+                <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-weight: bold; font-size: 12px;">
+                    @CurrentHp / @MaxHp (@((HpPercent * 100).ToString("0"))%)
+                </span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 攻击进度 -->
+    @if (ShowAttackProgress && (NextAttackAt.HasValue || NextSpecialAt.HasValue))
+    {
+        <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid #ddd;">
+            <div style="margin-bottom: 6px; font-size: 13px;"><b>⚔️ 攻击节奏</b></div>
+            
+            @if (NextAttackAt.HasValue)
+            {
+                var attackTime = NextAttackAt.Value - CurrentTime;
+                <div style="display: flex; align-items: center; margin-bottom: 4px;">
+                    <span style="min-width: 80px; font-size: 11px;">普通攻击:</span>
+                    <div style="flex: 1; background: #e0e0e0; height: 16px; border-radius: 3px; overflow: hidden; position: relative;">
+                        <div style="background: linear-gradient(90deg, #2196f3, #64b5f6); height: 100%; width: @(AttackProgress * 100)%; transition: width 0.1s;"></div>
+                        <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-size: 10px;">
+                            @(attackTime > 0 ? $"{attackTime:0.00}s" : "就绪")
+                        </span>
+                    </div>
+                </div>
+            }
+            
+            @if (NextSpecialAt.HasValue)
+            {
+                var specialTime = NextSpecialAt.Value - CurrentTime;
+                <div style="display: flex; align-items: center;">
+                    <span style="min-width: 80px; font-size: 11px;">特殊攻击:</span>
+                    <div style="flex: 1; background: #e0e0e0; height: 16px; border-radius: 3px; overflow: hidden; position: relative;">
+                        <div style="background: linear-gradient(90deg, #ff9800, #ffb74d); height: 100%; width: @(SpecialProgress * 100)%; transition: width 0.1s;"></div>
+                        <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-size: 10px;">
+                            @(specialTime > 0 ? $"{specialTime:0.00}s" : "就绪")
+                        </span>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>角色名称</summary>
+    [Parameter] public string CharacterName { get; set; } = "";
+    
+    /// <summary>职业</summary>
+    [Parameter] public Profession Profession { get; set; }
+    
+    /// <summary>当前血量</summary>
+    [Parameter] public int CurrentHp { get; set; }
+    
+    /// <summary>最大血量</summary>
+    [Parameter] public int MaxHp { get; set; }
+    
+    /// <summary>血量百分比</summary>
+    [Parameter] public double HpPercent { get; set; } = 1.0;
+    
+    /// <summary>战斗持续时间（秒）</summary>
+    [Parameter] public double? BattleDurationSeconds { get; set; }
+    
+    /// <summary>是否显示攻击进度</summary>
+    [Parameter] public bool ShowAttackProgress { get; set; } = false;
+    
+    /// <summary>下次普通攻击时间</summary>
+    [Parameter] public double? NextAttackAt { get; set; }
+    
+    /// <summary>下次特殊攻击时间</summary>
+    [Parameter] public double? NextSpecialAt { get; set; }
+    
+    /// <summary>当前战斗时间</summary>
+    [Parameter] public double CurrentTime { get; set; }
+    
+    /// <summary>普通攻击进度（0-1）</summary>
+    [Parameter] public double AttackProgress { get; set; }
+    
+    /// <summary>特殊攻击进度（0-1）</summary>
+    [Parameter] public double SpecialProgress { get; set; }
+    
+    private string GetProfessionIcon(Profession profession)
+    {
+        return profession switch
+        {
+            Profession.Warrior => "⚔️",
+            Profession.Ranger => "🏹",
+            _ => "👤"
+        };
+    }
+    
+    private string FormatDuration(double seconds)
+    {
+        var ts = TimeSpan.FromSeconds(seconds);
+        if (ts.TotalHours >= 1)
+            return $"{(int)ts.TotalHours}h{ts.Minutes}m{ts.Seconds}s";
+        else if (ts.TotalMinutes >= 1)
+            return $"{ts.Minutes}m{ts.Seconds}s";
+        else
+            return $"{ts.Seconds}s";
+    }
+}

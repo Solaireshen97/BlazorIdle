@@ -364,107 +364,45 @@ else
                     <div class="col-md-4"><b>Mode:</b> @(currentPlanBattle.Mode ?? "duration")</div>
                     <div class="col-md-4"><b>Gold:</b> @currentPlanBattle.Gold, <b>Exp:</b> @currentPlanBattle.Exp</div>
                 </div>
-                    <!-- 战斗实况增强部分 -->
+                    <!-- 战斗实况：使用新组件 -->
                     <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #ddd;">
-                        <h6>⚔️ 战斗实况</h6>
-
-                        <!-- 玩家血量 -->
-                        <div style="margin-bottom: 12px;">
-                            <div style="display: flex; align-items: center; margin-bottom: 4px;">
-                                <span style="min-width: 80px;"><b>玩家血量:</b></span>
-                                <div style="flex: 1; background: #e0e0e0; height: 24px; border-radius: 4px; overflow: hidden; position: relative;">
-                                    <div style="background: linear-gradient(90deg, #4caf50, #81c784); height: 100%; width: @(currentPlanBattle.PlayerHpPercent * 100)%; transition: width 0.3s;"></div>
-                                    <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-weight: bold; font-size: 12px;">
-                                        @((int)(currentPlanBattle.PlayerMaxHp * currentPlanBattle.PlayerHpPercent)) / @currentPlanBattle.PlayerMaxHp (@((currentPlanBattle.PlayerHpPercent * 100).ToString("0"))%)
-                                    </span>
-                                </div>
-                            </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                            <!-- 玩家状态面板 -->
+                            <PlayerStatusPanel 
+                                CharacterName="@(selectedCharacter?.Name ?? "角色")"
+                                Profession="@currentPlanBattle.Profession"
+                                CurrentHp="@((int)(currentPlanBattle.PlayerMaxHp * currentPlanBattle.PlayerHpPercent))"
+                                MaxHp="@currentPlanBattle.PlayerMaxHp"
+                                HpPercent="@currentPlanBattle.PlayerHpPercent"
+                                BattleDurationSeconds="@currentPlanBattle.SimulatedSeconds"
+                                ShowAttackProgress="true"
+                                NextAttackAt="@currentPlanBattle.NextAttackAt"
+                                NextSpecialAt="@currentPlanBattle.NextSpecialAt"
+                                CurrentTime="@currentPlanBattle.CurrentTime"
+                                AttackProgress="@(CalculateSmoothProgress(currentPlanBattle.CurrentTime, currentPlanBattle.NextAttackAt ?? 0, _planAttackInterval, _planLastUpdateTime))"
+                                SpecialProgress="@(CalculateSmoothProgress(currentPlanBattle.CurrentTime, currentPlanBattle.NextSpecialAt ?? 0, _planSpecialInterval, _planLastUpdateTime))" />
+                            
+                            <!-- 怪物状态面板 -->
+                            <MonsterStatusPanel 
+                                Enemies="@currentPlanBattle.Enemies"
+                                ModeInfo="@GetPlanModeInfo(currentPlanBattle)"
+                                MaxOtherEnemies="2" />
                         </div>
-
-                        <!-- 攻击进度 -->
-                        @if (currentPlanBattle.NextAttackAt.HasValue || currentPlanBattle.NextSpecialAt.HasValue)
+                        
+                        <!-- 地下城进度面板（仅地下城模式） -->
+                        @if (currentPlanBattle.Mode == "dungeonsingle" || currentPlanBattle.Mode == "dungeonloop")
                         {
-                            <div style="margin-bottom: 12px;">
-                                <div><b>攻击进度:</b></div>
-                                @if (currentPlanBattle.NextAttackAt.HasValue)
-                                {
-                                    var attackProgress = CalculateSmoothProgress(
-                                        currentPlanBattle.CurrentTime, 
-                                        currentPlanBattle.NextAttackAt.Value, 
-                                        _planAttackInterval, 
-                                        _planLastUpdateTime);
-                                    var attackTime = currentPlanBattle.NextAttackAt.Value - currentPlanBattle.CurrentTime;
-                                    <div style="display: flex; align-items: center; margin-top: 4px;">
-                                        <span style="min-width: 100px; font-size: 12px;">普通攻击:</span>
-                                        <div style="flex: 1; background: #e0e0e0; height: 16px; border-radius: 3px; overflow: hidden; position: relative;">
-                                            <div style="background: linear-gradient(90deg, #2196f3, #64b5f6); height: 100%; width: @(attackProgress * 100)%; transition: width 0.1s;"></div>
-                                            <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-size: 10px;">
-                                                @(attackTime > 0 ? $"{attackTime:0.00}s" : "就绪")
-                                            </span>
-                                        </div>
-                                    </div>
-                                }
-                                @if (currentPlanBattle.NextSpecialAt.HasValue)
-                                {
-                                    var specialProgress = CalculateSmoothProgress(
-                                        currentPlanBattle.CurrentTime, 
-                                        currentPlanBattle.NextSpecialAt.Value, 
-                                        _planSpecialInterval, 
-                                        _planLastUpdateTime);
-                                    var specialTime = currentPlanBattle.NextSpecialAt.Value - currentPlanBattle.CurrentTime;
-                                    <div style="display: flex; align-items: center; margin-top: 4px;">
-                                        <span style="min-width: 100px; font-size: 12px;">特殊攻击:</span>
-                                        <div style="flex: 1; background: #e0e0e0; height: 16px; border-radius: 3px; overflow: hidden; position: relative;">
-                                            <div style="background: linear-gradient(90deg, #ff9800, #ffb74d); height: 100%; width: @(specialProgress * 100)%; transition: width 0.1s;"></div>
-                                            <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-size: 10px;">
-                                                @(specialTime > 0 ? $"{specialTime:0.00}s" : "就绪")
-                                            </span>
-                                        </div>
-                                    </div>
-                                }
-                            </div>
+                            <DungeonProgressPanel 
+                                DungeonName="@(currentPlanBattle.DungeonId ?? "未知地下城")"
+                                WaveIndex="@currentPlanBattle.WaveIndex"
+                                TotalWaves="@GetTotalWaves(currentPlanBattle.DungeonId)"
+                                RunCount="@currentPlanBattle.RunCount"
+                                IsBossWave="@IsBossWave(currentPlanBattle.WaveIndex)"
+                                EnemyCount="@(currentPlanBattle.Enemies?.Count ?? 0)"
+                                Gold="@currentPlanBattle.Gold"
+                                Exp="@currentPlanBattle.Exp" />
                         }
                     </div>
-                <!-- 战斗实况 -->
-                @if (currentPlanBattle.Enemies?.Count > 0)
-                {
-                    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #ddd;">
-                        <div style="margin-bottom: 8px;">
-                            <b>敌人状态:</b>
-                            @if (currentPlanBattle.Mode == "dungeonsingle" || currentPlanBattle.Mode == "dungeonloop")
-                            {
-                                <span style="margin-left: 8px; color: #666;">
-                                    [波次: @(currentPlanBattle.WaveIndex ?? 1) | 轮次: @(currentPlanBattle.RunCount ?? 0) | 怪物数: @currentPlanBattle.Enemies.Count]
-                                </span>
-                            }
-                        </div>
-                        @foreach (var enemy in currentPlanBattle.Enemies.Take(3))
-                        {
-                            <div style="display: flex; align-items: center; margin-bottom: 6px;">
-                                <span style="min-width: 150px; font-size: 13px;">
-                                    @enemy.EnemyName
-                                    @if (enemy.IsDead)
-                                    {
-                                        <span style="color: #999;">💀</span>
-                                    }
-                                </span>
-                                <div style="flex: 1; background: #e0e0e0; height: 18px; border-radius: 3px; overflow: hidden; position: relative;">
-                                    @if (enemy.IsDead)
-                                    {
-                                        <div style="background: #999; height: 100%; width: 0%;"></div>
-                                    }
-                                    else
-                                    {
-                                        <div style="background: linear-gradient(90deg, #f44336, #e57373); height: 100%; width: @(enemy.HpPercent * 100)%;"></div>
-                                    }
-                                    <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-weight: bold; font-size: 10px;">
-                                        @enemy.CurrentHp / @enemy.MaxHp
-                                    </span>
-                                </div>
-                            </div>
-                        }
-                    </div>
-                }
             </div>
         }
     
@@ -587,114 +525,43 @@ else
                     </div>
                 }
                 
-                <!-- 新增：实时战斗信息 -->
+                <!-- 战斗实况：使用新组件 -->
                 <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #ddd;">
-                    <h6>⚔️ 战斗实况</h6>
-                    
-                    <!-- 玩家血量 -->
-                    <div style="margin-bottom: 12px;">
-                        <div style="display: flex; align-items: center; margin-bottom: 4px;">
-                            <span style="min-width: 80px;"><b>玩家血量:</b></span>
-                            <div style="flex: 1; background: #e0e0e0; height: 24px; border-radius: 4px; overflow: hidden; position: relative;">
-                                <div style="background: linear-gradient(90deg, #4caf50, #81c784); height: 100%; width: @(stepStatus.PlayerHpPercent * 100)%; transition: width 0.3s;"></div>
-                                <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-weight: bold; font-size: 12px;">
-                                    @((int)(stepStatus.PlayerMaxHp * stepStatus.PlayerHpPercent)) / @stepStatus.PlayerMaxHp (@((stepStatus.PlayerHpPercent * 100).ToString("0"))%)
-                                </span>
-                            </div>
-                        </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                        <!-- 玩家状态面板 -->
+                        <PlayerStatusPanel 
+                            CharacterName="@(selectedCharacter?.Name ?? "角色")"
+                            Profession="@stepStatus.Profession"
+                            CurrentHp="@((int)(stepStatus.PlayerMaxHp * stepStatus.PlayerHpPercent))"
+                            MaxHp="@stepStatus.PlayerMaxHp"
+                            HpPercent="@stepStatus.PlayerHpPercent"
+                            BattleDurationSeconds="@stepStatus.SimulatedSeconds"
+                            ShowAttackProgress="true"
+                            NextAttackAt="@stepStatus.NextAttackAt"
+                            NextSpecialAt="@stepStatus.NextSpecialAt"
+                            CurrentTime="@stepStatus.CurrentTime"
+                            AttackProgress="@(CalculateSmoothProgress(stepStatus.CurrentTime, stepStatus.NextAttackAt ?? 0, _stepAttackInterval, _stepLastUpdateTime))"
+                            SpecialProgress="@(CalculateSmoothProgress(stepStatus.CurrentTime, stepStatus.NextSpecialAt ?? 0, _stepSpecialInterval, _stepLastUpdateTime))" />
+                        
+                        <!-- 怪物状态面板 -->
+                        <MonsterStatusPanel 
+                            Enemies="@stepStatus.Enemies"
+                            ModeInfo="@GetStepModeInfo(stepStatus)"
+                            MaxOtherEnemies="4" />
                     </div>
                     
-                    <!-- 怪物血量列表 -->
-                    @if (stepStatus.Enemies?.Count > 0)
+                    <!-- 地下城进度面板（仅地下城模式） -->
+                    @if (stepStatus.Mode == "dungeonsingle" || stepStatus.Mode == "dungeonloop")
                     {
-                        <div style="margin-bottom: 12px;">
-                            <div style="margin-bottom: 8px;">
-                                <b>敌人状态:</b>
-                                @if (stepStatus.Mode == "dungeonsingle" || stepStatus.Mode == "dungeonloop")
-                                {
-                                    <span style="margin-left: 8px; color: #666;">
-                                        [波次: @(stepStatus.WaveIndex ?? 1) | 轮次: @(stepStatus.RunCount ?? 0) | 怪物数: @stepStatus.Enemies.Count]
-                                    </span>
-                                }
-                                else
-                                {
-                                    <span style="margin-left: 8px; color: #666;">[怪物数: @stepStatus.Enemies.Count]</span>
-                                }
-                            </div>
-                            @foreach (var enemy in stepStatus.Enemies.Take(5))
-                            {
-                                <div style="display: flex; align-items: center; margin-bottom: 6px;">
-                                    <span style="min-width: 150px; font-size: 13px;">
-                                        @enemy.EnemyName
-                                        @if (enemy.IsDead)
-                                        {
-                                            <span style="color: #999;">💀</span>
-                                        }
-                                    </span>
-                                    <div style="flex: 1; background: #e0e0e0; height: 20px; border-radius: 3px; overflow: hidden; position: relative;">
-                                        @if (enemy.IsDead)
-                                        {
-                                            <div style="background: #999; height: 100%; width: 0%;"></div>
-                                        }
-                                        else
-                                        {
-                                            <div style="background: linear-gradient(90deg, #f44336, #e57373); height: 100%; width: @(enemy.HpPercent * 100)%; transition: width 0.3s;"></div>
-                                        }
-                                        <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-weight: bold; font-size: 11px;">
-                                            @enemy.CurrentHp / @enemy.MaxHp (@((enemy.HpPercent * 100).ToString("0"))%)
-                                        </span>
-                                    </div>
-                                </div>
-                            }
-                            @if (stepStatus.Enemies.Count > 5)
-                            {
-                                <div style="font-size: 12px; color: #666; margin-top: 4px;">...还有 @(stepStatus.Enemies.Count - 5) 个敌人</div>
-                            }
-                        </div>
-                    }
-                    
-                    <!-- 攻击进度 -->
-                    @if (stepStatus.NextAttackAt.HasValue || stepStatus.NextSpecialAt.HasValue)
-                    {
-                        <div style="margin-top: 12px;">
-                            <div><b>攻击进度:</b></div>
-                            @if (stepStatus.NextAttackAt.HasValue)
-                            {
-                                var attackProgress = CalculateSmoothProgress(
-                                    stepStatus.CurrentTime, 
-                                    stepStatus.NextAttackAt.Value, 
-                                    _stepAttackInterval, 
-                                    _stepLastUpdateTime);
-                                var attackTime = stepStatus.NextAttackAt.Value - stepStatus.CurrentTime;
-                                <div style="display: flex; align-items: center; margin-top: 4px;">
-                                    <span style="min-width: 100px; font-size: 12px;">普通攻击:</span>
-                                    <div style="flex: 1; background: #e0e0e0; height: 16px; border-radius: 3px; overflow: hidden; position: relative;">
-                                        <div style="background: linear-gradient(90deg, #2196f3, #64b5f6); height: 100%; width: @(attackProgress * 100)%; transition: width 0.1s;"></div>
-                                        <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-size: 10px;">
-                                            @(attackTime > 0 ? $"{attackTime:0.00}s" : "就绪")
-                                        </span>
-                                    </div>
-                                </div>
-                            }
-                            @if (stepStatus.NextSpecialAt.HasValue)
-                            {
-                                var specialProgress = CalculateSmoothProgress(
-                                    stepStatus.CurrentTime, 
-                                    stepStatus.NextSpecialAt.Value, 
-                                    _stepSpecialInterval, 
-                                    _stepLastUpdateTime);
-                                var specialTime = stepStatus.NextSpecialAt.Value - stepStatus.CurrentTime;
-                                <div style="display: flex; align-items: center; margin-top: 4px;">
-                                    <span style="min-width: 100px; font-size: 12px;">特殊攻击:</span>
-                                    <div style="flex: 1; background: #e0e0e0; height: 16px; border-radius: 3px; overflow: hidden; position: relative;">
-                                        <div style="background: linear-gradient(90deg, #ff9800, #ffb74d); height: 100%; width: @(specialProgress * 100)%; transition: width 0.1s;"></div>
-                                        <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-size: 10px;">
-                                            @(specialTime > 0 ? $"{specialTime:0.00}s" : "就绪")
-                                        </span>
-                                    </div>
-                                </div>
-                            }
-                        </div>
+                        <DungeonProgressPanel 
+                            DungeonName="@(stepStatus.DungeonId ?? "未知地下城")"
+                            WaveIndex="@stepStatus.WaveIndex"
+                            TotalWaves="@GetTotalWaves(stepStatus.DungeonId)"
+                            RunCount="@stepStatus.RunCount"
+                            IsBossWave="@IsBossWave(stepStatus.WaveIndex)"
+                            EnemyCount="@(stepStatus.Enemies?.Count ?? 0)"
+                            Gold="@stepStatus.Gold"
+                            Exp="@stepStatus.Exp" />
                     }
                 </div>
             </div>
@@ -2174,5 +2041,65 @@ else
         
         // 更新心跳时间（每次刷新计划状态时）
         await UpdateHeartbeatIfNeededAsync();
+    }
+    
+    // ========== 新增：UI 组件辅助方法 ==========
+    
+    /// <summary>
+    /// 获取 Step 战斗的模式信息文本
+    /// </summary>
+    private string? GetStepModeInfo(StepStatusResponse status)
+    {
+        if (status.Mode == "dungeonsingle" || status.Mode == "dungeonloop")
+        {
+            return $"[波次: {status.WaveIndex ?? 1} | 轮次: {status.RunCount ?? 0} | 怪物数: {status.Enemies?.Count ?? 0}]";
+        }
+        else if (status.Enemies?.Count > 0)
+        {
+            return $"[怪物数: {status.Enemies.Count}]";
+        }
+        return null;
+    }
+    
+    /// <summary>
+    /// 获取活动计划战斗的模式信息文本
+    /// </summary>
+    private string? GetPlanModeInfo(StepStatusResponse status)
+    {
+        if (status.Mode == "dungeonsingle" || status.Mode == "dungeonloop")
+        {
+            return $"[波次: {status.WaveIndex ?? 1} | 轮次: {status.RunCount ?? 0} | 怪物数: {status.Enemies?.Count ?? 0}]";
+        }
+        else if (status.Enemies?.Count > 0)
+        {
+            return $"[怪物数: {status.Enemies.Count}]";
+        }
+        return null;
+    }
+    
+    /// <summary>
+    /// 获取地下城的总波次数（硬编码，后续可从API获取）
+    /// </summary>
+    private int? GetTotalWaves(string? dungeonId)
+    {
+        // 暂时返回固定值，后续可以从地下城配置中获取
+        if (string.IsNullOrEmpty(dungeonId)) return null;
+        return dungeonId switch
+        {
+            "goblin_hideout" => 5,
+            "forest_temple" => 7,
+            _ => 5 // 默认5波
+        };
+    }
+    
+    /// <summary>
+    /// 判断是否为Boss波次（简单判断：最后一波）
+    /// </summary>
+    private bool IsBossWave(int? waveIndex)
+    {
+        // 简单判断：如果已知总波次，判断是否为最后一波
+        // 这里暂时硬编码，后续可以从地下城配置获取
+        if (!waveIndex.HasValue) return false;
+        return waveIndex.Value >= 5; // 假设第5波及以后可能是Boss
     }
 }

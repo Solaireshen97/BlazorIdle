@@ -1,0 +1,101 @@
+@* 地下城进度面板组件 *@
+<div class="dungeon-progress-panel">
+    <h6>🏰 地下城进度</h6>
+    
+    @if (!string.IsNullOrEmpty(DungeonName))
+    {
+        <div style="font-size: 13px; margin-bottom: 8px; color: #555;">
+            <b>@DungeonName</b>
+        </div>
+    }
+    
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 12px;">
+        <!-- 进度信息 -->
+        @if (WaveIndex.HasValue || RunCount.HasValue)
+        {
+            <div style="padding: 8px; background: #e3f2fd; border-radius: 4px; border-left: 3px solid #2196f3;">
+                <div style="font-size: 11px; color: #666; margin-bottom: 2px;">进度</div>
+                <div style="font-size: 13px; font-weight: bold;">
+                    @if (WaveIndex.HasValue && TotalWaves.HasValue)
+                    {
+                        <span>Wave @WaveIndex/@TotalWaves</span>
+                    }
+                    @if (RunCount.HasValue)
+                    {
+                        <span style="margin-left: 8px;">Run @RunCount</span>
+                    }
+                    @if (IsBossWave)
+                    {
+                        <span style="color: #ff5722; margin-left: 4px;">🎯 Boss</span>
+                    }
+                </div>
+            </div>
+        }
+        
+        <!-- 击杀统计 -->
+        @if (TotalKills.HasValue || EnemyCount > 0)
+        {
+            <div style="padding: 8px; background: #fff3e0; border-radius: 4px; border-left: 3px solid #ff9800;">
+                <div style="font-size: 11px; color: #666; margin-bottom: 2px;">击杀</div>
+                <div style="font-size: 13px; font-weight: bold;">
+                    @if (TotalKills.HasValue)
+                    {
+                        <span>@TotalKills 怪物</span>
+                    }
+                    else if (EnemyCount > 0)
+                    {
+                        <span>当前 @EnemyCount 敌人</span>
+                    }
+                    else
+                    {
+                        <span>-</span>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+    
+    <!-- 收益统计 -->
+    <div style="padding: 8px; background: #f1f8e9; border-radius: 4px; border-left: 3px solid #8bc34a;">
+        <div style="font-size: 11px; color: #666; margin-bottom: 4px;">累计收益</div>
+        <div style="display: flex; gap: 16px; font-size: 13px;">
+            <div>
+                <span style="color: #f57f17;">💰</span>
+                <b>@Gold.ToString("N0")</b> 金币
+            </div>
+            <div>
+                <span style="color: #1976d2;">⭐</span>
+                <b>@Exp.ToString("N0")</b> 经验
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>地下城名称</summary>
+    [Parameter] public string? DungeonName { get; set; }
+    
+    /// <summary>当前波次</summary>
+    [Parameter] public int? WaveIndex { get; set; }
+    
+    /// <summary>总波次数</summary>
+    [Parameter] public int? TotalWaves { get; set; }
+    
+    /// <summary>轮次计数</summary>
+    [Parameter] public int? RunCount { get; set; }
+    
+    /// <summary>是否为Boss波次</summary>
+    [Parameter] public bool IsBossWave { get; set; }
+    
+    /// <summary>总击杀数</summary>
+    [Parameter] public int? TotalKills { get; set; }
+    
+    /// <summary>当前敌人数量</summary>
+    [Parameter] public int EnemyCount { get; set; }
+    
+    /// <summary>累计金币</summary>
+    [Parameter] public long Gold { get; set; }
+    
+    /// <summary>累计经验</summary>
+    [Parameter] public long Exp { get; set; }
+}
