@@ -286,7 +286,20 @@ public sealed class BattleEngine
             // 新一波开始：清理死亡标记，避免与新实例混淆
             ClearDeathMarks();
 
+            // Bug Fix: 清理旧波次的敌人战斗单位，并为新波次重新初始化
+            // 这确保新波次的怪物可以正常攻击玩家
+            var oldEnemyCount = Context.EnemyCombatants.Count;
+            Context.EnemyCombatants.Clear();
+            Collector.OnTag("wave_transition_enemy_cleared", oldEnemyCount);
+            
+            // 重新初始化新波次的怪物攻击系统（使用当前时间）
+            InitializeEnemyAttacks(Context.EncounterGroup!, Clock.CurrentTime);
+            
+            // 重新初始化新波次的怪物技能系统（内部使用 Clock.CurrentTime）
+            InitializeEnemySkills(Context.EncounterGroup!);
+
             Collector.OnTag("spawn_performed", 1);
+            Collector.OnTag("wave_transition_enemy_reinitialized", Context.EnemyCombatants.Count);
         }
     }
 
@@ -572,10 +585,15 @@ public sealed class BattleEngine
     /// Phase 4: 初始化怪物攻击轨道
     /// 为每个怪物创建攻击轨道并调度第一个攻击事件
     /// </summary>
-    private void InitializeEnemyAttacks(EncounterGroup encounterGroup)
+    /// <param name="encounterGroup">怪物组</param>
+    /// <param name="spawnTime">生成时间（默认使用当前时间）。用于波次切换时正确调度攻击</param>
+    private void InitializeEnemyAttacks(EncounterGroup encounterGroup, double? spawnTime = null)
     {
         if (encounterGroup == null || encounterGroup.All.Count == 0)
             return;
+
+        // 使用提供的生成时间，或默认使用当前时间
+        double now = spawnTime ?? Clock.CurrentTime;
 
         int enemyIndex = 0;
         foreach (var encounter in encounterGroup.All)
@@ -588,7 +606,10 @@ public sealed class BattleEngine
                 
                 // 创建攻击轨道（类似玩家的攻击轨道）
                 var attackInterval = encounter.Enemy.AttackIntervalSeconds;
-                var attackTrack = new TrackState(TrackType.Attack, attackInterval, attackInterval);
+                // 对于战斗开始（now = 0），使用 attackInterval 作为初始延迟
+                // 对于波次切换（now > 0），也使用 attackInterval，但要基于当前时间
+                var firstAttackTime = now + attackInterval;
+                var attackTrack = new TrackState(TrackType.Attack, attackInterval, firstAttackTime);
                 enemyCombatant.AttackTrack = attackTrack;
                 
                 // 存储到 Context 以便后续访问（例如玩家复活时重新激活）
