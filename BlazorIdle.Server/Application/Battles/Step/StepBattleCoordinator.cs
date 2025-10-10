@@ -200,6 +200,16 @@ public sealed class StepBattleCoordinator
             else if (track.TrackType == Domain.Combat.TrackType.Special)
                 nextSpecialAt = track.NextTriggerAt;
         }
+        
+        // 计算轮询提示（智能轮询策略）
+        PollingHint? pollingHint = CalculatePollingHint(
+            rb.Completed,
+            playerHpPercent,
+            playerIsDead,
+            nextAttackAt,
+            nextSpecialAt,
+            rb.Clock.CurrentTime
+        );
 
         return (true, new StepBattleStatusDto
         {
@@ -242,8 +252,73 @@ public sealed class StepBattleCoordinator
             Enemies = enemyHealthList,
             NextAttackAt = nextAttackAt,
             NextSpecialAt = nextSpecialAt,
-            CurrentTime = rb.Clock.CurrentTime
+            CurrentTime = rb.Clock.CurrentTime,
+            PollingHint = pollingHint
         });
+    }
+    
+    /// <summary>
+    /// 根据战斗状态计算建议的轮询间隔
+    /// </summary>
+    private static PollingHint? CalculatePollingHint(
+        bool isCompleted,
+        double playerHpPercent,
+        bool playerIsDead,
+        double? nextAttackAt,
+        double? nextSpecialAt,
+        double currentTime)
+    {
+        int suggestedIntervalMs;
+        bool isStable;
+        double? nextSignificantEventAt = null;
+
+        if (isCompleted)
+        {
+            // 战斗已完成 - 使用较长轮询间隔或停止轮询
+            suggestedIntervalMs = 5000;
+            isStable = true;
+        }
+        else if (playerIsDead)
+        {
+            // 玩家死亡 - 中等轮询间隔（等待复活）
+            suggestedIntervalMs = 2000;
+            isStable = true;
+        }
+        else if (playerHpPercent < 0.5)
+        {
+            // 玩家血量低于50% - 激烈战斗，较短轮询间隔
+            suggestedIntervalMs = 1000;
+            isStable = false;
+            
+            // 计算下次重要事件时间（最早的攻击时间）
+            if (nextAttackAt.HasValue && nextSpecialAt.HasValue)
+                nextSignificantEventAt = Math.Min(nextAttackAt.Value, nextSpecialAt.Value);
+            else if (nextAttackAt.HasValue)
+                nextSignificantEventAt = nextAttackAt.Value;
+            else if (nextSpecialAt.HasValue)
+                nextSignificantEventAt = nextSpecialAt.Value;
+        }
+        else
+        {
+            // 正常战斗 - 标准轮询间隔
+            suggestedIntervalMs = 2000;
+            isStable = true;
+            
+            // 计算下次重要事件时间
+            if (nextAttackAt.HasValue && nextSpecialAt.HasValue)
+                nextSignificantEventAt = Math.Min(nextAttackAt.Value, nextSpecialAt.Value);
+            else if (nextAttackAt.HasValue)
+                nextSignificantEventAt = nextAttackAt.Value;
+            else if (nextSpecialAt.HasValue)
+                nextSignificantEventAt = nextSpecialAt.Value;
+        }
+
+        return new PollingHint
+        {
+            SuggestedIntervalMs = suggestedIntervalMs,
+            NextSignificantEventAt = nextSignificantEventAt,
+            IsStable = isStable
+        };
     }
 
     public (bool found, List<StepBattleSegmentDto> segments) GetSegments(Guid id, int sinceIndex)
@@ -531,6 +606,9 @@ public sealed class StepBattleStatusDto
     
     /// <summary>当前战斗时间</summary>
     public double CurrentTime { get; set; }
+    
+    /// <summary>轮询提示（服务器建议的轮询间隔）</summary>
+    public PollingHint? PollingHint { get; set; }
 }
 
 /// <summary>
@@ -567,4 +645,19 @@ public sealed class StepBattleSegmentDto
     public Dictionary<string, int> DamageBySource { get; set; } = new();
     public Dictionary<string, int> DamageByType { get; set; } = new();
     public Dictionary<string, int> ResourceFlow { get; set; } = new();
+}
+
+/// <summary>
+/// 轮询提示（服务器建议的轮询间隔）
+/// </summary>
+public sealed class PollingHint
+{
+    /// <summary>建议的轮询间隔（毫秒）</summary>
+    public int SuggestedIntervalMs { get; set; }
+    
+    /// <summary>下次重要事件发生的时间（战斗时间，秒）</summary>
+    public double? NextSignificantEventAt { get; set; }
+    
+    /// <summary>战斗状态是否稳定（true表示可以使用较长轮询间隔）</summary>
+    public bool IsStable { get; set; }
 }

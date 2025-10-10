@@ -214,14 +214,16 @@ Modified files:
 
 ---
 
-## 未来扩展
+## Step 1.3: 服务器端轮询提示 ✅
 
-### 可选优化 (Step 1.3)
-虽然当前实现已满足需求，但为未来优化预留了接口：
+**实施日期**: 2025-10-10  
+**状态**: ✅ 已完成
 
-1. **服务器端轮询提示**：
+### 实施内容
+
+1. **PollingHint 类定义**（服务器端和客户端）：
    ```csharp
-   public class PollingHint
+   public sealed class PollingHint
    {
        public int SuggestedIntervalMs { get; set; }
        public double? NextSignificantEventAt { get; set; }
@@ -229,17 +231,53 @@ Modified files:
    }
    ```
 
-2. **动态轮询频率**：
+2. **智能轮询策略实现**：
    ```csharp
-   // 根据战斗状态动态调整
-   战斗状态     | 轮询间隔 | 说明
-   ------------|---------|-----
-   激烈战斗中   | 1000ms  | 玩家血量<50%或Boss战
-   正常战斗     | 2000ms  | 常规挂机战斗
-   空闲/完成    | 5000ms  | 无战斗或战斗结束
+   战斗状态         | 轮询间隔 | IsStable | 说明
+   ----------------|---------|----------|-----
+   战斗已完成       | 5000ms  | true     | 无需频繁轮询
+   玩家死亡         | 2000ms  | true     | 等待复活
+   玩家血量<50%     | 1000ms  | false    | 激烈战斗，需要频繁更新
+   正常战斗         | 2000ms  | true     | 常规挂机战斗
    ```
 
-3. **指数退避策略**：
+3. **服务器端实现**：
+   - 在 `StepBattleCoordinator.GetStatus()` 中添加 `CalculatePollingHint()` 方法
+   - 根据战斗状态（完成、玩家血量、玩家死亡状态）动态计算建议轮询间隔
+   - 计算下次重要事件时间（最近的攻击或特殊攻击）
+   - `StepBattleStatusDto` 添加可选的 `PollingHint` 字段
+
+4. **客户端模型同步**：
+   - `BlazorIdle/Services/ApiModels.cs` 添加 `PollingHint` 类
+   - `StepStatusResponse` 添加 `PollingHint?` 字段
+
+### 技术细节
+
+- **向后兼容**: PollingHint 为可选字段（nullable），不影响现有功能
+- **代码位置**: 
+  - 服务器: `BlazorIdle.Server/Application/Battles/Step/StepBattleCoordinator.cs`
+  - 客户端: `BlazorIdle/Services/ApiModels.cs`
+- **代码量**: 约 60 行新增代码
+
+### 验证结果
+
+- ✅ 编译成功，无新增错误或警告
+- ✅ 保持向后兼容性
+- ✅ API响应现在包含 PollingHint 建议
+
+---
+
+## 未来扩展
+
+### 前端动态轮询调整（可选）
+虽然服务器端已实现轮询提示，但前端动态调整仍为可选优化：
+
+1. **前端根据 PollingHint 动态调整**：
+   - 在 `BattlePollingCoordinator` 中读取 `PollingHint.SuggestedIntervalMs`
+   - 动态调整轮询间隔而不是使用固定值
+   - 实现平滑过渡避免突变
+
+2. **指数退避策略**：
    - 连续失败时自动降低轮询频率
    - 恢复成功后逐步提升轮询频率
 
@@ -254,6 +292,7 @@ Modified files:
 - ✅ 集成了进度条动画定时器
 - ✅ 移除了冗余的 CancellationTokenSource 变量
 - ✅ 简化了轮询相关方法
+- ✅ 实现了服务器端轮询提示（Step 1.3）
 - ✅ 保持了完全的向后兼容性
 - ✅ 通过了编译和功能验证
 
