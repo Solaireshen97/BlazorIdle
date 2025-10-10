@@ -4,6 +4,17 @@ using BlazorIdle.Shared.Models; // 新增：引用共享枚举 Profession
 
 namespace BlazorIdle.Client.Services;
 
+// Buff状态（与服务器的 BuffStatusDto 映射）
+public sealed class BuffStatusDto
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public int Stacks { get; set; }
+    public int MaxStacks { get; set; }
+    public double RemainingSeconds { get; set; }
+    public bool IsDebuff { get; set; }
+}
+
 // Step 状态返回（服务器的 StepBattleStatusDto 映射）
 public sealed class StepStatusResponse
 {
@@ -51,6 +62,10 @@ public sealed class StepStatusResponse
     
     // 轮询提示
     public PollingHint? PollingHint { get; set; }
+    
+    // Buff状态
+    public List<BuffStatusDto> PlayerBuffs { get; set; } = new();
+    public List<BuffStatusDto> EnemyBuffs { get; set; } = new();
 }
 
 // 敌人血量状态

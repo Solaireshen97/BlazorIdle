@@ -210,6 +210,43 @@ public sealed class StepBattleCoordinator
             nextSpecialAt,
             rb.Clock.CurrentTime
         );
+        
+        // 收集玩家Buff状态
+        var playerBuffs = new List<BuffStatusDto>();
+        var currentTime = rb.Clock.CurrentTime;
+        foreach (var buffInstance in ctx2.Buffs.Active)
+        {
+            playerBuffs.Add(new BuffStatusDto
+            {
+                Id = buffInstance.Definition.Id,
+                Name = buffInstance.Definition.Name,
+                Stacks = buffInstance.Stacks,
+                MaxStacks = buffInstance.Definition.MaxStacks,
+                RemainingSeconds = Math.Max(0, buffInstance.ExpiresAt - currentTime),
+                IsDebuff = false  // 玩家Buff默认为增益
+            });
+        }
+        
+        // 收集敌人Buff状态（从所有敌方战斗单位中收集）
+        var enemyBuffs = new List<BuffStatusDto>();
+        foreach (var enemyCombatant in ctx2.EnemyCombatants)
+        {
+            if (enemyCombatant.Buffs != null)
+            {
+                foreach (var buffInstance in enemyCombatant.Buffs.Active)
+                {
+                    enemyBuffs.Add(new BuffStatusDto
+                    {
+                        Id = buffInstance.Definition.Id,
+                        Name = buffInstance.Definition.Name,
+                        Stacks = buffInstance.Stacks,
+                        MaxStacks = buffInstance.Definition.MaxStacks,
+                        RemainingSeconds = Math.Max(0, buffInstance.ExpiresAt - currentTime),
+                        IsDebuff = true  // 敌人Buff标记为减益（从玩家视角）
+                    });
+                }
+            }
+        }
 
         return (true, new StepBattleStatusDto
         {
@@ -253,7 +290,11 @@ public sealed class StepBattleCoordinator
             NextAttackAt = nextAttackAt,
             NextSpecialAt = nextSpecialAt,
             CurrentTime = rb.Clock.CurrentTime,
-            PollingHint = pollingHint
+            PollingHint = pollingHint,
+            
+            // Step 3: Buff状态显示
+            PlayerBuffs = playerBuffs,
+            EnemyBuffs = enemyBuffs
         });
     }
     
@@ -545,6 +586,30 @@ public sealed class StepBattleCoordinator
     }
 }
 
+/// <summary>
+/// Buff状态数据传输对象（用于前端显示）
+/// </summary>
+public sealed class BuffStatusDto
+{
+    /// <summary>Buff ID</summary>
+    public string Id { get; set; } = "";
+    
+    /// <summary>Buff名称</summary>
+    public string Name { get; set; } = "";
+    
+    /// <summary>当前层数</summary>
+    public int Stacks { get; set; }
+    
+    /// <summary>最大层数</summary>
+    public int MaxStacks { get; set; }
+    
+    /// <summary>剩余时间（秒）</summary>
+    public double RemainingSeconds { get; set; }
+    
+    /// <summary>是否为减益效果（用于UI区分显示）</summary>
+    public bool IsDebuff { get; set; }
+}
+
 public sealed class StepBattleStatusDto
 {
     public Guid Id { get; set; }
@@ -609,6 +674,12 @@ public sealed class StepBattleStatusDto
     
     /// <summary>轮询提示（服务器建议的轮询间隔）</summary>
     public PollingHint? PollingHint { get; set; }
+    
+    /// <summary>玩家Buff列表</summary>
+    public List<BuffStatusDto> PlayerBuffs { get; set; } = new();
+    
+    /// <summary>敌人Buff列表（所有敌人的Buff汇总）</summary>
+    public List<BuffStatusDto> EnemyBuffs { get; set; } = new();
 }
 
 /// <summary>

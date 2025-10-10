@@ -389,6 +389,26 @@ else
                                 MaxOtherEnemies="2" />
                         </div>
                         
+                        <!-- Buff状态显示 -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                            @if (currentPlanBattle.PlayerBuffs != null && currentPlanBattle.PlayerBuffs.Count > 0)
+                            {
+                                <BuffBarPanel 
+                                    Buffs="@currentPlanBattle.PlayerBuffs"
+                                    Title="🎭 增益效果"
+                                    BackgroundColor="#e8f5e9"
+                                    BorderColor="#66bb6a" />
+                            }
+                            @if (currentPlanBattle.EnemyBuffs != null && currentPlanBattle.EnemyBuffs.Count > 0)
+                            {
+                                <BuffBarPanel 
+                                    Buffs="@currentPlanBattle.EnemyBuffs"
+                                    Title="😈 敌方效果"
+                                    BackgroundColor="#ffebee"
+                                    BorderColor="#ef5350" />
+                            }
+                        </div>
+                        
                         <!-- 地下城进度面板（仅地下城模式） -->
                         @if (currentPlanBattle.Mode == "dungeonsingle" || currentPlanBattle.Mode == "dungeonloop")
                         {
@@ -548,6 +568,26 @@ else
                             Enemies="@stepStatus.Enemies"
                             ModeInfo="@GetStepModeInfo(stepStatus)"
                             MaxOtherEnemies="4" />
+                    </div>
+                    
+                    <!-- Buff状态显示 -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                        @if (stepStatus.PlayerBuffs != null && stepStatus.PlayerBuffs.Count > 0)
+                        {
+                            <BuffBarPanel 
+                                Buffs="@stepStatus.PlayerBuffs"
+                                Title="🎭 增益效果"
+                                BackgroundColor="#e8f5e9"
+                                BorderColor="#66bb6a" />
+                        }
+                        @if (stepStatus.EnemyBuffs != null && stepStatus.EnemyBuffs.Count > 0)
+                        {
+                            <BuffBarPanel 
+                                Buffs="@stepStatus.EnemyBuffs"
+                                Title="😈 敌方效果"
+                                BackgroundColor="#ffebee"
+                                BorderColor="#ef5350" />
+                        }
                     </div>
                     
                     <!-- 地下城进度面板（仅地下城模式） -->

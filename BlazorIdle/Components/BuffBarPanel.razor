@@ -1,0 +1,113 @@
+@using BlazorIdle.Client.Services
+
+@* Buff状态栏面板组件 *@
+@if (Buffs != null && Buffs.Count > 0)
+{
+    <div class="buff-bar-panel" style="margin-top: 12px; padding: 8px; background: @BackgroundColor; border-radius: 4px; border: 1px solid @BorderColor;">
+        <h6 style="margin: 0 0 8px 0; font-size: 13px;">@Title</h6>
+        <div class="buff-list" style="display: flex; flex-wrap: wrap; gap: 6px;">
+            @foreach (var buff in Buffs)
+            {
+                var iconBg = buff.IsDebuff ? "#ffebee" : "#e8f5e9";
+                var iconBorder = buff.IsDebuff ? "#ef5350" : "#66bb6a";
+                
+                <div class="buff-item" 
+                     style="position: relative; width: 42px; height: 42px; background: @iconBg; border: 2px solid @iconBorder; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: help;"
+                     title="@GetBuffTooltip(buff)">
+                    
+                    @* Buff图标 *@
+                    <div style="font-size: 18px;">@GetBuffIcon(buff.Id)</div>
+                    
+                    @* 层数显示 *@
+                    @if (buff.Stacks > 1)
+                    {
+                        <div style="position: absolute; bottom: 2px; right: 3px; font-size: 9px; font-weight: bold; color: #333; background: rgba(255,255,255,0.8); padding: 0 3px; border-radius: 2px;">
+                            @buff.Stacks
+                        </div>
+                    }
+                    
+                    @* 倒计时显示 *@
+                    @if (buff.RemainingSeconds > 0 && buff.RemainingSeconds < 999)
+                    {
+                        <div style="position: absolute; top: 2px; left: 2px; font-size: 8px; font-weight: bold; color: #fff; background: rgba(0,0,0,0.6); padding: 1px 3px; border-radius: 2px;">
+                            @FormatTime(buff.RemainingSeconds)
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>Buff列表</summary>
+    [Parameter] public List<BuffStatusDto> Buffs { get; set; } = new();
+    
+    /// <summary>标题</summary>
+    [Parameter] public string Title { get; set; } = "🎭 增益效果";
+    
+    /// <summary>背景颜色</summary>
+    [Parameter] public string BackgroundColor { get; set; } = "#f9fbe7";
+    
+    /// <summary>边框颜色</summary>
+    [Parameter] public string BorderColor { get; set; } = "#dce775";
+    
+    /// <summary>获取Buff图标（使用emoji）</summary>
+    private string GetBuffIcon(string buffId)
+    {
+        return buffId.ToLowerInvariant() switch
+        {
+            // 战士Buff
+            "berserk" => "💪",
+            "warrior_expose_armor" => "🛡️",
+            "warrior_precision" => "⚡",
+            "expose armor" => "🛡️",
+            "precision" => "⚡",
+            
+            // 游侠Buff
+            "ranger_bleed" => "🔥",
+            "ranger_hunters_mark" => "🎯",
+            "ranger_sharpsight" => "👁️",
+            "focus_flow" => "🌊",
+            "ranger bleed" => "🔥",
+            "hunter's mark" => "🎯",
+            "sharpsight" => "👁️",
+            "focus flow" => "🌊",
+            
+            // 敌人Buff
+            "enrage" => "😡",
+            "poison" => "☠️",
+            "regeneration" => "💚",
+            
+            // 默认图标
+            _ => "✨"
+        };
+    }
+    
+    /// <summary>格式化倒计时</summary>
+    private string FormatTime(double seconds)
+    {
+        if (seconds < 10)
+            return $"{seconds:0.0}";
+        else if (seconds < 60)
+            return $"{(int)seconds}";
+        else
+            return $"{(int)(seconds / 60)}m";
+    }
+    
+    /// <summary>获取Buff提示文本</summary>
+    private string GetBuffTooltip(BuffStatusDto buff)
+    {
+        var tooltip = $"{buff.Name}\n";
+        
+        if (buff.Stacks > 1)
+            tooltip += $"层数: {buff.Stacks}/{buff.MaxStacks}\n";
+        
+        if (buff.RemainingSeconds > 0 && buff.RemainingSeconds < 999)
+            tooltip += $"剩余: {buff.RemainingSeconds:0.0}秒\n";
+        else if (buff.RemainingSeconds >= 999)
+            tooltip += "持续时间: 永久\n";
+        
+        return tooltip.TrimEnd();
+    }
+}
