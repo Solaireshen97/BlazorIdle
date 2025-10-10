@@ -23,12 +23,12 @@ else
 <!-- 用户信息显示 -->
 @if (currentUser is not null)
 {
-    <div class="panel" style="background: #f8f9fa; padding: 12px; margin-bottom: 12px;">
+    <div class="user-info-panel">
         <h5>👤 当前用户: @currentUser.Username</h5>
-        <p style="margin: 4px 0;">角色数量: @userCharacters.Count / 5</p>
+        <p>角色数量: @userCharacters.Count / 5</p>
         @if (!string.IsNullOrEmpty(userMessage))
         {
-            <div class="alert alert-info" style="margin: 8px 0;">@userMessage</div>
+            <div class="alert alert-info">@userMessage</div>
         }
     </div>
 }
@@ -38,17 +38,17 @@ else
 {
     <div class="panel">
         <h4>我的角色列表</h4>
-        <div class="character-list" style="display: flex; gap: 12px; flex-wrap: wrap;">
+        <div class="character-list">
             @foreach (var character in userCharacters)
             {
                 var isSelected = selectedCharacter?.Id == character.Id;
                 var cardClass = isSelected ? "character-card selected" : "character-card";
-                <div class="@cardClass" @onclick="() => SelectCharacter(character)" style="cursor: pointer; border: 2px solid @(isSelected ? "#007bff" : "#ddd"); padding: 12px; border-radius: 8px; min-width: 200px;">
-                    <h5 style="margin: 0 0 8px 0;">@character.Name @(isSelected ? "✓" : "")</h5>
+                <div class="@cardClass" @key="character.Id" @onclick="() => SelectCharacter(character)">
+                    <h5>@character.Name @(isSelected ? "✓" : "")</h5>
                     <div><b>职业:</b> @character.Profession</div>
                     <div><b>等级:</b> @character.Level</div>
                     <div><b>顺序:</b> #@(character.RosterOrder + 1)</div>
-                    <div style="font-size: 0.85em; color: #666; margin-top: 4px;">ID: @character.Id.ToString().Substring(0, 8)...</div>
+                    <small>ID: @character.Id.ToString().Substring(0, 8)...</small>
                 </div>
             }
         </div>
@@ -208,35 +208,35 @@ else
     <div class="panel" style="margin-top: 18px;">
         <h4>4. 活动计划管理</h4>
 
-        <div class="row" style="gap:12px; align-items:end; margin-bottom: 12px;">
+        <div class="form-row">
             <div>
                 <label>活动类型</label>
-                <select class="form-control" style="width:160px" @bind="planActivityType">
+                <select @bind="planActivityType">
                     <option value="combat">战斗 (Combat)</option>
                     <option value="dungeon">地下城 (Dungeon)</option>
                 </select>
             </div>
             <div>
                 <label>限制类型</label>
-                <select class="form-control" style="width:160px" @bind="planLimitType">
+                <select @bind="planLimitType">
                     <option value="duration">时长限制</option>
                     <option value="infinite">无限制</option>
                 </select>
             </div>
             <div>
                 <label>时长(秒)</label>
-                <input type="number" min="1" step="1" class="form-control" style="width:120px" @bind="planLimitValue" disabled="@(planLimitType != "duration")" />
+                <input type="number" min="1" step="1" @bind="planLimitValue" disabled="@(planLimitType != "duration")" />
             </div>
             <div>
                 <label>槽位</label>
-                <input type="number" min="0" max="4" step="1" class="form-control" style="width:80px" @bind="planSlotIndex" />
+                <input type="number" min="0" max="4" step="1" @bind="planSlotIndex" />
             </div>
 
             @if (planActivityType == "combat")
             {
                 <div>
                     <label>敌人</label>
-                    <select class="form-control" style="width:240px" @bind="selectedEnemyId">
+                    <select @bind="selectedEnemyId">
                         @if (enemies?.Count > 0)
                         {
                             @foreach (var e in enemies)
@@ -255,26 +255,26 @@ else
                 </div>
                 <div>
                     <label>敌人数</label>
-                    <input type="number" min="1" step="1" class="form-control" style="width:100px" @bind="planEnemyCount" />
+                    <input type="number" min="1" step="1" @bind="planEnemyCount" />
                 </div>
             }
             else
             {
                 <div>
                     <label>地下城ID</label>
-                    <input class="form-control" style="width:200px" @bind="planDungeonId" placeholder="intro_cave" />
+                    <input @bind="planDungeonId" placeholder="intro_cave" />
                 </div>
-                <div class="form-check" style="display:flex;align-items:center;gap:6px; margin-top: 20px;">
-                    <input class="form-check-input" type="checkbox" id="chkDungeonLoop" @bind="planDungeonLoop" />
-                    <label class="form-check-label" for="chkDungeonLoop">循环模式</label>
+                <div style="display:flex;align-items:center;gap:6px; margin-top: 20px;">
+                    <input type="checkbox" id="chkDungeonLoop" @bind="planDungeonLoop" />
+                    <label for="chkDungeonLoop">循环模式</label>
                 </div>
             }
 
             <div>
                 <label>Seed(可选)</label>
-                <input class="form-control" style="width:160px" @bind="planSeedInput" />
+                <input @bind="planSeedInput" />
             </div>
-            <div style="display:flex;gap:8px;">
+            <div class="button-group">
                 <button class="btn btn-primary" @onclick="CreateActivityPlanAsync" disabled="@isBusy">创建计划</button>
                 <button class="btn btn-outline-secondary" @onclick="RefreshPlansAsync" disabled="@isBusy">刷新列表</button>
             </div>
@@ -305,11 +305,12 @@ else
                     <tbody>
                         @foreach (var plan in characterPlans.OrderBy(p => p.SlotIndex).ThenBy(p => p.CreatedAt))
                         {
+                            var planKey = plan.Id;
                             var typeName = plan.Type == 1 ? "战斗" : plan.Type == 2 ? "地下城" : "未知";
                             var stateName = plan.State == 0 ? "待执行" : plan.State == 1 ? "执行中" : plan.State == 2 ? "已完成" : plan.State == 3 ? "已取消" : plan.State == 4 ? "已暂停" : "未知";
                             var stateClass = plan.State == 0 ? "text-warning" : plan.State == 1 ? "text-success" : plan.State == 2 ? "text-secondary" : plan.State == 3 ? "text-muted" : plan.State == 4 ? "text-info" : "text-muted";
                             var limitText = plan.LimitType == 2 ? "无限制" : $"{plan.LimitValue:F0}秒";
-                            <tr>
+                            <tr @key="planKey">
                                 <td><small>@plan.Id.ToString().Substring(0, 8)...</small></td>
                                 <td>@typeName</td>
                                 <td class="@stateClass"><b>@stateName</b></td>
@@ -456,10 +457,10 @@ else
     <div class="panel" style="margin-top: 18px;">
         <h4>5. 异步 Step 战斗（调试）</h4>
 
-        <div class="row" style="gap:12px; align-items:end;">
+        <div class="form-row">
             <div>
                 <label>模式</label>
-                <select class="form-control" style="width:160px" @bind="stepMode">
+                <select @bind="stepMode">
                     <option value="duration">Duration（按时长）</option>
                     <option value="continuous">Continuous（持续同怪）</option>
                     <option value="dungeonsingle">Dungeon（单次）</option>
@@ -468,19 +469,19 @@ else
             </div>
             <div>
                 <label>时长(s)</label>
-                <input type="number" min="1" step="1" class="form-control" style="width:100px" @bind="stepSeconds" disabled="@(stepMode != "duration")" />
+                <input type="number" min="1" step="1" @bind="stepSeconds" disabled="@(stepMode != "duration")" />
             </div>
             <div>
                 <label>敌人数</label>
-                <input type="number" min="1" step="1" class="form-control" style="width:100px" @bind="stepEnemyCount" disabled="@(IsDungeonMode)" />
+                <input type="number" min="1" step="1" @bind="stepEnemyCount" disabled="@(IsDungeonMode)" />
             </div>
             <div>
                 <label>Seed(可选)</label>
-                <input class="form-control" style="width:160px" @bind="stepSeedInput" />
+                <input @bind="stepSeedInput" />
             </div>
             <div>
                 <label>敌人</label>
-                <select class="form-control" style="width:240px" @bind="selectedEnemyId" disabled="@(IsDungeonMode)">
+                <select @bind="selectedEnemyId" disabled="@(IsDungeonMode)">
                     @if (enemies?.Count > 0)
                     {
                         @foreach (var e in enemies)
@@ -499,32 +500,32 @@ else
             </div>
             <div>
                 <label>DungeonId</label>
-                <input class="form-control" style="width:200px" @bind="stepDungeonId" placeholder="intro_cave" disabled="@(stepMode == "duration" || stepMode == "continuous")" />
+                <input @bind="stepDungeonId" placeholder="intro_cave" disabled="@(stepMode == "duration" || stepMode == "continuous")" />
             </div>
             <div>
                 <label>掉落模式</label>
-                <select class="form-control" style="width:140px" @bind="stepDropMode">
+                <select @bind="stepDropMode">
                     <option value="expected">expected</option>
                     <option value="sampled">sampled</option>
                 </select>
             </div>
             <div>
                 <label>状态轮询(ms)</label>
-                <input type="number" min="100" step="100" class="form-control" style="width:120px" @bind="stepPollMs" />
+                <input type="number" min="100" step="100" @bind="stepPollMs" />
             </div>
             <div>
                 <label>调试轮询(ms)</label>
-                <input type="number" min="200" step="100" class="form-control" style="width:120px" @bind="stepDebugPollMs" />
+                <input type="number" min="200" step="100" @bind="stepDebugPollMs" />
             </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <div class="button-group">
                 <button class="btn btn-primary" @onclick="StartStepBattle" disabled="@isBusy">Start Step</button>
                 <button class="btn btn-secondary" @onclick="StopStepPolling" disabled="@(!stepIsPolling)">Stop Poll</button>
                 <button class="btn btn-outline-danger" @onclick="ResetStep" disabled="@isBusy">Reset</button>
                 <button class="btn btn-success" @onclick="StopAndSaveAsync" disabled="@(!stepBattleId.HasValue)">Stop &amp; Save</button>
                 <button class="btn btn-outline-info" @onclick="RefreshRuntimeDebug" disabled="@(!stepBattleId.HasValue)">刷新运行态</button>
-                <div class="form-check" style="display:flex;align-items:center;gap:6px;">
-                    <input class="form-check-input" type="checkbox" id="chkAutoDbg" @bind="stepAutoDebug" @bind:after="OnAutoDebugChanged" />
-                    <label class="form-check-label" for="chkAutoDbg">自动刷新运行态</label>
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <input type="checkbox" id="chkAutoDbg" @bind="stepAutoDebug" @bind:after="OnAutoDebugChanged" />
+                    <label for="chkAutoDbg">自动刷新运行态</label>
                 </div>
             </div>
         </div>
@@ -778,11 +779,13 @@ else
                     </table>
 
                     <h6>Skills (@(stepDebug.AutoCast?.Skills?.Count ?? 0))</h6>
-                    <div><b>GCDUntil:</b> @stepDebug.AutoCast.GlobalCooldownUntil.ToString("0.00") | <b>IsCasting:</b> @(stepDebug.AutoCast.IsCasting ? "Yes" : "No") | <b>CastingUntil:</b> @stepDebug.AutoCast.CastingUntil.ToString("0.00")</div>
+                    <div><b>GCDUntil:</b> @(stepDebug.AutoCast?.GlobalCooldownUntil.ToString("0.00") ?? "N/A") | <b>IsCasting:</b> @(stepDebug.AutoCast?.IsCasting == true ? "Yes" : "No") | <b>CastingUntil:</b> @(stepDebug.AutoCast?.CastingUntil.ToString("0.00") ?? "N/A")</div>
                     <table class="table table-sm table-striped">
                         <thead><tr><th>Id</th><th>Prio</th><th>Charges</th><th>NextCharge</th><th>NextAvail</th><th>CD</th><th>Cast</th><th>GCD</th><th>OffGCD</th><th>Cost</th><th>DMGType</th></tr></thead>
                         <tbody>
-                            @foreach (var s in stepDebug.AutoCast.Skills.OrderBy(x => x.Priority))
+                            @if (stepDebug.AutoCast?.Skills != null)
+                            {
+                                @foreach (var s in stepDebug.AutoCast.Skills.OrderBy(x => x.Priority))
                             {
                                 <tr>
                                     <td>@s.Id</td>
@@ -797,6 +800,7 @@ else
                                     <td>@(s.CostResourceId is null ? "-" : $"{s.CostResourceId}:{s.CostAmount}")</td>
                                     <td>@s.DamageType</td>
                                 </tr>
+                                }
                             }
                         </tbody>
                     </table>
