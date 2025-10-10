@@ -114,6 +114,13 @@ public sealed class BattleEngine
         Scheduler = new EventScheduler();
         Collector = new SegmentCollector();
 
+        // Phase 6: 从 provider 提取副本定义
+        DungeonDefinition? dungeonDef = null;
+        if (provider is DungeonEncounterProvider dungeonProvider)
+        {
+            dungeonDef = dungeonProvider.Dungeon;
+        }
+        
         Context = new BattleContext(
             battle: Battle,
             clock: Clock,
@@ -124,7 +131,8 @@ public sealed class BattleEngine
             rng: rng,
             encounter: null,
             encounterGroup: initialGroup,
-            stats: stats
+            stats: stats,
+            dungeon: dungeonDef
         );
 
         SeedIndexStart = rng.Index;

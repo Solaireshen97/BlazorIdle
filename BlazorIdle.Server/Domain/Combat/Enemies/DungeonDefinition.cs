@@ -22,6 +22,14 @@ public sealed class DungeonDefinition
     public int RunRewardExp { get; }
     public string? RunRewardLootTableId { get; }
     public int RunRewardLootRolls { get; }
+    
+    // Phase 6: 强化型地下城预留
+    /// <summary>是否允许玩家自动复活（默认 true）</summary>
+    public bool AllowAutoRevive { get; }
+    /// <summary>强化掉落倍率（默认 1.0）</summary>
+    public double EnhancedDropMultiplier { get; }
+    /// <summary>玩家死亡时是否重置副本（默认 false）</summary>
+    public bool ResetOnPlayerDeath { get; }
 
     public DungeonDefinition(
         string id,
@@ -37,7 +45,11 @@ public sealed class DungeonDefinition
         int runRewardGold = 0,
         int runRewardExp = 0,
         string? runRewardLootTableId = null,
-        int runRewardLootRolls = 0)
+        int runRewardLootRolls = 0,
+        // Phase 6: 强化型地下城
+        bool allowAutoRevive = true,
+        double enhancedDropMultiplier = 1.0,
+        bool resetOnPlayerDeath = false)
     {
         Id = id;
         Name = name;
@@ -53,6 +65,11 @@ public sealed class DungeonDefinition
         RunRewardExp = runRewardExp < 0 ? 0 : runRewardExp;
         RunRewardLootTableId = runRewardLootTableId;
         RunRewardLootRolls = runRewardLootRolls < 0 ? 0 : runRewardLootRolls;
+        
+        // Phase 6: 强化型地下城
+        AllowAutoRevive = allowAutoRevive;
+        EnhancedDropMultiplier = enhancedDropMultiplier <= 0 ? 1.0 : enhancedDropMultiplier;
+        ResetOnPlayerDeath = resetOnPlayerDeath;
     }
 
     public sealed class Wave
