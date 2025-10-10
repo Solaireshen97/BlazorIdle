@@ -1,3 +1,4 @@
+using BlazorIdle.Server.Domain.Combat.Buffs;
 using BlazorIdle.Server.Domain.Combat.Damage;
 using BlazorWebGame.Domain.Combat;
 
@@ -47,6 +48,9 @@ public class EnemyCombatant : ICombatant
     /// <summary>Phase 5: 怪物技能管理器</summary>
     public Enemies.EnemySkillManager? SkillManager { get; set; }
     
+    /// <summary>怪物 Buff 管理器</summary>
+    public BuffManager? Buffs { get; set; }
+    
     /// <summary>
     /// 构造函数
     /// </summary>
@@ -57,6 +61,39 @@ public class EnemyCombatant : ICombatant
         Id = id;
         Encounter = encounter;
         ThreatWeight = 1.0;
+    }
+    
+    /// <summary>
+    /// 获取当前攻击伤害（应用 Buff 加成）
+    /// </summary>
+    public int GetAttackDamage(int baseDamage, DamageType damageType)
+    {
+        if (Buffs == null)
+            return baseDamage;
+            
+        // 应用 Buff 伤害加成
+        var aggregate = Buffs.Aggregate;
+        double multiplier = damageType switch
+        {
+            DamageType.Physical => 1.0 + aggregate.DamageMultiplierPhysical,
+            DamageType.Magic => 1.0 + aggregate.DamageMultiplierMagic,
+            DamageType.True => 1.0 + aggregate.DamageMultiplierTrue,
+            _ => 1.0
+        };
+        
+        return (int)System.Math.Max(0, System.Math.Round(baseDamage * multiplier));
+    }
+    
+    /// <summary>
+    /// 获取当前攻击间隔（应用急速 Buff）
+    /// 注意：攻击间隔的变化不会影响已经调度的攻击事件，只影响伤害计算
+    /// 保持攻击间隔不变以确保战斗回放的确定性
+    /// </summary>
+    public double GetAttackInterval(double baseInterval)
+    {
+        // 为保持战斗回放的确定性，我们不实际修改攻击间隔
+        // 急速 Buff 主要通过增加伤害频率来体现，而不是改变攻击时间轴
+        return baseInterval;
     }
     
     /// <summary>

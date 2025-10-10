@@ -97,10 +97,26 @@ public record EnemySkillCastEvent(
         }
         
         // 对施法者自己施加 Buff（怪物增益）
-        // 注意：当前 BuffManager 主要用于玩家，这里先记录标签
-        // 未来可扩展 EnemyCombatant 的 Buff 系统
-        context.SegmentCollector.OnTag($"enemy_skill_buff:{skill.Id}", 1);
-        context.SegmentCollector.OnTag($"enemy_buff_applied:{skill.BuffId}", 1);
+        if (Caster.Buffs != null)
+        {
+            try
+            {
+                Caster.Buffs.Apply(skill.BuffId, ExecuteAt);
+                context.SegmentCollector.OnTag($"enemy_skill_buff:{skill.Id}", 1);
+                context.SegmentCollector.OnTag($"enemy_buff_applied:{skill.BuffId}", 1);
+            }
+            catch (System.InvalidOperationException)
+            {
+                // Buff 定义未注册，记录警告标签
+                context.SegmentCollector.OnTag($"enemy_buff_not_found:{skill.BuffId}", 1);
+            }
+        }
+        else
+        {
+            // BuffManager 未初始化，仅记录标签（向后兼容）
+            context.SegmentCollector.OnTag($"enemy_skill_buff:{skill.Id}", 1);
+            context.SegmentCollector.OnTag($"enemy_buff_applied:{skill.BuffId}", 1);
+        }
     }
 
     /// <summary>
