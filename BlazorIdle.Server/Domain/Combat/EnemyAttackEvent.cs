@@ -37,8 +37,35 @@ public record EnemyAttackEvent(double ExecuteAt, EnemyCombatant Enemy) : IGameEv
             return;
         }
 
-        // 计算伤害（基础值，Phase 4 保持简单，不考虑暴击/穿透）
-        int damage = Enemy.Encounter.Enemy.BaseDamage;
+        // 计算伤害：基础值 + Buff 加成
+        int baseDamage = Enemy.Encounter.Enemy.BaseDamage;
+        double finalDamage = baseDamage;
+        
+        // 应用怪物的 Buff 加成（如果有）
+        if (Enemy.BuffManager != null)
+        {
+            var damageType = Enemy.Encounter.Enemy.AttackDamageType;
+            var aggregate = Enemy.BuffManager.Aggregate;
+            
+            // 根据伤害类型应用对应的乘数
+            double multiplier = 1.0;
+            switch (damageType)
+            {
+                case DamageType.Physical:
+                    multiplier += aggregate.DamageMultiplierPhysical;
+                    break;
+                case DamageType.Magic:
+                    multiplier += aggregate.DamageMultiplierMagic;
+                    break;
+                case DamageType.True:
+                    multiplier += aggregate.DamageMultiplierTrue;
+                    break;
+            }
+            
+            finalDamage = baseDamage * multiplier;
+        }
+        
+        int damage = (int)finalDamage;
         
         if (damage > 0)
         {

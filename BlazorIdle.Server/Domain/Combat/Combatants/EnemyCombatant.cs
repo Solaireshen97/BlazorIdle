@@ -1,3 +1,4 @@
+using BlazorIdle.Server.Domain.Combat.Buffs;
 using BlazorIdle.Server.Domain.Combat.Damage;
 using BlazorWebGame.Domain.Combat;
 
@@ -8,6 +9,7 @@ namespace BlazorIdle.Server.Domain.Combat.Combatants;
 /// 包装现有 Encounter，实现 ICombatant 接口
 /// Phase 1: 基础封装，保持与现有 Encounter 一致的行为
 /// Phase 4: 添加攻击轨道支持
+/// Phase 5+: 添加 Buff 管理器支持
 /// </summary>
 public class EnemyCombatant : ICombatant
 {
@@ -46,6 +48,9 @@ public class EnemyCombatant : ICombatant
     
     /// <summary>Phase 5: 怪物技能管理器</summary>
     public Enemies.EnemySkillManager? SkillManager { get; set; }
+    
+    /// <summary>怪物 Buff 管理器（用于管理怪物自身的增益效果）</summary>
+    public BuffManager? BuffManager { get; set; }
     
     /// <summary>
     /// 构造函数

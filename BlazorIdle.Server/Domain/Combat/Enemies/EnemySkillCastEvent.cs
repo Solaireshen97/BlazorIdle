@@ -1,4 +1,5 @@
 using BlazorIdle.Server.Domain.Combat.Combatants;
+using BlazorIdle.Server.Domain.Combat.Damage;
 using BlazorWebGame.Domain.Combat;
 using System.Linq;
 
@@ -62,7 +63,33 @@ public record EnemySkillCastEvent(
         
         foreach (var target in targets)
         {
-            int damage = skill.EffectValue;
+            int baseDamage = skill.EffectValue;
+            double finalDamage = baseDamage;
+            
+            // 应用怪物的 Buff 加成（如果有）
+            if (Caster.BuffManager != null)
+            {
+                var aggregate = Caster.BuffManager.Aggregate;
+                
+                // 根据伤害类型应用对应的乘数
+                double multiplier = 1.0;
+                switch (skill.DamageType)
+                {
+                    case DamageType.Physical:
+                        multiplier += aggregate.DamageMultiplierPhysical;
+                        break;
+                    case DamageType.Magic:
+                        multiplier += aggregate.DamageMultiplierMagic;
+                        break;
+                    case DamageType.True:
+                        multiplier += aggregate.DamageMultiplierTrue;
+                        break;
+                }
+                
+                finalDamage = baseDamage * multiplier;
+            }
+            
+            int damage = (int)finalDamage;
             
             if (damage > 0 && target is PlayerCombatant player)
             {
@@ -97,10 +124,21 @@ public record EnemySkillCastEvent(
         }
         
         // 对施法者自己施加 Buff（怪物增益）
-        // 注意：当前 BuffManager 主要用于玩家，这里先记录标签
-        // 未来可扩展 EnemyCombatant 的 Buff 系统
-        context.SegmentCollector.OnTag($"enemy_skill_buff:{skill.Id}", 1);
-        context.SegmentCollector.OnTag($"enemy_buff_applied:{skill.BuffId}", 1);
+        if (Caster.BuffManager != null)
+        {
+            // 实际应用 Buff
+            Caster.BuffManager.Apply(skill.BuffId, ExecuteAt);
+            
+            // 记录统计标签
+            context.SegmentCollector.OnTag($"enemy_skill_buff:{skill.Id}", 1);
+            context.SegmentCollector.OnTag($"enemy_buff_applied:{skill.BuffId}", 1);
+        }
+        else
+        {
+            // 如果 BuffManager 未初始化，只记录标签（向后兼容）
+            context.SegmentCollector.OnTag($"enemy_skill_buff:{skill.Id}", 1);
+            context.SegmentCollector.OnTag($"enemy_buff_applied:{skill.BuffId}_no_manager", 1);
+        }
     }
 
     /// <summary>

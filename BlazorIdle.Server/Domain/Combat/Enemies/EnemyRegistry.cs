@@ -32,7 +32,7 @@ public static class EnemyRegistry
             effectValue: 20,
             damageType: DamageType.Physical
         ),
-        // 愤怒：HP低于30%时触发（仅一次），提升自身（通过Buff标签记录）
+        // 愤怒：HP低于30%时触发（仅一次），提升自身
         new EnemySkillDefinition(
             id: "tank_enrage",
             name: "Enrage",
@@ -40,7 +40,7 @@ public static class EnemyRegistry
             trigger: TriggerType.OnHpBelow,
             triggerValue: 0.30,  // 30% HP
             effect: SkillEffectType.ApplyBuff,
-            buffId: "enrage"
+            buffId: "enemy_enrage"  // 使用 EnemyBuffDefinitionsRegistry 中的 Enrage
         )
     };
 

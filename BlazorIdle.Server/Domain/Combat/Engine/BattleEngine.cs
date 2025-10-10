@@ -147,6 +147,9 @@ public sealed class BattleEngine
         
         // Phase 5: 初始化怪物技能系统
         InitializeEnemySkills(initialGroup);
+        
+        // Phase 5+: 初始化怪物 Buff 系统
+        InitializeEnemyBuffs(initialGroup);
 
         // 统一：应用上下文标签（ctx.*）
         ApplyMetaTags(meta);
@@ -358,6 +361,13 @@ public sealed class BattleEngine
 
             // 常规执行
             Context.Buffs.Tick(Clock.CurrentTime);
+            
+            // 更新所有怪物的 Buff
+            foreach (var enemy in Context.EnemyCombatants)
+            {
+                enemy.BuffManager?.Tick(Clock.CurrentTime);
+            }
+            
             SyncTrackHaste(Context);
 
             var ev = Scheduler.PopNext();
@@ -652,5 +662,47 @@ public sealed class BattleEngine
                 SKILL_CHECK_INTERVAL
             ));
         }
+    }
+
+    /// <summary>
+    /// Phase 5+: 初始化怪物 Buff 系统
+    /// 为每个怪物创建 BuffManager，用于管理怪物自身的增益效果
+    /// </summary>
+    private void InitializeEnemyBuffs(EncounterGroup encounterGroup)
+    {
+        if (encounterGroup == null || encounterGroup.All.Count == 0)
+            return;
+
+        // 遍历已创建的 EnemyCombatants，为每个怪物创建 BuffManager
+        foreach (var enemyCombatant in Context.EnemyCombatants)
+        {
+            // 创建怪物专用的 BuffManager
+            // 注意：怪物的 Buff 不需要复杂的 AP/SP 系统，使用简化版本即可
+            var enemyBuffManager = new BuffManager(
+                tagRecorder: (tag, count) => Collector.OnTag(tag, count),
+                resourceRecorder: null, // 怪物不使用资源系统
+                damageApplier: null     // 怪物 Buff 暂不支持 DoT（未来扩展）
+            );
+            
+            // 注册怪物可用的 Buff 定义
+            RegisterEnemyBuffDefinitions(enemyBuffManager);
+            
+            enemyCombatant.BuffManager = enemyBuffManager;
+            
+            Collector.OnTag("enemy_buff_manager_initialized", 1);
+        }
+    }
+
+    /// <summary>
+    /// 注册怪物专属的 Buff 定义
+    /// </summary>
+    private void RegisterEnemyBuffDefinitions(BuffManager buffManager)
+    {
+        buffManager.RegisterDefinition(Buffs.EnemyBuffDefinitionsRegistry.Enrage);
+        buffManager.RegisterDefinition(Buffs.EnemyBuffDefinitionsRegistry.ArmorBoost);
+        buffManager.RegisterDefinition(Buffs.EnemyBuffDefinitionsRegistry.Haste);
+        buffManager.RegisterDefinition(Buffs.EnemyBuffDefinitionsRegistry.Frenzy);
+        buffManager.RegisterDefinition(Buffs.EnemyBuffDefinitionsRegistry.Precision);
+        buffManager.RegisterDefinition(Buffs.EnemyBuffDefinitionsRegistry.SunderArmor);
     }
 }
