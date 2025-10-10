@@ -327,6 +327,46 @@ public class ApiClient
         resp.EnsureSuccessStatusCode();
         return await resp.Content.ReadFromJsonAsync<HeartbeatResponse>(cancellationToken: ct);
     }
+
+    // ===== 装备系统（Step 5: 装备系统UI预留）=====
+    /// <summary>
+    /// 获取角色装备栏
+    /// </summary>
+    public Task<EquipmentResponse?> GetEquipmentAsync(Guid characterId, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        return _http.GetFromJsonAsync<EquipmentResponse>($"/api/characters/{characterId}/equipment", ct);
+    }
+
+    /// <summary>
+    /// 装备物品到槽位
+    /// </summary>
+    public async Task<EquipmentOperationResponse?> EquipItemAsync(Guid characterId, string slot, Guid itemId, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        var request = new EquipItemRequest { ItemId = itemId };
+        var resp = await _http.PostAsJsonAsync($"/api/characters/{characterId}/equipment/{slot}", request, ct);
+        return await resp.Content.ReadFromJsonAsync<EquipmentOperationResponse>(cancellationToken: ct);
+    }
+
+    /// <summary>
+    /// 卸下装备
+    /// </summary>
+    public async Task<EquipmentOperationResponse?> UnequipItemAsync(Guid characterId, string slot, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        var resp = await _http.DeleteAsync($"/api/characters/{characterId}/equipment/{slot}", ct);
+        return await resp.Content.ReadFromJsonAsync<EquipmentOperationResponse>(cancellationToken: ct);
+    }
+
+    /// <summary>
+    /// 获取装备总属性
+    /// </summary>
+    public Task<Dictionary<string, double>?> GetEquipmentStatsAsync(Guid characterId, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        return _http.GetFromJsonAsync<Dictionary<string, double>>($"/api/characters/{characterId}/equipment/stats", ct);
+    }
 }
 
 // ====== Step DTOs（保留运行中需要的） ======

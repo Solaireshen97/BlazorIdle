@@ -85,6 +85,12 @@ else
     <InventoryPanel CharacterId="@lastCreated.Id" CharacterName="@lastCreated.Name" />
 }
 
+<!-- 1.6) 装备系统（Step 5: 装备系统UI预留）-->
+@if (lastCreated is not null)
+{
+    <EquipmentPanel CharacterId="@lastCreated.Id" Show="true" />
+}
+
 <!-- 2) 同步战斗 -->
 @if (lastCreated is not null)
 {

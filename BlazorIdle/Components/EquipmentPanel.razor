@@ -1,0 +1,122 @@
+@using BlazorIdle.Client.Services
+
+@* 装备系统UI预留 - Step 5: 装备系统UI预留 *@
+<div class="equipment-panel" style="margin-top: 18px; padding: 12px; background: #fef5e7; border-radius: 6px; border: 1px solid #f9e79f;">
+    <h6 style="margin: 0 0 12px 0; font-size: 14px; display: flex; align-items: center; gap: 6px;">
+        <span>🎒</span>
+        <span>装备与属性</span>
+        <span style="margin-left: auto; font-size: 11px; color: #999; font-weight: normal;">(预留功能)</span>
+    </h6>
+    
+    @* 装备槽位布局 *@
+    <div class="equipment-slots" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px;">
+        @* 第一行：头盔居中 *@
+        <div></div>
+        @RenderSlot("head", "🪖", "头盔")
+        <div></div>
+        
+        @* 第二行：武器、胸甲、副手 *@
+        @RenderSlot("weapon", "⚔️", "武器")
+        @RenderSlot("chest", "🛡️", "胸甲")
+        @RenderSlot("offhand", "🔰", "副手")
+        
+        @* 第三行：腰带、腿部、鞋子 *@
+        @RenderSlot("belt", "🔗", "腰带")
+        @RenderSlot("legs", "👖", "腿部")
+        @RenderSlot("boots", "👢", "鞋子")
+        
+        @* 第四行：两个饰品居中 *@
+        <div></div>
+        <div style="display: flex; gap: 8px;">
+            @RenderSlot("trinket1", "💍", "饰品1")
+            @RenderSlot("trinket2", "💍", "饰品2")
+        </div>
+        <div></div>
+    </div>
+    
+    @* 装备总属性显示 *@
+    <div class="equipment-stats" style="padding: 10px; background: #fff; border-radius: 4px; border: 1px solid #e8dabc;">
+        <div style="font-size: 12px; font-weight: bold; margin-bottom: 6px; color: #7d6e53;">📊 装备总属性</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 11px;">
+            <div style="display: flex; align-items: center; gap: 4px;">
+                <span>⚔️</span>
+                <span>攻击力:</span>
+                <span style="font-weight: bold; color: #666;">-- (+0)</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+                <span>🛡️</span>
+                <span>护甲:</span>
+                <span style="font-weight: bold; color: #666;">-- (+0)</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+                <span>⚡</span>
+                <span>急速:</span>
+                <span style="font-weight: bold; color: #666;">-- (+0%)</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+                <span>💥</span>
+                <span>暴击:</span>
+                <span style="font-weight: bold; color: #666;">-- (+0%)</span>
+            </div>
+        </div>
+        <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #f0f0f0; font-size: 10px; color: #999; text-align: center;">
+            装备系统功能开发中，敬请期待
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>角色ID</summary>
+    [Parameter] public Guid CharacterId { get; set; }
+    
+    /// <summary>是否显示面板（默认显示）</summary>
+    [Parameter] public bool Show { get; set; } = true;
+    
+    /// <summary>渲染装备槽位</summary>
+    private RenderFragment RenderSlot(string slotType, string icon, string slotName) => __builder =>
+    {
+        <div class="equipment-slot" 
+             style="background: #fff; border: 2px dashed #ddd; border-radius: 6px; padding: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 70px; cursor: help;"
+             title="@slotName (未装备)">
+            
+            @* 槽位图标 *@
+            <div style="font-size: 24px; opacity: 0.3; margin-bottom: 4px;">@icon</div>
+            
+            @* 槽位名称 *@
+            <div style="font-size: 10px; color: #999; text-align: center;">@slotName</div>
+            
+            @* 空槽指示 *@
+            <div style="font-size: 9px; color: #ccc; margin-top: 2px;">空</div>
+        </div>
+    };
+    
+    /// <summary>获取装备槽位图标</summary>
+    private string GetSlotIcon(string slotType) => slotType switch
+    {
+        "head" => "🪖",
+        "weapon" => "⚔️",
+        "chest" => "🛡️",
+        "offhand" => "🔰",
+        "belt" => "🔗",
+        "legs" => "👖",
+        "boots" => "👢",
+        "trinket1" => "💍",
+        "trinket2" => "💍",
+        _ => "❓"
+    };
+    
+    /// <summary>获取装备槽位中文名称</summary>
+    private string GetSlotName(string slotType) => slotType switch
+    {
+        "head" => "头盔",
+        "weapon" => "武器",
+        "chest" => "胸甲",
+        "offhand" => "副手",
+        "belt" => "腰带",
+        "legs" => "腿部",
+        "boots" => "鞋子",
+        "trinket1" => "饰品1",
+        "trinket2" => "饰品2",
+        _ => "未知"
+    };
+}

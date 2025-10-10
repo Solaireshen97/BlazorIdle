@@ -182,3 +182,62 @@ public sealed class InventoryResponse
     public long Experience { get; set; }
     public List<InventoryItemDto> Items { get; set; } = new();
 }
+
+// 装备系统DTO（Step 5: 装备系统UI预留）
+/// <summary>装备槽位信息</summary>
+public sealed class EquipmentSlotDto
+{
+    public string SlotType { get; set; } = "";
+    public string SlotName { get; set; } = "";
+    public GearInstanceDto? Item { get; set; }
+    public bool IsLocked { get; set; }
+}
+
+/// <summary>装备实例</summary>
+public sealed class GearInstanceDto
+{
+    public Guid Id { get; set; }
+    public string DefinitionId { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Icon { get; set; } = "⚔️";
+    public string Rarity { get; set; } = "Common";
+    public int Tier { get; set; } = 1;
+    public int ItemLevel { get; set; }
+    public int QualityScore { get; set; }
+    public List<AffixDto> Affixes { get; set; } = new();
+    public string? SetId { get; set; }
+    public Dictionary<string, double> Stats { get; set; } = new();
+}
+
+/// <summary>装备词条</summary>
+public sealed class AffixDto
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Description { get; set; } = "";
+    public double Value { get; set; }
+}
+
+/// <summary>装备栏响应</summary>
+public sealed class EquipmentResponse
+{
+    public Guid CharacterId { get; set; }
+    public string CharacterName { get; set; } = "";
+    public List<EquipmentSlotDto> Slots { get; set; } = new();
+    public Dictionary<string, double> TotalStats { get; set; } = new();
+    public int TotalScore { get; set; }
+}
+
+/// <summary>装备操作请求</summary>
+public sealed class EquipItemRequest
+{
+    public Guid ItemId { get; set; }
+}
+
+/// <summary>装备操作响应</summary>
+public sealed class EquipmentOperationResponse
+{
+    public bool Success { get; set; }
+    public string? ErrorMessage { get; set; }
+    public EquipmentResponse? Equipment { get; set; }
+}
