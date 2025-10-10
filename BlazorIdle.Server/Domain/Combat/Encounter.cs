@@ -30,4 +30,15 @@ public class Encounter
         }
         return applied;
     }
+
+    /// <summary>
+    /// Phase 5: 应用治疗效果
+    /// </summary>
+    public int ApplyHealing(int amount)
+    {
+        if (IsDead) return 0;
+        int before = CurrentHp;
+        CurrentHp = System.Math.Min(Enemy.MaxHp, CurrentHp + amount);
+        return CurrentHp - before;
+    }
 }

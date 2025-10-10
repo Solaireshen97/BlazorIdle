@@ -44,6 +44,9 @@ public class EnemyCombatant : ICombatant
     /// <summary>Phase 4: 怪物攻击轨道（类似玩家的 AttackTrack）</summary>
     public TrackState? AttackTrack { get; set; }
     
+    /// <summary>Phase 5: 怪物技能管理器</summary>
+    public Enemies.EnemySkillManager? SkillManager { get; set; }
+    
     /// <summary>
     /// 构造函数
     /// </summary>
