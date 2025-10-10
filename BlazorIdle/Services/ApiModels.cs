@@ -48,6 +48,7 @@ public sealed class StepStatusResponse
     public double? NextAttackAt { get; set; }
     public double? NextSpecialAt { get; set; }
     public double CurrentTime { get; set; }
+    public PollingHint? PollingHint { get; set; }
 }
 
 // 敌人血量状态
@@ -59,6 +60,14 @@ public sealed class EnemyHealthStatusDto
     public int MaxHp { get; set; }
     public double HpPercent { get; set; }
     public bool IsDead { get; set; }
+}
+
+// 轮询提示信息（服务器建议的轮询策略）
+public sealed class PollingHint
+{
+    public int SuggestedIntervalMs { get; set; }
+    public double? NextSignificantEventAt { get; set; }
+    public bool IsStable { get; set; }
 }
 
 // 同步摘要返回（/api/battles/{id}/summary）

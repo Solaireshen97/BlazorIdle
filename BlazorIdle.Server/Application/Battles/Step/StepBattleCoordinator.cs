@@ -531,6 +531,9 @@ public sealed class StepBattleStatusDto
     
     /// <summary>当前战斗时间</summary>
     public double CurrentTime { get; set; }
+    
+    /// <summary>轮询提示（服务器建议的轮询策略，可选）</summary>
+    public PollingHint? PollingHint { get; set; }
 }
 
 /// <summary>
@@ -555,6 +558,21 @@ public sealed class EnemyHealthStatusDto
     
     /// <summary>是否已死亡</summary>
     public bool IsDead { get; set; }
+}
+
+/// <summary>
+/// 轮询提示信息（服务器建议的轮询策略）
+/// </summary>
+public sealed class PollingHint
+{
+    /// <summary>建议的轮询间隔（毫秒）</summary>
+    public int SuggestedIntervalMs { get; set; }
+    
+    /// <summary>下一个重要事件发生的时间（战斗秒数）</summary>
+    public double? NextSignificantEventAt { get; set; }
+    
+    /// <summary>战斗状态是否稳定（稳定时可降低轮询频率）</summary>
+    public bool IsStable { get; set; }
 }
 
 public sealed class StepBattleSegmentDto

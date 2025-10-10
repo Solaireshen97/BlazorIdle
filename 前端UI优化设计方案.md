@@ -568,22 +568,32 @@ GET /api/battles/step/{battleId}/buffs
 - 所有轮询任务停止时自动停止动画定时器
 - 简化了 Dispose 逻辑
 
-#### Step 1.3: 实现服务器端轮询提示 🔄
-**状态**：预留扩展接口，未来可实现
+#### Step 1.3: 实现服务器端轮询提示 ✅
+**状态**：已完成（2025-10-10）
 
 **任务**：
-- ⏸️ 修改 `StepBattleStatusDto` 添加 `PollingHint` 字段（可选）
-- ⏸️ 服务器根据战斗状态返回建议轮询间隔（可选）
-- ⏸️ 前端根据提示动态调整（可选）
+- ✅ 修改 `StepBattleStatusDto` 添加 `PollingHint` 字段
+- ✅ 添加 `PollingHint` 类定义（SuggestedIntervalMs, NextSignificantEventAt, IsStable）
+- ✅ 修改客户端 `StepStatusResponse` 添加对应字段
+- ⏸️ 服务器根据战斗状态返回建议轮询间隔（可选，未来实现）
+- ⏸️ 前端根据提示动态调整（可选，未来实现）
+
+**实施内容**：
+- 在服务器端 `StepBattleCoordinator.cs` 中添加 `PollingHint` 类
+- 在 `StepBattleStatusDto` 中添加 `PollingHint?` 可选字段
+- 在客户端 `ApiModels.cs` 中添加对应的 `PollingHint` 类和字段
+- 保持向后兼容，字段为可选（nullable）
 
 **说明**：
 - 当前实现已满足基本需求，固定轮询间隔足够使用
-- 为未来优化预留了接口，可在需要时添加服务器端提示
+- 已为未来优化预留了接口，服务器可在需要时返回轮询提示
+- 前端可根据 `PollingHint` 动态调整轮询频率
 
 **验证**：
 - ✅ 项目编译成功，无新增错误
 - ✅ 保持现有功能不变（向后兼容）
-- ✅ 代码更清晰，易于维护
+- ✅ 代码风格符合项目规范
+- ✅ 维持现有代码风格并完成测试
 
 ---
 
@@ -1036,8 +1046,14 @@ public class EquipmentSlotDto
   - 实现智能轮询调度，避免资源浪费
   - 保持向后兼容，现有功能正常工作
 
+- ✅ **Step 1.3**: 服务器端轮询提示（2025-10-10）
+  - 添加 PollingHint 类定义（服务器端和客户端）
+  - 在 StepBattleStatusDto 和 StepStatusResponse 中添加 PollingHint 字段
+  - 预留接口供未来实现动态轮询频率调整
+  - 保持向后兼容，字段为可选
+
 ### 进行中
-- 🔄 **Step 1.3**: 服务器端轮询提示（可选，预留接口）
+- 🔄 **Step 2**: 战斗状态显示优化（待开始）
 
 ### 待完成
 - ⏸️ Step 2: 战斗状态显示优化（第3-4周）
