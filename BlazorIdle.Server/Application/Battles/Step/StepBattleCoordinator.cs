@@ -111,11 +111,13 @@ public sealed class StepBattleCoordinator
         if (!string.IsNullOrWhiteSpace(rb.DungeonId))
         {
             var d = DungeonRegistry.Resolve(rb.DungeonId!);
+            // Phase 6: 应用强化掉落倍率
+            var finalDropMultiplier = d.DropChanceMultiplier * d.EnhancedDropMultiplier;
             ctx = new EconomyContext
             {
                 GoldMultiplier = d.GoldMultiplier,
                 ExpMultiplier = d.ExpMultiplier,
-                DropChanceMultiplier = d.DropChanceMultiplier,
+                DropChanceMultiplier = finalDropMultiplier,
                 RunCompletedCount = runCompleted,
                 RunRewardGold = d.RunRewardGold,
                 RunRewardExp = d.RunRewardExp,
@@ -418,11 +420,13 @@ public sealed class StepBattleCoordinator
             if (!string.IsNullOrWhiteSpace(rb.DungeonId))
             {
                 var d = DungeonRegistry.Resolve(rb.DungeonId!);
+                // Phase 6: 应用强化掉落倍率
+                var finalDropMultiplier = d.DropChanceMultiplier * d.EnhancedDropMultiplier;
                 ctx = new EconomyContext
                 {
                     GoldMultiplier = d.GoldMultiplier,
                     ExpMultiplier = d.ExpMultiplier,
-                    DropChanceMultiplier = d.DropChanceMultiplier,
+                    DropChanceMultiplier = finalDropMultiplier,
                     RunCompletedCount = runCompleted,
                     RunRewardGold = d.RunRewardGold,
                     RunRewardExp = d.RunRewardExp,

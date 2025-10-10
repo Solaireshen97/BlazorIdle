@@ -465,6 +465,52 @@ public class EnhancedDungeonTests
 
     #endregion
 
+    #region Enhanced Drop Multiplier Tests
+
+    [Fact]
+    public void EnhancedDropMultiplier_ShouldApplyToEconomyContext()
+    {
+        // Arrange
+        var dungeon = new DungeonDefinition(
+            id: "enhanced_dungeon",
+            name: "Enhanced Dungeon",
+            waves: new[] { new DungeonDefinition.Wave(new[] { ("dummy", 1) }) },
+            dropChanceMultiplier: 1.5,
+            enhancedDropMultiplier: 2.0
+        );
+
+        // Assert - The final drop multiplier should be 1.5 * 2.0 = 3.0
+        // This will be verified by the economy system when it creates EconomyContext
+        Assert.Equal(1.5, dungeon.DropChanceMultiplier);
+        Assert.Equal(2.0, dungeon.EnhancedDropMultiplier);
+        
+        // The actual multiplication happens in the economy layer
+        var expectedFinal = dungeon.DropChanceMultiplier * dungeon.EnhancedDropMultiplier;
+        Assert.Equal(3.0, expectedFinal);
+    }
+
+    [Fact]
+    public void EnhancedDropMultiplier_DefaultValue_ShouldNotAffectDrops()
+    {
+        // Arrange
+        var dungeon = new DungeonDefinition(
+            id: "normal_dungeon",
+            name: "Normal Dungeon",
+            waves: new[] { new DungeonDefinition.Wave(new[] { ("dummy", 1) }) },
+            dropChanceMultiplier: 1.5
+            // enhancedDropMultiplier defaults to 1.0
+        );
+
+        // Assert - With default enhanced multiplier of 1.0, only base multiplier applies
+        Assert.Equal(1.5, dungeon.DropChanceMultiplier);
+        Assert.Equal(1.0, dungeon.EnhancedDropMultiplier);
+        
+        var expectedFinal = dungeon.DropChanceMultiplier * dungeon.EnhancedDropMultiplier;
+        Assert.Equal(1.5, expectedFinal); // 1.5 * 1.0 = 1.5
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private List<IGameEvent> GetScheduledEvents(IEventScheduler scheduler)

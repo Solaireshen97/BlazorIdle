@@ -244,11 +244,13 @@ public class OfflineFastForwardEngine
                 DungeonRunDelaySeconds = payload.RunDelay
             };
 
+            // Phase 6: 应用强化掉落倍率
+            var finalDropMultiplier = dungeon.DropChanceMultiplier * dungeon.EnhancedDropMultiplier;
             economyContext = new EconomyContext
             {
                 GoldMultiplier = dungeon.GoldMultiplier,
                 ExpMultiplier = dungeon.ExpMultiplier,
-                DropChanceMultiplier = dungeon.DropChanceMultiplier,
+                DropChanceMultiplier = finalDropMultiplier,
                 RunRewardGold = dungeon.RunRewardGold,
                 RunRewardExp = dungeon.RunRewardExp,
                 RunRewardLootTableId = dungeon.RunRewardLootTableId,

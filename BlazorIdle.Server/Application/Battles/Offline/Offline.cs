@@ -326,11 +326,13 @@ public sealed class OfflineSettlementService
         if (!string.IsNullOrWhiteSpace(dungeonId))
         {
             var d = DungeonRegistry.Resolve(dungeonId!);
+            // Phase 6: 应用强化掉落倍率
+            var finalDropMultiplier = d.DropChanceMultiplier * d.EnhancedDropMultiplier;
             ctx = new EconomyContext
             {
                 GoldMultiplier = d.GoldMultiplier,
                 ExpMultiplier = d.ExpMultiplier,
-                DropChanceMultiplier = d.DropChanceMultiplier,
+                DropChanceMultiplier = finalDropMultiplier,
                 RunCompletedCount = runCompleted,
                 RunRewardGold = d.RunRewardGold,
                 RunRewardExp = d.RunRewardExp,

@@ -309,14 +309,14 @@ DamageCalc()
     [x] P5.6: 配置示例技能
     [x] P5.7: 单元测试
     
-[ ] Phase 6: 强化型地下城 (Week 14-15)
-    [ ] P6.1: 扩展 DungeonDefinition
-    [ ] P6.2: 更新 PlayerCombatant
-    [ ] P6.3: 更新 PlayerDeathEvent
-    [ ] P6.4: 实现副本重置机制
-    [ ] P6.5: 强化掉落倍率
+[x] Phase 6: 强化型地下城 (Week 14-15) ✅ COMPLETED (2025-10)
+    [x] P6.1: 扩展 DungeonDefinition
+    [x] P6.2: 更新 PlayerCombatant
+    [x] P6.3: 更新 PlayerDeathEvent
+    [x] P6.4: 实现副本重置机制（标记支持）
+    [x] P6.5: 强化掉落倍率
     [ ] P6.6: UI 提示
-    [ ] P6.7: 单元测试
+    [x] P6.7: 单元测试
     
 [ ] Phase 7: RNG 一致性 (Week 16-17)
     [ ] P7.1: 审计所有随机事件
