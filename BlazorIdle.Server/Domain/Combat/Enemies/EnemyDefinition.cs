@@ -1,4 +1,5 @@
 ﻿using BlazorIdle.Server.Domain.Combat.Damage;
+using System.Collections.Generic;
 
 namespace BlazorIdle.Server.Domain.Combat.Enemies;
 
@@ -22,6 +23,9 @@ public class EnemyDefinition
     
     /// <summary>Phase 4: 怪物攻击间隔（秒）</summary>
     public double AttackIntervalSeconds { get; }
+    
+    /// <summary>Phase 5: 怪物技能列表</summary>
+    public List<EnemySkillDefinition> Skills { get; } = new();
 
     public EnemyDefinition(
         string id,

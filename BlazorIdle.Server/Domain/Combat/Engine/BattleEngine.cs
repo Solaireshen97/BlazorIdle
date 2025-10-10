@@ -371,6 +371,9 @@ public sealed class BattleEngine
 
             // 新增：事件执行后捕获新死亡
             CaptureNewDeaths();
+            
+            // Phase 5: 检查怪物技能触发
+            CheckEnemySkills();
 
             Collector.Tick(Clock.CurrentTime);
             TryFlushSegment();
@@ -567,6 +570,7 @@ public sealed class BattleEngine
 
     /// <summary>
     /// Phase 4: 初始化怪物攻击轨道
+    /// Phase 5: 初始化怪物技能系统
     /// 为每个怪物创建攻击轨道并调度第一个攻击事件
     /// </summary>
     private void InitializeEnemyAttacks(EncounterGroup encounterGroup)
@@ -588,6 +592,18 @@ public sealed class BattleEngine
                 var attackTrack = new TrackState(TrackType.Attack, attackInterval, attackInterval);
                 enemyCombatant.AttackTrack = attackTrack;
                 
+                // Phase 5: 初始化技能管理器
+                if (encounter.Enemy.Skills.Count > 0)
+                {
+                    var skillManager = new Enemies.EnemySkillManager(enemyCombatant, Clock.CurrentTime);
+                    foreach (var skillDef in encounter.Enemy.Skills)
+                    {
+                        skillManager.AddSkill(skillDef, skillDef.CooldownSeconds);
+                    }
+                    enemyCombatant.SkillManager = skillManager;
+                    Collector.OnTag("enemy_skills_initialized", 1);
+                }
+                
                 // 存储到 Context 以便后续访问（例如玩家复活时重新激活）
                 Context.EnemyCombatants.Add(enemyCombatant);
                 
@@ -598,6 +614,28 @@ public sealed class BattleEngine
             }
             
             enemyIndex++;
+        }
+    }
+    
+    /// <summary>
+    /// Phase 5: 检查所有怪物技能触发条件并调度技能事件
+    /// 在每个事件执行后调用
+    /// </summary>
+    private void CheckEnemySkills()
+    {
+        foreach (var enemy in Context.EnemyCombatants)
+        {
+            if (enemy.SkillManager == null)
+            {
+                continue;
+            }
+
+            var skillToTrigger = enemy.SkillManager.CheckTrigger(Clock.CurrentTime, Context.Rng);
+            if (skillToTrigger != null)
+            {
+                // 调度技能释放事件（立即执行）
+                Scheduler.Schedule(new Enemies.EnemySkillCastEvent(Clock.CurrentTime, enemy, skillToTrigger));
+            }
         }
     }
 }
