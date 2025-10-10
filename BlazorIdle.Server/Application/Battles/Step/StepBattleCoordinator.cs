@@ -247,6 +247,47 @@ public sealed class StepBattleCoordinator
                 }
             }
         }
+        
+        // 收集技能槽状态（Step 4: 技能系统UI）
+        var skills = new List<SkillStatusDto>();
+        var autoCaster = ctx2.AutoCaster;
+        int slotIndex = 1;
+        foreach (var slot in autoCaster.Slots)
+        {
+            var def = slot.Runtime.Definition;
+            var runtime = slot.Runtime;
+            
+            // 计算冷却剩余时间
+            double cooldownRemaining = 0;
+            if (def.MaxCharges <= 1)
+            {
+                // 单充能技能：使用 NextAvailableTime
+                cooldownRemaining = Math.Max(0, runtime.NextAvailableTime - currentTime);
+            }
+            else
+            {
+                // 多充能技能：使用 NextChargeReadyAt
+                if (runtime.NextChargeReadyAt.HasValue && runtime.Charges < def.MaxCharges)
+                {
+                    cooldownRemaining = Math.Max(0, runtime.NextChargeReadyAt.Value - currentTime);
+                }
+            }
+            
+            skills.Add(new SkillStatusDto
+            {
+                Id = def.Id,
+                Name = def.Name,
+                SlotIndex = slotIndex++,
+                Priority = def.Priority,
+                IsReady = runtime.IsReady(currentTime),
+                CooldownRemaining = cooldownRemaining,
+                CurrentCharges = runtime.Charges,
+                MaxCharges = def.MaxCharges,
+                BaseDamage = def.BaseDamage,
+                CostResourceId = def.CostResourceId,
+                CostAmount = def.CostAmount
+            });
+        }
 
         return (true, new StepBattleStatusDto
         {
@@ -294,7 +335,10 @@ public sealed class StepBattleCoordinator
             
             // Step 3: Buff状态显示
             PlayerBuffs = playerBuffs,
-            EnemyBuffs = enemyBuffs
+            EnemyBuffs = enemyBuffs,
+            
+            // Step 4: 技能系统UI
+            Skills = skills
         });
     }
     
@@ -610,6 +654,45 @@ public sealed class BuffStatusDto
     public bool IsDebuff { get; set; }
 }
 
+/// <summary>
+/// 技能状态数据传输对象（用于前端显示）
+/// </summary>
+public sealed class SkillStatusDto
+{
+    /// <summary>技能ID</summary>
+    public string Id { get; set; } = "";
+    
+    /// <summary>技能名称</summary>
+    public string Name { get; set; } = "";
+    
+    /// <summary>槽位索引（1-4）</summary>
+    public int SlotIndex { get; set; }
+    
+    /// <summary>优先级</summary>
+    public int Priority { get; set; }
+    
+    /// <summary>是否就绪</summary>
+    public bool IsReady { get; set; }
+    
+    /// <summary>冷却剩余时间（秒），0表示就绪</summary>
+    public double CooldownRemaining { get; set; }
+    
+    /// <summary>当前充能层数（多层技能）</summary>
+    public int CurrentCharges { get; set; }
+    
+    /// <summary>最大充能层数</summary>
+    public int MaxCharges { get; set; }
+    
+    /// <summary>基础伤害</summary>
+    public int BaseDamage { get; set; }
+    
+    /// <summary>资源消耗类型（如"rage"）</summary>
+    public string? CostResourceId { get; set; }
+    
+    /// <summary>资源消耗量</summary>
+    public int CostAmount { get; set; }
+}
+
 public sealed class StepBattleStatusDto
 {
     public Guid Id { get; set; }
@@ -680,6 +763,9 @@ public sealed class StepBattleStatusDto
     
     /// <summary>敌人Buff列表（所有敌人的Buff汇总）</summary>
     public List<BuffStatusDto> EnemyBuffs { get; set; } = new();
+    
+    /// <summary>技能槽状态列表（Step 4: 技能系统UI）</summary>
+    public List<SkillStatusDto> Skills { get; set; } = new();
 }
 
 /// <summary>

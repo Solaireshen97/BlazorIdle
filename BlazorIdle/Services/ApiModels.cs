@@ -15,6 +15,22 @@ public sealed class BuffStatusDto
     public bool IsDebuff { get; set; }
 }
 
+// 技能状态（与服务器的 SkillStatusDto 映射 - Step 4: 技能系统UI）
+public sealed class SkillStatusDto
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public int SlotIndex { get; set; }
+    public int Priority { get; set; }
+    public bool IsReady { get; set; }
+    public double CooldownRemaining { get; set; }
+    public int CurrentCharges { get; set; }
+    public int MaxCharges { get; set; }
+    public int BaseDamage { get; set; }
+    public string? CostResourceId { get; set; }
+    public int CostAmount { get; set; }
+}
+
 // Step 状态返回（服务器的 StepBattleStatusDto 映射）
 public sealed class StepStatusResponse
 {
@@ -66,6 +82,9 @@ public sealed class StepStatusResponse
     // Buff状态
     public List<BuffStatusDto> PlayerBuffs { get; set; } = new();
     public List<BuffStatusDto> EnemyBuffs { get; set; } = new();
+    
+    // 技能状态（Step 4: 技能系统UI）
+    public List<SkillStatusDto> Skills { get; set; } = new();
 }
 
 // 敌人血量状态
