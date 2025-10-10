@@ -699,41 +699,76 @@ GET /api/battles/step/{battleId}/buffs
 
 ---
 
-### Step 3: Buff状态显示（第5周）
+### Step 3: Buff状态显示（第5周）⭐ **已完成**
 
-#### Step 3.1: Buff图标资源准备
+#### Step 3.1: Buff图标资源准备 ✅
 **任务**：
-- 定义Buff图标映射表
-- 准备常用Buff图标（可使用emoji或SVG）
-- 创建Buff图标样式
+- ✅ 定义Buff图标映射表
+- ✅ 准备常用Buff图标（使用emoji）
+- ✅ 创建Buff图标样式
 
 **产出**：
-- Buff图标资源文件
-- CSS样式定义
+- ✅ BuffBarPanel.razor 组件中的 GetBuffIcon() 方法
+- ✅ 内联CSS样式定义
 
-#### Step 3.2: Buff栏组件开发
+**实施细节**：
+- 使用emoji作为Buff图标（💪 狂暴, 🛡️ 破甲, ⚡ 精准等）
+- 支持战士、游侠和敌人的常用Buff图标
+- 图标映射表支持多种ID格式（snake_case和原始名称）
+
+#### Step 3.2: Buff栏组件开发 ✅
 **任务**：
-- 创建 `BuffBarPanel.razor` 组件
-- 实现图标化显示
-- 添加倒计时动画
-- 实现鼠标悬停详情
+- ✅ 创建 `BuffBarPanel.razor` 组件
+- ✅ 实现图标化显示
+- ✅ 添加倒计时动画
+- ✅ 实现鼠标悬停详情
 
 **产出**：
-- Buff可视化组件
+- ✅ BuffBarPanel.razor 可复用组件
+- ✅ 支持自定义标题、背景色、边框色
+- ✅ 显示层数、倒计时、Buff名称
+- ✅ 鼠标悬停显示详细信息（tooltip）
 
-#### Step 3.3: Buff数据集成
+**实施细节**：
+- 42x42像素的Buff图标卡片
+- 增益效果和减益效果使用不同配色（绿色/红色）
+- 倒计时动态格式化（<10秒显示小数，<60秒显示整数，>60秒显示分钟）
+- 层数显示在右下角，倒计时显示在左上角
+
+#### Step 3.3: Buff数据集成 ✅
 **任务**：
-- 扩展 `StepBattleStatusDto` 添加Buff列表
-- 修改 `StepBattleCoordinator.GetStatus()` 包含Buff信息
-- 前端集成显示
+- ✅ 扩展 `StepBattleStatusDto` 添加Buff列表
+- ✅ 修改 `StepBattleCoordinator.GetStatus()` 包含Buff信息
+- ✅ 前端集成显示
 
 **产出**：
-- 完整的Buff显示功能
+- ✅ 后端: BuffStatusDto 数据传输对象
+- ✅ 后端: PlayerBuffs 和 EnemyBuffs 列表字段
+- ✅ 后端: 从 BattleContext.Buffs 和 EnemyCombatants 收集Buff状态
+- ✅ 前端: ApiModels.cs 同步 BuffStatusDto
+- ✅ 前端: Characters.razor 集成 BuffBarPanel（Step战斗和计划战斗）
+- ✅ 测试: BuffStatusDisplayTests.cs（3个测试通过）
 
 **验证**：
-- 启动战士角色战斗，查看"破甲"、"精准"Buff
-- 检查层数显示正确性
-- 测试倒计时准确性
+- ✅ 构建成功无错误
+- ✅ 单元测试通过（3/3）
+- ✅ Buff数据结构正确（ID、名称、层数、剩余时间）
+- ✅ 玩家Buff和敌人Buff正确区分
+- ⏸️ 运行时UI测试（需要启动完整应用）
+
+**技术细节**：
+- 采用方案A：Buff数据包含在战斗状态API中，避免额外请求
+- 从玩家的 BattleContext.Buffs 收集玩家Buff
+- 从 EnemyCombatants 列表收集所有敌人的Buff
+- IsDebuff 字段区分增益/减益（玩家Buff=false，敌人Buff=true）
+- 使用 Math.Max(0, ...) 确保剩余时间非负
+
+**代码改动**：
+- 后端: StepBattleCoordinator.cs (+50行)
+- 前端: ApiModels.cs (+13行)
+- 前端: BuffBarPanel.razor (+120行，新文件)
+- 前端: Characters.razor (+34行)
+- 测试: BuffStatusDisplayTests.cs (+157行，新文件)
 
 ---
 

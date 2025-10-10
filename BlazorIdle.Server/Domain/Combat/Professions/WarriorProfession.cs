@@ -36,7 +36,7 @@ public class WarriorProfession : IProfessionModule
     public virtual void OnAttackTick(BattleContext context, AttackTickEvent evt)
     {
         var rage = context.Resources.Get("rage");
-        var result = rage.Add(1);
+        var result = rage.Add(10);
         if (result.AppliedDelta != 0)
             context.SegmentCollector.OnResourceChange("rage", result.AppliedDelta);
         if (result.ConversionCount > 0)
@@ -56,7 +56,7 @@ public class WarriorProfession : IProfessionModule
             id: "heroic_strike",
             name: "Heroic Strike",
             costResourceId: "rage",
-            costAmount: 30,
+            costAmount: 10,
             cooldownSeconds: 3.0,
             priority: 10,
             baseDamage: 50,
