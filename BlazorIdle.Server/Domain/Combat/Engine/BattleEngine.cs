@@ -285,6 +285,14 @@ public sealed class BattleEngine
 
             // 新一波开始：清理死亡标记，避免与新实例混淆
             ClearDeathMarks();
+            
+            // Bug Fix: 重新初始化怪物战斗单位
+            // 清除旧的怪物战斗单位（它们引用的是上一波已死亡的怪物）
+            Context.EnemyCombatants.Clear();
+            
+            // 为新一波的怪物重新初始化攻击轨道和技能系统
+            InitializeEnemyAttacks(Context.EncounterGroup!);
+            InitializeEnemySkills(Context.EncounterGroup!);
 
             Collector.OnTag("spawn_performed", 1);
         }
