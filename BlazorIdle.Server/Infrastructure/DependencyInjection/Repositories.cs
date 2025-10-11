@@ -31,6 +31,23 @@ public static class RepositoryRegistration
         //   * 封装活动计划（ActivityPlan）的持久化与读取。
         services.AddScoped<IActivityPlanRepository, ActivityPlanRepository>();
 
+        // 装备系统仓储
+        // IGearDefinitionRepository -> GearDefinitionRepository:
+        //   * 封装装备定义（配置）的数据访问。
+        services.AddScoped<IGearDefinitionRepository, GearDefinitionRepository>();
+
+        // IGearInstanceRepository -> GearInstanceRepository:
+        //   * 封装装备实例的数据访问。
+        services.AddScoped<IGearInstanceRepository, GearInstanceRepository>();
+
+        // IAffixRepository -> AffixRepository:
+        //   * 封装词条定义的数据访问。
+        services.AddScoped<IAffixRepository, AffixRepository>();
+
+        // IGearSetRepository -> GearSetRepository:
+        //   * 封装套装定义的数据访问。
+        services.AddScoped<IGearSetRepository, GearSetRepository>();
+
         return services;
     }
 }
