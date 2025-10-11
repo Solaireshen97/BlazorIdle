@@ -17,6 +17,8 @@ public class EquipmentController : ControllerBase
     private readonly StatsAggregationService _statsAggregationService;
     private readonly DisenchantService _disenchantService;
     private readonly ReforgeService _reforgeService;
+    private readonly ArmorCalculationService _armorCalculationService;
+    private readonly WeaponCalculationService _weaponCalculationService;
     private readonly GameDbContext _context;
 
     public EquipmentController(
@@ -24,12 +26,16 @@ public class EquipmentController : ControllerBase
         StatsAggregationService statsAggregationService,
         DisenchantService disenchantService,
         ReforgeService reforgeService,
+        ArmorCalculationService armorCalculationService,
+        WeaponCalculationService weaponCalculationService,
         GameDbContext context)
     {
         _equipmentService = equipmentService;
         _statsAggregationService = statsAggregationService;
         _disenchantService = disenchantService;
         _reforgeService = reforgeService;
+        _armorCalculationService = armorCalculationService;
+        _weaponCalculationService = weaponCalculationService;
         _context = context;
     }
     /// <summary>
@@ -300,6 +306,110 @@ public class EquipmentController : ControllerBase
                 kvp => kvp.Key.ToString(),
                 kvp => kvp.Value
             )
+        });
+    }
+
+    /// <summary>
+    /// 获取角色装备战斗详情（护甲减伤、武器攻速等）
+    /// </summary>
+    /// <param name="characterId">角色ID</param>
+    /// <returns>装备战斗详情</returns>
+    [HttpGet("{characterId:guid}/combat-details")]
+    public async Task<ActionResult<object>> GetCombatDetails(Guid characterId)
+    {
+        // 获取角色信息
+        var character = await _context.Characters.FindAsync(characterId);
+        if (character == null)
+        {
+            return NotFound(new { error = "角色不存在" });
+        }
+
+        // 获取装备
+        var equippedGear = await _equipmentService.GetEquippedGearAsync(characterId);
+        
+        // 计算总护甲
+        var totalArmor = _armorCalculationService.CalculateTotalArmor(equippedGear);
+        var armorDetails = _armorCalculationService.GetArmorDetails(totalArmor, character.Level);
+
+        // 获取武器信息
+        var mainHandGear = equippedGear.FirstOrDefault(g => g.SlotType == EquipmentSlot.MainHand);
+        var offHandGear = equippedGear.FirstOrDefault(g => g.SlotType == EquipmentSlot.OffHand);
+        var twoHandGear = equippedGear.FirstOrDefault(g => g.SlotType == EquipmentSlot.TwoHand);
+
+        object? weaponInfo = null;
+        if (twoHandGear?.Definition != null)
+        {
+            var weaponDetails = _weaponCalculationService.GetWeaponDetails(twoHandGear.Definition.WeaponType);
+            weaponInfo = new
+            {
+                weaponType = weaponDetails.WeaponType.ToString(),
+                attackSpeed = weaponDetails.BaseAttackSpeed,
+                damageMultiplier = weaponDetails.DamageMultiplier,
+                dpsCoefficient = weaponDetails.DpsCoefficient,
+                isTwoHanded = weaponDetails.IsTwoHanded
+            };
+        }
+        else if (mainHandGear?.Definition != null)
+        {
+            var mainHandDetails = _weaponCalculationService.GetWeaponDetails(mainHandGear.Definition.WeaponType);
+            
+            // 检查是否双持
+            if (offHandGear?.Definition != null && 
+                _weaponCalculationService.CanDualWield(mainHandGear.Definition.WeaponType))
+            {
+                var offHandDetails = _weaponCalculationService.GetWeaponDetails(offHandGear.Definition.WeaponType);
+                var totalSpeed = _weaponCalculationService.CalculateDualWieldAttackSpeed(
+                    mainHandDetails.BaseAttackSpeed, offHandDetails.BaseAttackSpeed);
+                
+                weaponInfo = new
+                {
+                    isDualWield = true,
+                    mainHandType = mainHandDetails.WeaponType.ToString(),
+                    offHandType = offHandDetails.WeaponType.ToString(),
+                    totalAttackSpeed = totalSpeed,
+                    mainHandSpeed = mainHandDetails.BaseAttackSpeed,
+                    offHandSpeed = offHandDetails.BaseAttackSpeed * 0.9 // 副手惩罚
+                };
+            }
+            else
+            {
+                weaponInfo = new
+                {
+                    weaponType = mainHandDetails.WeaponType.ToString(),
+                    attackSpeed = mainHandDetails.BaseAttackSpeed,
+                    damageMultiplier = mainHandDetails.DamageMultiplier,
+                    dpsCoefficient = mainHandDetails.DpsCoefficient,
+                    hasOffHand = offHandGear != null,
+                    offHandType = offHandGear?.Definition?.WeaponType.ToString()
+                };
+            }
+        }
+
+        // 检查盾牌
+        object? shieldInfo = null;
+        if (offHandGear?.Definition?.WeaponType == WeaponType.Shield)
+        {
+            var blockChance = _weaponCalculationService.GetShieldBlockChance(offHandGear.ItemLevel);
+            shieldInfo = new
+            {
+                itemLevel = offHandGear.ItemLevel,
+                blockChance = blockChance,
+                blockPercent = blockChance * 100
+            };
+        }
+
+        return Ok(new
+        {
+            characterId,
+            characterLevel = character.Level,
+            armor = new
+            {
+                totalArmor = armorDetails.TotalArmor,
+                damageReduction = armorDetails.ReductionPercent,
+                effectiveAgainstLevel = armorDetails.EffectiveAgainstLevel
+            },
+            weapon = weaponInfo,
+            shield = shieldInfo
         });
     }
 
