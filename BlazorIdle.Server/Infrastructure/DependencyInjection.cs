@@ -64,6 +64,7 @@ public static class DependencyInjection
         services.AddScoped<GearGenerationService>();
         services.AddScoped<EquipmentService>();
         services.AddScoped<StatsAggregationService>();
+        services.AddScoped<GearDropService>();
 
         return services;
     }

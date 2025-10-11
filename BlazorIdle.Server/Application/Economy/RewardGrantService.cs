@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Domain.Characters;
+using BlazorIdle.Server.Domain.Equipment.Services;
 using BlazorIdle.Server.Domain.Records;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -21,11 +22,16 @@ public class RewardGrantService : IRewardGrantService
 {
     private readonly GameDbContext _db;
     private readonly ILogger<RewardGrantService> _logger;
+    private readonly GearDropService? _gearDropService;
 
-    public RewardGrantService(GameDbContext db, ILogger<RewardGrantService> logger)
+    public RewardGrantService(
+        GameDbContext db, 
+        ILogger<RewardGrantService> logger,
+        GearDropService? gearDropService = null)
     {
         _db = db;
         _logger = logger;
+        _gearDropService = gearDropService;
     }
 
     public async Task<bool> IsAlreadyGrantedAsync(string idempotencyKey, CancellationToken ct = default)
@@ -66,8 +72,35 @@ public class RewardGrantService : IRewardGrantService
             character.Gold += gold;
             character.Experience += exp;
 
-            // 2. 更新背包物品
-            foreach (var (itemId, quantity) in items.Where(kv => kv.Value > 0))
+            // 2. 处理装备掉落（如果启用）
+            Dictionary<string, int> regularItems = items;
+            if (_gearDropService != null && items.Count > 0)
+            {
+                try
+                {
+                    var (gearInstances, remaining) = await _gearDropService.ProcessItemDropsAsync(
+                        items,
+                        characterId,
+                        character.Level);
+
+                    if (gearInstances.Count > 0)
+                    {
+                        _logger.LogInformation(
+                            "Generated {GearCount} gear instances for character {CharacterId}",
+                            gearInstances.Count, characterId);
+                    }
+
+                    regularItems = remaining;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to process gear drops for character {CharacterId}", characterId);
+                    // 如果装备生成失败，继续处理普通物品
+                }
+            }
+
+            // 3. 更新背包物品（仅处理非装备物品）
+            foreach (var (itemId, quantity) in regularItems.Where(kv => kv.Value > 0))
             {
                 var existing = await _db.InventoryItems
                     .FirstOrDefaultAsync(i => i.CharacterId == characterId && i.ItemId == itemId, ct);
@@ -92,7 +125,7 @@ public class RewardGrantService : IRewardGrantService
                 }
             }
 
-            // 3. 记录经济事件（幂等性记录）
+            // 4. 记录经济事件（幂等性记录）
             var economyEvent = new EconomyEventRecord
             {
                 Id = Guid.NewGuid(),
@@ -107,7 +140,7 @@ public class RewardGrantService : IRewardGrantService
             };
             _db.EconomyEvents.Add(economyEvent);
 
-            // 4. 保存所有更改
+            // 5. 保存所有更改
             await _db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
 

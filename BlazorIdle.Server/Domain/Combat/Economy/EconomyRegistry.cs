@@ -17,17 +17,26 @@ public static class EconomyRegistry
         AddItem(new ItemDefinition("mat_core", "Core"));
         AddItem(new ItemDefinition("gem_small", "Small Gem"));
 
+        // 装备物品（使用 gear: 前缀标识）
+        AddItem(new ItemDefinition("gear:iron_sword", "Iron Sword (Gear)"));
+        AddItem(new ItemDefinition("gear:iron_dagger", "Iron Dagger (Gear)"));
+        AddItem(new ItemDefinition("gear:cloth_robe", "Cloth Robe (Gear)"));
+        AddItem(new ItemDefinition("gear:leather_vest", "Leather Vest (Gear)"));
+
         // 示例掉落表（演示 Rolls 字段，默认 1，不影响旧数据）
         AddLoot(new LootTable("loot_common", new[]
         {
             new LootEntry { ItemId = "mat_scrap", DropChance = 0.50, QuantityMin = 1, QuantityMax = 2, Rolls = 1 },
-            new LootEntry { ItemId = "gem_small",  DropChance = 0.05, QuantityMin = 1, QuantityMax = 1, Rolls = 1 }
+            new LootEntry { ItemId = "gem_small",  DropChance = 0.05, QuantityMin = 1, QuantityMax = 1, Rolls = 1 },
+            new LootEntry { ItemId = "gear:iron_sword", DropChance = 0.08, QuantityMin = 1, QuantityMax = 1, Rolls = 1 }
         }));
 
         AddLoot(new LootTable("loot_elite", new[]
         {
             new LootEntry { ItemId = "mat_core",  DropChance = 0.25, QuantityMin = 1, QuantityMax = 1, Rolls = 1 },
-            new LootEntry { ItemId = "gem_small", DropChance = 0.10, QuantityMin = 1, QuantityMax = 2, Rolls = 2 } // 精英多 roll 例子
+            new LootEntry { ItemId = "gem_small", DropChance = 0.10, QuantityMin = 1, QuantityMax = 2, Rolls = 2 }, // 精英多 roll 例子
+            new LootEntry { ItemId = "gear:cloth_robe", DropChance = 0.15, QuantityMin = 1, QuantityMax = 1, Rolls = 1 },
+            new LootEntry { ItemId = "gear:leather_vest", DropChance = 0.12, QuantityMin = 1, QuantityMax = 1, Rolls = 1 }
         }));
 
         // 敌人经济（示例）
