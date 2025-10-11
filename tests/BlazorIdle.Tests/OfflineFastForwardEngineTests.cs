@@ -21,7 +21,9 @@ public class OfflineFastForwardEngineTests
     public OfflineFastForwardEngineTests()
     {
         var simulator = new BattleSimulator();
-        _engine = new OfflineFastForwardEngine(simulator);
+        var mockEquipmentIntegration = new Equipment.Services.FakeStatsAggregationService();
+        var equipmentIntegration = new BlazorIdle.Server.Domain.Equipment.Services.EquipmentStatsIntegration(mockEquipmentIntegration);
+        _engine = new OfflineFastForwardEngine(simulator, equipmentIntegration);
 
         // 创建测试角色
         _testCharacter = new Character

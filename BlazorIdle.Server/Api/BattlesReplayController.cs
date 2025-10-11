@@ -14,12 +14,18 @@ public class BattlesReplayController : ControllerBase
     private readonly IBattleRepository _battles;
     private readonly ICharacterRepository _characters;
     private readonly StepBattleCoordinator _coord;
+    private readonly Domain.Equipment.Services.EquipmentStatsIntegration _equipmentStatsIntegration;
 
-    public BattlesReplayController(IBattleRepository battles, ICharacterRepository characters, StepBattleCoordinator coord)
+    public BattlesReplayController(
+        IBattleRepository battles, 
+        ICharacterRepository characters, 
+        StepBattleCoordinator coord,
+        Domain.Equipment.Services.EquipmentStatsIntegration equipmentStatsIntegration)
     {
         _battles = battles;
         _characters = characters;
         _coord = coord;
+        _equipmentStatsIntegration = equipmentStatsIntegration;
     }
 
     // 用历史 BattleRecord 启动一场 Step 回放/重模拟
@@ -36,11 +42,12 @@ public class BattlesReplayController : ControllerBase
 
         var profession = character.Profession;
 
-        // 构造当前角色的基础+主属性面板（与普通 Step 启动一致）
-        var baseStats = ProfessionBaseStatsRegistry.Resolve(profession);
+        // 构造当前角色的基础+主属性面板（包含装备属性）
         var attrs = new PrimaryAttributes(character.Strength, character.Agility, character.Intellect, character.Stamina);
-        var derived = StatsBuilder.BuildDerived(profession, attrs);
-        var stats = StatsBuilder.Combine(baseStats, derived);
+        
+        // 使用 EquipmentStatsIntegration 构建包含装备加成的完整属性
+        var stats = await _equipmentStatsIntegration.BuildStatsWithEquipmentAsync(
+            record.CharacterId, profession, attrs);
 
         // 复用历史 seed（如不合法则派生）
         ulong seed = 0;

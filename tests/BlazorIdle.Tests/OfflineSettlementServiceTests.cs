@@ -41,7 +41,9 @@ public class OfflineSettlementServiceTests
 
         // 创建引擎
         var simulator = new BattleSimulator();
-        _engine = new OfflineFastForwardEngine(simulator);
+        var mockEquipmentIntegration = new Equipment.Services.FakeStatsAggregationService();
+        var equipmentIntegration = new BlazorIdle.Server.Domain.Equipment.Services.EquipmentStatsIntegration(mockEquipmentIntegration);
+        _engine = new OfflineFastForwardEngine(simulator, equipmentIntegration);
     }
 
     [Fact]

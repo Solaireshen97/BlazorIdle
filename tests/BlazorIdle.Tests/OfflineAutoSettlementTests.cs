@@ -144,7 +144,9 @@ public class OfflineAutoSettlementTests
 
         // Act
         var simulator = new BattleSimulator();
-        var engine = new OfflineFastForwardEngine(simulator);
+        var mockEquipmentIntegration = new Equipment.Services.FakeStatsAggregationService();
+        var equipmentIntegration = new BlazorIdle.Server.Domain.Equipment.Services.EquipmentStatsIntegration(mockEquipmentIntegration);
+        var engine = new OfflineFastForwardEngine(simulator, equipmentIntegration);
         var result = engine.FastForward(character, plan, offlineSeconds);
 
         // Assert

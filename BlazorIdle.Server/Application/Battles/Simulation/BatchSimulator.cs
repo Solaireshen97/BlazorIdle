@@ -13,24 +13,30 @@ public sealed class BatchSimulator
 {
     private readonly ICharacterRepository _characters;
     private readonly BattleRunner _runner;
+    private readonly Domain.Equipment.Services.EquipmentStatsIntegration _equipmentStatsIntegration;
 
-    public BatchSimulator(ICharacterRepository characters, BattleRunner runner)
+    public BatchSimulator(
+        ICharacterRepository characters, 
+        BattleRunner runner,
+        Domain.Equipment.Services.EquipmentStatsIntegration equipmentStatsIntegration)
     {
         _characters = characters;
         _runner = runner;
+        _equipmentStatsIntegration = equipmentStatsIntegration;
     }
 
     public async Task<SimulateResponse> SimulateAsync(SimulateRequest req, CancellationToken ct = default)
     {
-        // 读取角色 + 构造面板
+        // 读取角色 + 构造面板（包含装备属性）
         var c = await _characters.GetAsync(req.CharacterId, ct) ?? throw new InvalidOperationException("Character not found");
         var profession = c.Profession;
         var module = ProfessionRegistry.Resolve(profession);
 
-        var baseStats = ProfessionBaseStatsRegistry.Resolve(profession);
         var attrs = new PrimaryAttributes(c.Strength, c.Agility, c.Intellect, c.Stamina);
-        var derived = StatsBuilder.BuildDerived(profession, attrs);
-        var stats = StatsBuilder.Combine(baseStats, derived);
+        
+        // 使用 EquipmentStatsIntegration 构建包含装备加成的完整属性
+        var stats = await _equipmentStatsIntegration.BuildStatsWithEquipmentAsync(
+            req.CharacterId, profession, attrs);
 
         var enemyDef = EnemyRegistry.Resolve(req.EnemyId);
         int enemyCount = Math.Max(1, req.EnemyCount);

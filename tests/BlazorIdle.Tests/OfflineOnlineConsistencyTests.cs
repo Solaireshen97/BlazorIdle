@@ -28,7 +28,9 @@ public class OfflineOnlineConsistencyTests
 
     public OfflineOnlineConsistencyTests()
     {
-        _offlineEngine = new OfflineFastForwardEngine(_simulator);
+        var mockEquipmentIntegration = new Equipment.Services.FakeStatsAggregationService();
+        var equipmentIntegration = new BlazorIdle.Server.Domain.Equipment.Services.EquipmentStatsIntegration(mockEquipmentIntegration);
+        _offlineEngine = new OfflineFastForwardEngine(_simulator, equipmentIntegration);
     }
 
     [Fact]

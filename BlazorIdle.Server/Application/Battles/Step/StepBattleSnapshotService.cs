@@ -104,6 +104,7 @@ public sealed class StepBattleSnapshotService
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<Infrastructure.Persistence.GameDbContext>();
         var characters = scope.ServiceProvider.GetRequiredService<ICharacterRepository>();
+        var equipmentStatsIntegration = scope.ServiceProvider.GetRequiredService<Domain.Equipment.Services.EquipmentStatsIntegration>();
 
         var rows = await db.Set<RunningBattleSnapshotRecord>()
             .OrderBy(x => x.UpdatedAtUtc)
@@ -116,15 +117,16 @@ public sealed class StepBattleSnapshotService
                 var dto = JsonSerializer.Deserialize<StepBattleSnapshotDto>(row.SnapshotJson);
                 if (dto is null) continue;
 
-                // 重建 Stats（与 Start 时一致）
+                // 重建 Stats（与 Start 时一致，包含装备属性）
                 var ch = await characters.GetAsync(dto.CharacterId, ct);
                 if (ch is null) continue;
 
                 var profession = (Shared.Models.Profession)dto.Profession;
-                var baseStats = ProfessionBaseStatsRegistry.Resolve(profession);
                 var attrs = new PrimaryAttributes(ch.Strength, ch.Agility, ch.Intellect, ch.Stamina);
-                var derived = StatsBuilder.BuildDerived(profession, attrs);
-                var stats = StatsBuilder.Combine(baseStats, derived);
+                
+                // 使用 EquipmentStatsIntegration 构建包含装备加成的完整属性
+                var stats = await equipmentStatsIntegration.BuildStatsWithEquipmentAsync(
+                    dto.CharacterId, profession, attrs);
 
                 // 通过 Coordinator.Start 重建一个全新的 RunningBattle
                 var newId = coord.Start(dto.CharacterId, profession, stats, dto.TargetSeconds, dto.Seed, dto.EnemyId, dto.EnemyCount);

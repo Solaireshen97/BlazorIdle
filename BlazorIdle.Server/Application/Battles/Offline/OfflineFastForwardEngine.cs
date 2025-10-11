@@ -38,10 +38,14 @@ public sealed class OfflineFastForwardResult
 public class OfflineFastForwardEngine
 {
     private readonly BattleSimulator _simulator;
+    private readonly Domain.Equipment.Services.EquipmentStatsIntegration _equipmentStatsIntegration;
 
-    public OfflineFastForwardEngine(BattleSimulator simulator)
+    public OfflineFastForwardEngine(
+        BattleSimulator simulator,
+        Domain.Equipment.Services.EquipmentStatsIntegration equipmentStatsIntegration)
     {
         _simulator = simulator;
+        _equipmentStatsIntegration = equipmentStatsIntegration;
     }
 
     /// <summary>
@@ -169,17 +173,18 @@ public class OfflineFastForwardEngine
             }
         }
 
-        // 构建角色战斗数据
+        // 构建角色战斗数据（包含装备属性）
         var profession = character.Profession;
-        var baseStats = ProfessionBaseStatsRegistry.Resolve(profession);
         var attrs = new PrimaryAttributes(
             character.Strength, 
             character.Agility, 
             character.Intellect, 
             character.Stamina
         );
-        var derived = StatsBuilder.BuildDerived(profession, attrs);
-        var stats = StatsBuilder.Combine(baseStats, derived);
+        
+        // 使用 EquipmentStatsIntegration 构建包含装备加成的完整属性
+        var stats = _equipmentStatsIntegration.BuildStatsWithEquipmentAsync(
+            character.Id, profession, attrs).GetAwaiter().GetResult();
 
         // 根据活动类型构建配置
         BattleSimulator.BattleConfig config;

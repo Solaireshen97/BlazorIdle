@@ -53,6 +53,7 @@ public sealed class OfflineSettlementService
     private readonly IActivityPlanRepository _plans;
     private readonly OfflineFastForwardEngine _engine;
     private readonly GameDbContext _db;
+    private readonly Domain.Equipment.Services.EquipmentStatsIntegration _equipmentStatsIntegration;
     private readonly Func<Guid, CancellationToken, Task<ActivityPlan?>>? _tryStartNextPlan;
     private readonly Func<Guid, CancellationToken, Task<Guid>>? _startPlan;
 
@@ -62,6 +63,7 @@ public sealed class OfflineSettlementService
         IActivityPlanRepository plans,
         OfflineFastForwardEngine engine,
         GameDbContext db,
+        Domain.Equipment.Services.EquipmentStatsIntegration equipmentStatsIntegration,
         Func<Guid, CancellationToken, Task<ActivityPlan?>>? tryStartNextPlan = null,
         Func<Guid, CancellationToken, Task<Guid>>? startPlan = null)
     {
@@ -70,6 +72,7 @@ public sealed class OfflineSettlementService
         _plans = plans;
         _engine = engine;
         _db = db;
+        _equipmentStatsIntegration = equipmentStatsIntegration;
         _tryStartNextPlan = tryStartNextPlan;
         _startPlan = startPlan;
     }
@@ -272,10 +275,11 @@ public sealed class OfflineSettlementService
         var c = await _characters.GetAsync(characterId, ct) ?? throw new InvalidOperationException("Character not found");
 
         var profession = c.Profession;
-        var baseStats = ProfessionBaseStatsRegistry.Resolve(profession);
         var attrs = new PrimaryAttributes(c.Strength, c.Agility, c.Intellect, c.Stamina);
-        var derived = StatsBuilder.BuildDerived(profession, attrs);
-        var stats = StatsBuilder.Combine(baseStats, derived);
+        
+        // 使用 EquipmentStatsIntegration 构建包含装备加成的完整属性
+        var stats = await _equipmentStatsIntegration.BuildStatsWithEquipmentAsync(
+            characterId, profession, attrs);
 
         var enemyDef = EnemyRegistry.Resolve(enemyId);
         var seconds = Math.Max(1.0, offlineDuration.TotalSeconds);

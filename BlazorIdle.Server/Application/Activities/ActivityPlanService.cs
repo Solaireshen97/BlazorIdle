@@ -19,15 +19,18 @@ public class ActivityPlanService
     private readonly IActivityPlanRepository _plans;
     private readonly ICharacterRepository _characters;
     private readonly StepBattleCoordinator _coordinator;
+    private readonly Domain.Equipment.Services.EquipmentStatsIntegration _equipmentStatsIntegration;
 
     public ActivityPlanService(
         IActivityPlanRepository plans,
         ICharacterRepository characters,
-        StepBattleCoordinator coordinator)
+        StepBattleCoordinator coordinator,
+        Domain.Equipment.Services.EquipmentStatsIntegration equipmentStatsIntegration)
     {
         _plans = plans;
         _characters = characters;
         _coordinator = coordinator;
+        _equipmentStatsIntegration = equipmentStatsIntegration;
     }
 
     /// <summary>
@@ -104,16 +107,17 @@ public class ActivityPlanService
         if (runningPlan is not null)
             throw new InvalidOperationException("Another plan is already running");
 
-        // 获取角色数据
+        // 获取角色数据（包含装备属性）
         var character = await _characters.GetAsync(plan.CharacterId, ct);
         if (character is null)
             throw new InvalidOperationException("Character not found");
 
         var profession = character.Profession;
-        var baseStats = ProfessionBaseStatsRegistry.Resolve(profession);
         var attrs = new PrimaryAttributes(character.Strength, character.Agility, character.Intellect, character.Stamina);
-        var derived = StatsBuilder.BuildDerived(profession, attrs);
-        var stats = StatsBuilder.Combine(baseStats, derived);
+        
+        // 使用 EquipmentStatsIntegration 构建包含装备加成的完整属性
+        var stats = await _equipmentStatsIntegration.BuildStatsWithEquipmentAsync(
+            plan.CharacterId, profession, attrs);
 
         // 加载战斗状态快照（如果有）
         Battles.Offline.BattleState? battleState = null;

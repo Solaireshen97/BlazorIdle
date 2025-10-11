@@ -14,12 +14,18 @@ public class StepBattlesController : ControllerBase
     private readonly StepBattleCoordinator _coord;
     private readonly ICharacterRepository _characters;
     private readonly IBattleRepository _battles; // 新增：用于 Stop 的兜底查询
+    private readonly Domain.Equipment.Services.EquipmentStatsIntegration _equipmentStatsIntegration;
 
-    public StepBattlesController(StepBattleCoordinator coord, ICharacterRepository characters, IBattleRepository battles)
+    public StepBattlesController(
+        StepBattleCoordinator coord, 
+        ICharacterRepository characters, 
+        IBattleRepository battles,
+        Domain.Equipment.Services.EquipmentStatsIntegration equipmentStatsIntegration)
     {
         _coord = coord;
         _characters = characters;
         _battles = battles;
+        _equipmentStatsIntegration = equipmentStatsIntegration;
     }
 
     // 支持刷新等待参数：
@@ -42,10 +48,11 @@ public class StepBattlesController : ControllerBase
         if (c is null) return NotFound("Character not found.");
         var profession = c.Profession;
 
-        var baseStats = ProfessionBaseStatsRegistry.Resolve(profession);
         var attrs = new PrimaryAttributes(c.Strength, c.Agility, c.Intellect, c.Stamina);
-        var derived = StatsBuilder.BuildDerived(profession, attrs);
-        var stats = StatsBuilder.Combine(baseStats, derived);
+        
+        // 使用 EquipmentStatsIntegration 构建包含装备加成的完整属性
+        var stats = await _equipmentStatsIntegration.BuildStatsWithEquipmentAsync(
+            characterId, profession, attrs);
 
         ulong finalSeed = seed ?? DeriveSeed(characterId);
 
