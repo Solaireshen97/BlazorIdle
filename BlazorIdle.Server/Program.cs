@@ -1,6 +1,7 @@
 using BlazorIdle.Server.Application;
 using BlazorIdle.Server.Application.Auth;
 using BlazorIdle.Server.Infrastructure;
+using BlazorIdle.Server.Infrastructure.Startup;
 using BlazorIdle.Server.Services;
 using Microsoft.EntityFrameworkCore;
 using BlazorIdle.Server.Infrastructure.Persistence;
@@ -109,6 +110,9 @@ using (var scope = app.Services.CreateScope())
         // dotnet ef migrations add InitBattle
         // dotnet ef database update
         db.Database.Migrate();
+        
+        // 初始化装备系统种子数据
+        await EquipmentSeedData.InitializeAsync(app.Services);
     }
     else
     {
