@@ -1,3 +1,4 @@
+using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Domain.Equipment.Models;
 using BlazorIdle.Server.Domain.Equipment.ValueObjects;
 
@@ -10,10 +11,12 @@ namespace BlazorIdle.Server.Domain.Equipment.Services;
 public class GearGenerationService
 {
     private readonly Random _random;
+    private readonly IAffixRepository _affixRepository;
 
-    public GearGenerationService()
+    public GearGenerationService(IAffixRepository affixRepository)
     {
         _random = new Random();
+        _affixRepository = affixRepository;
     }
 
     /// <summary>
@@ -21,8 +24,9 @@ public class GearGenerationService
     /// </summary>
     /// <param name="definition">装备定义</param>
     /// <param name="characterLevel">角色等级（影响物品等级）</param>
+    /// <param name="ct">取消令牌</param>
     /// <returns>生成的装备实例</returns>
-    public GearInstance Generate(GearDefinition definition, int characterLevel)
+    public async Task<GearInstance> GenerateAsync(GearDefinition definition, int characterLevel, CancellationToken ct = default)
     {
         // 1. 确定稀有度
         var rarity = RollRarity(definition.RarityWeights);
@@ -37,7 +41,7 @@ public class GearGenerationService
         var rolledStats = RollBaseStats(definition.BaseStats, tierLevel);
         
         // 5. 生成词条
-        var affixes = GenerateAffixes(definition.AllowedAffixPool, rarity, itemLevel);
+        var affixes = await GenerateAffixesAsync(definition.AllowedAffixPool, rarity, itemLevel, ct);
         
         // 6. 计算装备评分
         var qualityScore = CalculateQualityScore(rolledStats, affixes, rarity, tierLevel);
@@ -156,10 +160,11 @@ public class GearGenerationService
     /// <summary>
     /// 生成词条
     /// </summary>
-    private List<AffixInstance> GenerateAffixes(
+    private async Task<List<AffixInstance>> GenerateAffixesAsync(
         List<string> affixPool,
         Rarity rarity,
-        int itemLevel)
+        int itemLevel,
+        CancellationToken ct)
     {
         var affixes = new List<AffixInstance>();
         
@@ -178,34 +183,48 @@ public class GearGenerationService
             _ => 0
         };
 
+        if (affixCount == 0)
+        {
+            return affixes;
+        }
+
         // 从词条池中随机选择
         var selectedAffixIds = affixPool
             .OrderBy(_ => _random.Next())
             .Take(affixCount)
             .ToList();
 
-        // 为每个词条Roll数值
-        // 注意：这里简化处理，实际应该从Affix定义表读取
+        // 为每个词条Roll数值，从数据库读取Affix定义
         foreach (var affixId in selectedAffixIds)
         {
-            var affix = CreateSimpleAffix(affixId, itemLevel);
-            affixes.Add(affix);
+            var affixDef = await _affixRepository.GetByIdAsync(affixId, ct);
+            if (affixDef != null)
+            {
+                var affixInstance = RollAffixValue(affixDef, itemLevel);
+                affixes.Add(affixInstance);
+            }
         }
 
         return affixes;
     }
 
     /// <summary>
-    /// 创建简单词条（临时实现，实际应该从数据库读取Affix定义）
+    /// Roll词条数值
     /// </summary>
-    private AffixInstance CreateSimpleAffix(string affixId, int itemLevel)
+    private AffixInstance RollAffixValue(Affix affixDef, int itemLevel)
     {
-        // 这是一个简化实现，实际应该注入IAffixRepository来读取定义
-        var statType = StatType.AttackPower; // 默认
-        var modifierType = ModifierType.Flat;
-        var rolledValue = itemLevel * (5 + _random.NextDouble() * 5); // 简单的数值计算
+        // Roll词条数值（在范围内随机）
+        var rolledValue = affixDef.ValueMin + _random.NextDouble() * (affixDef.ValueMax - affixDef.ValueMin);
+        
+        // 可选：根据物品等级调整词条数值
+        // var levelMultiplier = 1.0 + (itemLevel - 1) * 0.02; // 每级提升2%
+        // rolledValue *= levelMultiplier;
 
-        return new AffixInstance(affixId, statType, modifierType, rolledValue);
+        return new AffixInstance(
+            affixDef.Id, 
+            affixDef.StatType, 
+            affixDef.ModifierType, 
+            rolledValue);
     }
 
     /// <summary>

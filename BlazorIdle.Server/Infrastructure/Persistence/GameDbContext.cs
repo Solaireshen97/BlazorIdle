@@ -50,6 +50,9 @@ public class GameDbContext : DbContext
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(GameDbContext).Assembly);
 
         // ���ڴ˴�����ȫ��Լ�����磺ͳһ�ַ����г��ȡ���ɾ����������ʱ��ת�����ȣ�
+        
+        // 添加装备系统种子数据
+        modelBuilder.SeedEquipmentData();
 
         base.OnModelCreating(modelBuilder);
     }
