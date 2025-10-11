@@ -18,36 +18,51 @@
     }
     else
     {
-        @* 装备槽布局 *@
-        <div class="equipment-slots" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px;">
-            @* 第一行：空 - 头盔 - 空 *@
+        @* 装备槽布局 - 17槽位完整版 *@
+        <div class="equipment-slots" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 16px;">
+            @* 第一行：空 - 头盔 - 颈部 *@
             <div></div>
-            @RenderSlot("head", "头盔", "🪖")
+            @RenderSlot("Head", "头盔", "🪖")
+            @RenderSlot("Neck", "颈部", "📿")
+
+            @* 第二行：肩部 - 披风 - 手腕 *@
+            @RenderSlot("Shoulder", "肩部", "🎽")
+            @RenderSlot("Back", "披风", "🧥")
+            @RenderSlot("Wrist", "护腕", "⌚")
+
+            @* 第三行：主手 - 胸甲 - 副手 *@
+            @RenderSlot("MainHand", "主手", "⚔️")
+            @RenderSlot("Chest", "胸甲", "🛡️")
+            @RenderSlot("OffHand", "副手", "🔰")
+
+            @* 第四行：手套 - 腰带 - 戒指1 *@
+            @RenderSlot("Hands", "手套", "🧤")
+            @RenderSlot("Waist", "腰带", "🎗️")
+            @RenderSlot("Finger1", "戒指", "💍")
+
+            @* 第五行：腿部 - 鞋子 - 戒指2 *@
+            @RenderSlot("Legs", "腿部", "🦵")
+            @RenderSlot("Feet", "鞋子", "👢")
+            @RenderSlot("Finger2", "戒指", "💎")
+
+            @* 第六行：空 - 饰品1 - 饰品2 *@
             <div></div>
-
-            @* 第二行：武器 - 胸甲 - 副手 *@
-            @RenderSlot("weapon", "武器", "⚔️")
-            @RenderSlot("chest", "胸甲", "🛡️")
-            @RenderSlot("offhand", "副手", "🔰")
-
-            @* 第三行：腰带 - 腿部 - 鞋子 *@
-            @RenderSlot("waist", "腰带", "🎗️")
-            @RenderSlot("legs", "腿部", "🦵")
-            @RenderSlot("feet", "鞋子", "👢")
-
-            @* 第四行：空 - 饰品1 - 饰品2 *@
-            <div></div>
-            @RenderSlot("trinket1", "饰品1", "💍")
-            @RenderSlot("trinket2", "饰品2", "💍")
+            @RenderSlot("Trinket1", "饰品1", "🔮")
+            @RenderSlot("Trinket2", "饰品2", "✨")
         </div>
 
         @* 总属性面板 *@
         <div class="equipment-stats" style="padding: 12px; background: #f5f5f5; border-radius: 4px; border: 1px solid #e0e0e0;">
-            <div style="font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #555;">📊 总属性</div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 11px;">
+            <div style="font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #555;">📊 装备总属性</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 10px;">
+                @* 主要战斗属性 *@
                 <div style="display: flex; justify-content: space-between;">
                     <span>⚔️ 攻击力:</span>
                     <span style="font-weight: bold; color: #d32f2f;">@GetStatValue("AttackPower")</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>📘 法强:</span>
+                    <span style="font-weight: bold; color: #1e88e5;">@GetStatValue("SpellPower")</span>
                 </div>
                 <div style="display: flex; justify-content: space-between;">
                     <span>🛡️ 护甲:</span>
@@ -55,11 +70,31 @@
                 </div>
                 <div style="display: flex; justify-content: space-between;">
                     <span>⚡ 急速:</span>
-                    <span style="font-weight: bold; color: #f57c00;">@GetStatPercent("HastePercent")</span>
+                    <span style="font-weight: bold; color: #f57c00;">@GetStatPercent("Haste")</span>
                 </div>
                 <div style="display: flex; justify-content: space-between;">
                     <span>💥 暴击:</span>
-                    <span style="font-weight: bold; color: #7b1fa2;">@GetStatPercent("CritChance")</span>
+                    <span style="font-weight: bold; color: #7b1fa2;">@GetStatValue("CritRating")</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>💪 力量:</span>
+                    <span style="font-weight: bold; color: #c62828;">@GetStatValue("Strength")</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>🏹 敏捷:</span>
+                    <span style="font-weight: bold; color: #558b2f;">@GetStatValue("Agility")</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>🧠 智力:</span>
+                    <span style="font-weight: bold; color: #5e35b1;">@GetStatValue("Intellect")</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>❤️ 耐力:</span>
+                    <span style="font-weight: bold; color: #e53935;">@GetStatValue("Stamina")</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>📦 已装备:</span>
+                    <span style="font-weight: bold; color: #616161;">@GetEquippedCount()/17</span>
                 </div>
             </div>
         </div>
@@ -150,6 +185,12 @@
             return value > 0 ? $"+{value * 100:F1}%" : "0%";
         }
         return "0%";
+    }
+
+    /// <summary>获取已装备数量</summary>
+    private int GetEquippedCount()
+    {
+        return Slots.Count(s => s.Item != null);
     }
 
     /// <summary>获取品质颜色</summary>
