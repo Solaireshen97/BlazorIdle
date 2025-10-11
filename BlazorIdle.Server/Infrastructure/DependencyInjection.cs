@@ -66,6 +66,7 @@ public static class DependencyInjection
         services.AddScoped<StatsAggregationService>();
         services.AddScoped<DisenchantService>();
         services.AddScoped<ReforgeService>();
+        services.AddScoped<EquipmentStatsIntegration>();
 
         return services;
     }
