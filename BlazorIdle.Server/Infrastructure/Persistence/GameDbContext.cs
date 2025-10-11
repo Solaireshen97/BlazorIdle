@@ -1,5 +1,6 @@
 using BlazorIdle.Server.Domain.Activities;
 using BlazorIdle.Server.Domain.Characters;
+using BlazorIdle.Server.Domain.Equipment.Models;
 using BlazorIdle.Server.Domain.Records;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,6 +31,12 @@ public class GameDbContext : DbContext
     public DbSet<EconomyEventRecord> EconomyEvents => Set<EconomyEventRecord>();
     public DbSet<RunningBattleSnapshotRecord> RunningBattleSnapshots => Set<RunningBattleSnapshotRecord>();
     public DbSet<ActivityPlan> ActivityPlans => Set<ActivityPlan>();
+    
+    // 装备系统
+    public DbSet<GearDefinition> GearDefinitions => Set<GearDefinition>();
+    public DbSet<GearInstance> GearInstances => Set<GearInstance>();
+    public DbSet<Affix> Affixes => Set<Affix>();
+    public DbSet<GearSet> GearSets => Set<GearSet>();
 
     /// <summary>
     /// ģ�͹������ӣ����� Fluent ���á�
