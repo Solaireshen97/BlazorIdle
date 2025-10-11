@@ -14,25 +14,20 @@ public class GearInstanceRepository : IGearInstanceRepository
     public GearInstanceRepository(GameDbContext db) => _db = db;
 
     public Task<GearInstance?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
-        _db.GearInstances
-            .Include(g => g.Definition)
-            .FirstOrDefaultAsync(g => g.Id == id, ct);
+        _db.GearInstances.FirstOrDefaultAsync(g => g.Id == id, ct);
 
     public Task<List<GearInstance>> GetByCharacterIdAsync(Guid characterId, CancellationToken ct = default) =>
         _db.GearInstances
-            .Include(g => g.Definition)
             .Where(g => g.CharacterId == characterId)
             .ToListAsync(ct);
 
     public Task<List<GearInstance>> GetEquippedGearAsync(Guid characterId, CancellationToken ct = default) =>
         _db.GearInstances
-            .Include(g => g.Definition)
             .Where(g => g.CharacterId == characterId && g.IsEquipped)
             .ToListAsync(ct);
 
     public Task<GearInstance?> GetEquippedGearBySlotAsync(Guid characterId, EquipmentSlot slot, CancellationToken ct = default) =>
         _db.GearInstances
-            .Include(g => g.Definition)
             .FirstOrDefaultAsync(g => g.CharacterId == characterId && g.IsEquipped && g.SlotType == slot, ct);
 
     public async Task CreateAsync(GearInstance instance, CancellationToken ct = default)
