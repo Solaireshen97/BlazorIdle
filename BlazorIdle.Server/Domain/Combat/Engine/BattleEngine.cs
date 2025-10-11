@@ -148,9 +148,6 @@ public sealed class BattleEngine
         
         // Phase 5: 初始同步急速到攻击轨道（确保装备的急速属性在战斗开始时就生效）
         SyncTrackHaste(Context);
-        
-        // Debug logging for haste initialization
-        Console.WriteLine($"[BattleEngine Init] HastePercent: {stats.HastePercent:F2}, AttackTrack HasteFactor: {attackTrack.HasteFactor:F2}, CurrentInterval: {attackTrack.CurrentInterval:F2}");
 
         Scheduler.Schedule(new AttackTickEvent(attackTrack.NextTriggerAt, attackTrack));
         Scheduler.Schedule(new SpecialPulseEvent(specialTrack.NextTriggerAt, specialTrack));
@@ -506,16 +503,7 @@ public sealed class BattleEngine
         foreach (var t in context.Tracks)
         {
             if (t.TrackType == TrackType.Attack)
-            {
-                var hasteFactor = agg.ApplyToBaseHaste(1.0 + context.Stats.HastePercent);
-                t.SetHaste(hasteFactor);
-                
-                // Debug trace for initial sync
-                if (context.Clock.CurrentTime < 0.01)
-                {
-                    Console.WriteLine($"[SyncTrackHaste] HastePercent={context.Stats.HastePercent}, HasteFactor={hasteFactor}, BaseInterval={t.BaseInterval}, CurrentInterval={t.CurrentInterval}");
-                }
-            }
+                t.SetHaste(agg.ApplyToBaseHaste(1.0 + context.Stats.HastePercent));
             // 如需：Special 轨道也可在未来开放急速影响
         }
     }
