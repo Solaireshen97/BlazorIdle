@@ -222,6 +222,38 @@ public class StatsAggregationService
 
         return _blockCalculator.CalculateBlockChance(shield.ItemLevel, characterStrength);
     }
+    
+    /// <summary>
+    /// 获取主手武器类型（Phase 5）
+    /// </summary>
+    /// <param name="characterId">角色ID</param>
+    /// <returns>武器类型，无武器则返回None</returns>
+    public virtual async Task<WeaponType> GetMainHandWeaponTypeAsync(Guid characterId)
+    {
+        var equippedGear = await _equipmentService.GetEquippedGearAsync(characterId);
+        
+        // 先检查是否装备双手武器
+        var twoHandWeapon = equippedGear.FirstOrDefault(g => 
+            g.SlotType == EquipmentSlot.TwoHand && 
+            g.Definition != null);
+        
+        if (twoHandWeapon?.Definition?.WeaponType != null && twoHandWeapon.Definition.WeaponType != WeaponType.None)
+        {
+            return twoHandWeapon.Definition.WeaponType;
+        }
+        
+        // 检查主手武器
+        var mainHandWeapon = equippedGear.FirstOrDefault(g => 
+            g.SlotType == EquipmentSlot.MainHand && 
+            g.Definition != null);
+        
+        if (mainHandWeapon?.Definition?.WeaponType != null && mainHandWeapon.Definition.WeaponType != WeaponType.None)
+        {
+            return mainHandWeapon.Definition.WeaponType;
+        }
+        
+        return WeaponType.None;
+    }
 }
 
 /// <summary>

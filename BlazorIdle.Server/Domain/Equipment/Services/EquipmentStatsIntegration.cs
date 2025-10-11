@@ -179,6 +179,27 @@ public class EquipmentStatsIntegration
         // 需要检查副手槽位是否装备了盾牌
         return Task.FromResult(0.0);
     }
+    
+    /// <summary>
+    /// 计算基于装备武器的攻击间隔（Phase 5）
+    /// </summary>
+    /// <param name="characterId">角色ID</param>
+    /// <param name="baseAttackInterval">职业基础攻击间隔</param>
+    /// <returns>实际攻击间隔（考虑武器类型）</returns>
+    public async Task<double> CalculateWeaponAttackIntervalAsync(Guid characterId, double baseAttackInterval)
+    {
+        var weaponType = await _statsAggregationService.GetMainHandWeaponTypeAsync(characterId);
+        
+        // 如果没有装备武器，使用职业基础攻击间隔
+        if (weaponType == WeaponType.None)
+        {
+            return baseAttackInterval;
+        }
+        
+        // 使用武器类型的基础攻击速度
+        var attackSpeedCalculator = new AttackSpeedCalculator();
+        return attackSpeedCalculator.GetBaseAttackSpeed(weaponType);
+    }
 
     private static double Clamp01(double value)
     {

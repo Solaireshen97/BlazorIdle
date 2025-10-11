@@ -58,17 +58,20 @@ public class StartBattleService
         var enemyDef = EnemyRegistry.Resolve(enemyId);
         enemyCount = Math.Max(1, enemyCount);
 
-        var battleDomain = new Battle
-        {
-            CharacterId = characterId,
-            AttackIntervalSeconds = module.BaseAttackInterval,
-            SpecialIntervalSeconds = module.BaseSpecialInterval,
-            StartedAt = 0
-        };
-
         // 使用装备集成服务构建包含装备加成的完整属性
         var attrs = new PrimaryAttributes(c.Strength, c.Agility, c.Intellect, c.Stamina);
         var stats = await _equipmentStats.BuildStatsWithEquipmentAsync(characterId, c.Profession, attrs);
+        
+        // Phase 5: 计算基于装备武器的攻击间隔
+        var attackInterval = await _equipmentStats.CalculateWeaponAttackIntervalAsync(characterId, module.BaseAttackInterval);
+
+        var battleDomain = new Battle
+        {
+            CharacterId = characterId,
+            AttackIntervalSeconds = attackInterval,
+            SpecialIntervalSeconds = module.BaseSpecialInterval,
+            StartedAt = 0
+        };
 
         ulong finalSeed = seed ?? DeriveSeed(characterId);
         var m = (mode ?? "duration").Trim().ToLowerInvariant();
