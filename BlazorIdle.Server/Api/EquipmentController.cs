@@ -17,6 +17,7 @@ public class EquipmentController : ControllerBase
     private readonly StatsAggregationService _statsAggregationService;
     private readonly DisenchantService _disenchantService;
     private readonly ReforgeService _reforgeService;
+    private readonly RerollService _rerollService;
     private readonly GameDbContext _context;
 
     public EquipmentController(
@@ -24,12 +25,14 @@ public class EquipmentController : ControllerBase
         StatsAggregationService statsAggregationService,
         DisenchantService disenchantService,
         ReforgeService reforgeService,
+        RerollService rerollService,
         GameDbContext context)
     {
         _equipmentService = equipmentService;
         _statsAggregationService = statsAggregationService;
         _disenchantService = disenchantService;
         _reforgeService = reforgeService;
+        _rerollService = rerollService;
         _context = context;
     }
     /// <summary>
@@ -303,6 +306,102 @@ public class EquipmentController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// 重置装备所有词条
+    /// </summary>
+    /// <param name="characterId">角色ID</param>
+    /// <param name="request">重置请求</param>
+    /// <returns>重置结果</returns>
+    [HttpPost("{characterId:guid}/reroll")]
+    public async Task<ActionResult<object>> RerollAffixes(Guid characterId, [FromBody] RerollRequest request)
+    {
+        var result = await _rerollService.RerollAffixesAsync(characterId, request.GearInstanceId);
+
+        if (!result.IsSuccess)
+        {
+            return BadRequest(new { error = result.Message });
+        }
+
+        return Ok(new
+        {
+            success = true,
+            message = result.Message,
+            gear = result.UpdatedGear != null ? new
+            {
+                Id = result.UpdatedGear.Id,
+                Name = result.UpdatedGear.Definition?.Name ?? "未知装备",
+                RerollCount = result.UpdatedGear.RerollCount,
+                QualityScore = result.UpdatedGear.QualityScore,
+                Affixes = result.UpdatedGear.Affixes.Select(a => new
+                {
+                    AffixId = a.AffixId,
+                    DisplayText = a.DisplayText,
+                    RolledValue = a.RolledValue
+                }).ToList()
+            } : null,
+            oldAffixes = result.OldAffixes.Select(a => new
+            {
+                AffixId = a.AffixId,
+                DisplayText = a.DisplayText,
+                RolledValue = a.RolledValue
+            }).ToList()
+        });
+    }
+
+    /// <summary>
+    /// 重置装备单个词条
+    /// </summary>
+    /// <param name="characterId">角色ID</param>
+    /// <param name="request">单词条重置请求</param>
+    /// <returns>重置结果</returns>
+    [HttpPost("{characterId:guid}/reroll-single")]
+    public async Task<ActionResult<object>> RerollSingleAffix(Guid characterId, [FromBody] RerollSingleRequest request)
+    {
+        var result = await _rerollService.RerollSingleAffixAsync(characterId, request.GearInstanceId, request.AffixIndex);
+
+        if (!result.IsSuccess)
+        {
+            return BadRequest(new { error = result.Message });
+        }
+
+        return Ok(new
+        {
+            success = true,
+            message = result.Message,
+            gear = result.UpdatedGear != null ? new
+            {
+                Id = result.UpdatedGear.Id,
+                Name = result.UpdatedGear.Definition?.Name ?? "未知装备",
+                RerollCount = result.UpdatedGear.RerollCount,
+                QualityScore = result.UpdatedGear.QualityScore,
+                Affixes = result.UpdatedGear.Affixes.Select(a => new
+                {
+                    AffixId = a.AffixId,
+                    DisplayText = a.DisplayText,
+                    RolledValue = a.RolledValue
+                }).ToList()
+            } : null,
+            affixIndex = request.AffixIndex
+        });
+    }
+
+    /// <summary>
+    /// 预览词条重置成本
+    /// </summary>
+    /// <param name="gearInstanceId">装备实例ID</param>
+    /// <returns>预览成本</returns>
+    [HttpGet("reroll-preview/{gearInstanceId:guid}")]
+    public async Task<ActionResult<object>> PreviewReroll(Guid gearInstanceId)
+    {
+        var cost = await _rerollService.PreviewRerollCostAsync(gearInstanceId);
+
+        return Ok(new
+        {
+            gearInstanceId,
+            cost
+        });
+    }
+
     private static string GetSlotDisplayName(EquipmentSlot slot)
     {
         return slot switch
@@ -359,4 +458,21 @@ public class DisenchantBatchRequest
 public class ReforgeRequest
 {
     public Guid GearInstanceId { get; set; }
+}
+
+/// <summary>
+/// 词条重置请求
+/// </summary>
+public class RerollRequest
+{
+    public Guid GearInstanceId { get; set; }
+}
+
+/// <summary>
+/// 单词条重置请求
+/// </summary>
+public class RerollSingleRequest
+{
+    public Guid GearInstanceId { get; set; }
+    public int AffixIndex { get; set; }
 }
