@@ -146,6 +146,9 @@ public sealed class BattleEngine
         Context.Tracks.Add(attackTrack);
         Context.Tracks.Add(specialTrack);
 
+        // Phase 5: 初始化急速，确保装备急速立即生效
+        SyncTrackHaste(Context);
+
         Scheduler.Schedule(new AttackTickEvent(attackTrack.NextTriggerAt, attackTrack));
         Scheduler.Schedule(new SpecialPulseEvent(specialTrack.NextTriggerAt, specialTrack));
         Scheduler.Schedule(new ProcPulseEvent(Clock.CurrentTime + 1.0, 1.0));
