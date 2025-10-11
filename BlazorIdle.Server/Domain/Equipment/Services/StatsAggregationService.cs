@@ -222,6 +222,77 @@ public class StatsAggregationService
 
         return _blockCalculator.CalculateBlockChance(shield.ItemLevel, characterStrength);
     }
+
+    /// <summary>
+    /// Phase 5: 获取装备的武器类型信息
+    /// 用于计算攻击速度和伤害
+    /// </summary>
+    /// <param name="characterId">角色ID</param>
+    /// <returns>武器类型信息（主手、副手、是否双持）</returns>
+    public virtual async Task<WeaponTypeInfo> GetEquippedWeaponTypeAsync(Guid characterId)
+    {
+        var equippedGear = await _equipmentService.GetEquippedGearAsync(characterId);
+        
+        // 查找双手武器
+        var twoHandWeapon = equippedGear.FirstOrDefault(g => 
+            g.SlotType == EquipmentSlot.TwoHand && 
+            g.Definition?.WeaponType != WeaponType.None);
+        
+        if (twoHandWeapon != null && twoHandWeapon.Definition != null)
+        {
+            return new WeaponTypeInfo
+            {
+                MainHandType = twoHandWeapon.Definition.WeaponType,
+                OffHandType = WeaponType.None,
+                IsTwoHanded = true,
+                IsDualWielding = false
+            };
+        }
+        
+        // 查找主手武器
+        var mainHandWeapon = equippedGear.FirstOrDefault(g => 
+            g.SlotType == EquipmentSlot.MainHand && 
+            g.Definition?.WeaponType != WeaponType.None);
+        
+        // 查找副手武器或盾牌
+        var offHandWeapon = equippedGear.FirstOrDefault(g => 
+            g.SlotType == EquipmentSlot.OffHand && 
+            g.Definition?.WeaponType != WeaponType.None);
+        
+        var mainHandType = mainHandWeapon?.Definition?.WeaponType ?? WeaponType.None;
+        var offHandType = offHandWeapon?.Definition?.WeaponType ?? WeaponType.None;
+        
+        // 判断是否双持（副手是武器且不是盾牌）
+        bool isDualWielding = mainHandType != WeaponType.None && 
+                             offHandType != WeaponType.None && 
+                             offHandType != WeaponType.Shield;
+        
+        return new WeaponTypeInfo
+        {
+            MainHandType = mainHandType,
+            OffHandType = offHandType,
+            IsTwoHanded = false,
+            IsDualWielding = isDualWielding
+        };
+    }
+}
+
+/// <summary>
+/// Phase 5: 武器类型信息
+/// </summary>
+public class WeaponTypeInfo
+{
+    /// <summary>主手武器类型</summary>
+    public WeaponType MainHandType { get; set; } = WeaponType.None;
+    
+    /// <summary>副手武器类型（可能是武器或盾牌）</summary>
+    public WeaponType OffHandType { get; set; } = WeaponType.None;
+    
+    /// <summary>是否双手武器</summary>
+    public bool IsTwoHanded { get; set; }
+    
+    /// <summary>是否双持武器（主手+副手都是武器）</summary>
+    public bool IsDualWielding { get; set; }
 }
 
 /// <summary>

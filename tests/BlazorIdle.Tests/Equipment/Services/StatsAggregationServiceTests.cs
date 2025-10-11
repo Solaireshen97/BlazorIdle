@@ -162,6 +162,133 @@ public class StatsAggregationServiceTests : IDisposable
         return (definition, gear);
     }
 
+    [Fact]
+    public async Task GetEquippedWeaponTypeAsync_NoWeapon_ShouldReturnNone()
+    {
+        // Arrange
+        var characterId = Guid.NewGuid();
+
+        // Act
+        var weaponInfo = await _service.GetEquippedWeaponTypeAsync(characterId);
+
+        // Assert
+        Assert.NotNull(weaponInfo);
+        Assert.Equal(WeaponType.None, weaponInfo.MainHandType);
+        Assert.Equal(WeaponType.None, weaponInfo.OffHandType);
+        Assert.False(weaponInfo.IsTwoHanded);
+        Assert.False(weaponInfo.IsDualWielding);
+    }
+
+    [Fact]
+    public async Task GetEquippedWeaponTypeAsync_TwoHandWeapon_ShouldReturnTwoHanded()
+    {
+        // Arrange
+        var characterId = Guid.NewGuid();
+        var (weaponDef, weapon) = CreateTestWeapon(characterId, EquipmentSlot.TwoHand, WeaponType.TwoHandSword);
+        
+        weapon.IsEquipped = true;
+        weapon.SlotType = EquipmentSlot.TwoHand;
+        
+        await _context.Set<GearDefinition>().AddAsync(weaponDef);
+        await _context.Set<GearInstance>().AddAsync(weapon);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var weaponInfo = await _service.GetEquippedWeaponTypeAsync(characterId);
+
+        // Assert
+        Assert.NotNull(weaponInfo);
+        Assert.Equal(WeaponType.TwoHandSword, weaponInfo.MainHandType);
+        Assert.Equal(WeaponType.None, weaponInfo.OffHandType);
+        Assert.True(weaponInfo.IsTwoHanded);
+        Assert.False(weaponInfo.IsDualWielding);
+    }
+
+    [Fact]
+    public async Task GetEquippedWeaponTypeAsync_DualWield_ShouldReturnDualWielding()
+    {
+        // Arrange
+        var characterId = Guid.NewGuid();
+        var (mainHandDef, mainHand) = CreateTestWeapon(characterId, EquipmentSlot.MainHand, WeaponType.Sword);
+        var (offHandDef, offHand) = CreateTestWeapon(characterId, EquipmentSlot.OffHand, WeaponType.Dagger);
+        
+        mainHand.IsEquipped = true;
+        mainHand.SlotType = EquipmentSlot.MainHand;
+        
+        offHand.IsEquipped = true;
+        offHand.SlotType = EquipmentSlot.OffHand;
+        
+        await _context.Set<GearDefinition>().AddRangeAsync(mainHandDef, offHandDef);
+        await _context.Set<GearInstance>().AddRangeAsync(mainHand, offHand);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var weaponInfo = await _service.GetEquippedWeaponTypeAsync(characterId);
+
+        // Assert
+        Assert.NotNull(weaponInfo);
+        Assert.Equal(WeaponType.Sword, weaponInfo.MainHandType);
+        Assert.Equal(WeaponType.Dagger, weaponInfo.OffHandType);
+        Assert.False(weaponInfo.IsTwoHanded);
+        Assert.True(weaponInfo.IsDualWielding);
+    }
+
+    [Fact]
+    public async Task GetEquippedWeaponTypeAsync_WeaponAndShield_ShouldNotBeDualWielding()
+    {
+        // Arrange
+        var characterId = Guid.NewGuid();
+        var (weaponDef, weapon) = CreateTestWeapon(characterId, EquipmentSlot.MainHand, WeaponType.Sword);
+        var (shieldDef, shield) = CreateTestWeapon(characterId, EquipmentSlot.OffHand, WeaponType.Shield);
+        
+        weapon.IsEquipped = true;
+        weapon.SlotType = EquipmentSlot.MainHand;
+        
+        shield.IsEquipped = true;
+        shield.SlotType = EquipmentSlot.OffHand;
+        
+        await _context.Set<GearDefinition>().AddRangeAsync(weaponDef, shieldDef);
+        await _context.Set<GearInstance>().AddRangeAsync(weapon, shield);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var weaponInfo = await _service.GetEquippedWeaponTypeAsync(characterId);
+
+        // Assert
+        Assert.NotNull(weaponInfo);
+        Assert.Equal(WeaponType.Sword, weaponInfo.MainHandType);
+        Assert.Equal(WeaponType.Shield, weaponInfo.OffHandType);
+        Assert.False(weaponInfo.IsTwoHanded);
+        Assert.False(weaponInfo.IsDualWielding); // Shield doesn't count as dual wielding
+    }
+
+    private (GearDefinition, GearInstance) CreateTestWeapon(Guid characterId, EquipmentSlot slot, WeaponType weaponType)
+    {
+        var definition = new GearDefinition
+        {
+            Id = $"test_weapon_{slot}_{weaponType}_{Guid.NewGuid()}",
+            Name = $"测试武器 {weaponType}",
+            Slot = slot,
+            ArmorType = ArmorType.None,
+            WeaponType = weaponType,
+            RequiredLevel = 1
+        };
+
+        var gear = new GearInstance
+        {
+            Id = Guid.NewGuid(),
+            DefinitionId = definition.Id,
+            CharacterId = characterId,
+            Rarity = Rarity.Common,
+            TierLevel = 1,
+            ItemLevel = 50,
+            IsEquipped = false,
+            Definition = definition
+        };
+
+        return (definition, gear);
+    }
+
     public void Dispose()
     {
         _context.Dispose();

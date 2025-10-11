@@ -179,6 +179,49 @@ public class EquipmentStatsIntegration
         return Task.FromResult(0.0);
     }
 
+    /// <summary>
+    /// Phase 5: 计算基于装备武器的攻击速度
+    /// </summary>
+    /// <param name="characterId">角色ID</param>
+    /// <param name="professionBaseAttackSpeed">职业基础攻击速度</param>
+    /// <param name="hastePercent">急速百分比</param>
+    /// <returns>实际攻击速度（秒）</returns>
+    public async Task<double> CalculateAttackSpeedAsync(
+        Guid characterId,
+        double professionBaseAttackSpeed,
+        double hastePercent)
+    {
+        var weaponInfo = await _statsAggregationService.GetEquippedWeaponTypeAsync(characterId);
+        
+        // 如果没有装备武器，使用职业基础攻击速度
+        if (weaponInfo.MainHandType == WeaponType.None && !weaponInfo.IsTwoHanded)
+        {
+            return professionBaseAttackSpeed / (1.0 + hastePercent);
+        }
+        
+        var attackSpeedCalc = new AttackSpeedCalculator();
+        
+        // 双手武器：使用双手武器的攻击速度
+        if (weaponInfo.IsTwoHanded)
+        {
+            return attackSpeedCalc.CalculateAttackSpeed(weaponInfo.MainHandType, hastePercent);
+        }
+        
+        // 双持武器：取主手和副手攻击速度的平均值
+        if (weaponInfo.IsDualWielding)
+        {
+            var mainHandSpeed = attackSpeedCalc.GetBaseAttackSpeed(weaponInfo.MainHandType);
+            var offHandSpeed = attackSpeedCalc.GetBaseAttackSpeed(weaponInfo.OffHandType);
+            var avgSpeed = (mainHandSpeed + offHandSpeed) / 2.0;
+            
+            // 应用急速
+            return avgSpeed / (1.0 + hastePercent);
+        }
+        
+        // 单手武器（或单手+盾牌）：使用主手武器速度
+        return attackSpeedCalc.CalculateAttackSpeed(weaponInfo.MainHandType, hastePercent);
+    }
+
     private static double Clamp01(double value)
     {
         if (value < 0) return 0;
