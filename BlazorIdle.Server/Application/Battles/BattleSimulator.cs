@@ -51,6 +51,12 @@ public class BattleSimulator
         public Encounter? Encounter { get; init; }
         public EncounterGroup? EncounterGroup { get; init; }
         public IEncounterProvider? Provider { get; init; }
+        
+        /// <summary>
+        /// Phase 5: 可选的攻击间隔覆盖（用于武器类型系统）
+        /// 如果未设置，则使用职业基础攻击间隔
+        /// </summary>
+        public double? AttackIntervalSeconds { get; init; }
     }
 
     /// <summary>
@@ -61,12 +67,15 @@ public class BattleSimulator
         var rng = config.Rng ?? new RngContext(config.Seed);
         var seedIndexStart = rng.Index;
 
+        var module = config.Module ?? ProfessionRegistry.Resolve(config.Profession);
+        
         var battle = new Battle
         {
             Id = config.BattleId,
             CharacterId = config.CharacterId,
-            AttackIntervalSeconds = (config.Module ?? ProfessionRegistry.Resolve(config.Profession)).BaseAttackInterval,
-            SpecialIntervalSeconds = (config.Module ?? ProfessionRegistry.Resolve(config.Profession)).BaseSpecialInterval,
+            // Phase 5: 如果配置指定了攻击间隔，使用配置值；否则使用职业基础值
+            AttackIntervalSeconds = config.AttackIntervalSeconds ?? module.BaseAttackInterval,
+            SpecialIntervalSeconds = module.BaseSpecialInterval,
             StartedAt = 0
         };
 
