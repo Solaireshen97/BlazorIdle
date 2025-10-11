@@ -74,6 +74,11 @@ public class GearInstance
     public bool IsBound { get; set; }
     
     /// <summary>
+    /// 词条重置次数
+    /// </summary>
+    public int RerollCount { get; set; }
+    
+    /// <summary>
     /// 创建时间
     /// </summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
