@@ -6,6 +6,7 @@ using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat;
 using BlazorIdle.Server.Domain.Combat.Enemies;
 using BlazorIdle.Server.Domain.Combat.Rng;
+using BlazorIdle.Server.Domain.Equipment.Services;
 using BlazorIdle.Shared.Models;
 using System;
 using System.Linq;
@@ -28,7 +29,8 @@ public class OfflineOnlineConsistencyTests
 
     public OfflineOnlineConsistencyTests()
     {
-        _offlineEngine = new OfflineFastForwardEngine(_simulator);
+        var fakeEquipmentStats = new TestHelpers.FakeEquipmentStatsIntegration();
+        _offlineEngine = new OfflineFastForwardEngine(_simulator, fakeEquipmentStats);
     }
 
     [Fact]

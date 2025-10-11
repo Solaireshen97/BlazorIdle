@@ -5,6 +5,7 @@ using BlazorIdle.Server.Domain.Combat;
 using BlazorIdle.Server.Domain.Combat.Enemies;
 using BlazorIdle.Server.Domain.Combat.Professions;
 using BlazorIdle.Server.Domain.Combat.Rng;
+using BlazorIdle.Server.Domain.Equipment.Services;
 using BlazorIdle.Shared.Models;
 
 namespace BlazorIdle.Server.Application.Battles.Simulation;
@@ -13,11 +14,13 @@ public sealed class BatchSimulator
 {
     private readonly ICharacterRepository _characters;
     private readonly BattleRunner _runner;
+    private readonly EquipmentStatsIntegration _equipmentStats;
 
-    public BatchSimulator(ICharacterRepository characters, BattleRunner runner)
+    public BatchSimulator(ICharacterRepository characters, BattleRunner runner, EquipmentStatsIntegration equipmentStats)
     {
         _characters = characters;
         _runner = runner;
+        _equipmentStats = equipmentStats;
     }
 
     public async Task<SimulateResponse> SimulateAsync(SimulateRequest req, CancellationToken ct = default)
@@ -27,10 +30,9 @@ public sealed class BatchSimulator
         var profession = c.Profession;
         var module = ProfessionRegistry.Resolve(profession);
 
-        var baseStats = ProfessionBaseStatsRegistry.Resolve(profession);
+        // 使用装备集成服务构建包含装备加成的完整属性
         var attrs = new PrimaryAttributes(c.Strength, c.Agility, c.Intellect, c.Stamina);
-        var derived = StatsBuilder.BuildDerived(profession, attrs);
-        var stats = StatsBuilder.Combine(baseStats, derived);
+        var stats = await _equipmentStats.BuildStatsWithEquipmentAsync(req.CharacterId, profession, attrs);
 
         var enemyDef = EnemyRegistry.Resolve(req.EnemyId);
         int enemyCount = Math.Max(1, req.EnemyCount);

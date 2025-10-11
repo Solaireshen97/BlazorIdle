@@ -44,6 +44,7 @@ public static class DependencyInjection
             var engine = sp.GetRequiredService<OfflineFastForwardEngine>();
             var db = sp.GetRequiredService<GameDbContext>();
             var planService = sp.GetRequiredService<ActivityPlanService>();
+            var equipmentStats = sp.GetRequiredService<EquipmentStatsIntegration>();
             
             // 传递 ActivityPlanService 的方法作为委托
             return new OfflineSettlementService(
@@ -52,6 +53,7 @@ public static class DependencyInjection
                 plans,
                 engine,
                 db,
+                equipmentStats,
                 planService.TryStartNextPendingPlanAsync,
                 planService.StartPlanAsync
             );
