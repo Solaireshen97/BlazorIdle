@@ -41,7 +41,8 @@ public class OfflineSettlementServiceTests
 
         // 创建引擎
         var simulator = new BattleSimulator();
-        _engine = new OfflineFastForwardEngine(simulator);
+        var fakeEquipmentStats = new TestHelpers.FakeEquipmentStatsIntegration();
+        _engine = new OfflineFastForwardEngine(simulator, fakeEquipmentStats);
     }
 
     [Fact]

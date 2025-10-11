@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Domain.Characters;
+using BlazorIdle.Server.Domain.Equipment.Services;
 using BlazorIdle.Server.Domain.Records;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -116,15 +117,16 @@ public sealed class StepBattleSnapshotService
                 var dto = JsonSerializer.Deserialize<StepBattleSnapshotDto>(row.SnapshotJson);
                 if (dto is null) continue;
 
-                // 重建 Stats（与 Start 时一致）
+                // 重建 Stats（与 Start 时一致，包含装备加成）
                 var ch = await characters.GetAsync(dto.CharacterId, ct);
                 if (ch is null) continue;
 
                 var profession = (Shared.Models.Profession)dto.Profession;
-                var baseStats = ProfessionBaseStatsRegistry.Resolve(profession);
                 var attrs = new PrimaryAttributes(ch.Strength, ch.Agility, ch.Intellect, ch.Stamina);
-                var derived = StatsBuilder.BuildDerived(profession, attrs);
-                var stats = StatsBuilder.Combine(baseStats, derived);
+                
+                // 使用装备集成服务构建完整属性
+                var equipmentStats = scope.ServiceProvider.GetRequiredService<EquipmentStatsIntegration>();
+                var stats = await equipmentStats.BuildStatsWithEquipmentAsync(dto.CharacterId, profession, attrs);
 
                 // 通过 Coordinator.Start 重建一个全新的 RunningBattle
                 var newId = coord.Start(dto.CharacterId, profession, stats, dto.TargetSeconds, dto.Seed, dto.EnemyId, dto.EnemyCount);

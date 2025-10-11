@@ -4,6 +4,7 @@ using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Enemies;
 using BlazorIdle.Server.Domain.Combat.Rng;
 using BlazorIdle.Server.Domain.Economy;
+using BlazorIdle.Server.Domain.Equipment.Services;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -53,6 +54,7 @@ public sealed class OfflineSettlementService
     private readonly IActivityPlanRepository _plans;
     private readonly OfflineFastForwardEngine _engine;
     private readonly GameDbContext _db;
+    private readonly EquipmentStatsIntegration _equipmentStats;
     private readonly Func<Guid, CancellationToken, Task<ActivityPlan?>>? _tryStartNextPlan;
     private readonly Func<Guid, CancellationToken, Task<Guid>>? _startPlan;
 
@@ -62,6 +64,7 @@ public sealed class OfflineSettlementService
         IActivityPlanRepository plans,
         OfflineFastForwardEngine engine,
         GameDbContext db,
+        EquipmentStatsIntegration equipmentStats,
         Func<Guid, CancellationToken, Task<ActivityPlan?>>? tryStartNextPlan = null,
         Func<Guid, CancellationToken, Task<Guid>>? startPlan = null)
     {
@@ -70,6 +73,7 @@ public sealed class OfflineSettlementService
         _plans = plans;
         _engine = engine;
         _db = db;
+        _equipmentStats = equipmentStats;
         _tryStartNextPlan = tryStartNextPlan;
         _startPlan = startPlan;
     }
@@ -272,10 +276,9 @@ public sealed class OfflineSettlementService
         var c = await _characters.GetAsync(characterId, ct) ?? throw new InvalidOperationException("Character not found");
 
         var profession = c.Profession;
-        var baseStats = ProfessionBaseStatsRegistry.Resolve(profession);
         var attrs = new PrimaryAttributes(c.Strength, c.Agility, c.Intellect, c.Stamina);
-        var derived = StatsBuilder.BuildDerived(profession, attrs);
-        var stats = StatsBuilder.Combine(baseStats, derived);
+        // 使用装备集成服务构建包含装备加成的完整属性
+        var stats = await _equipmentStats.BuildStatsWithEquipmentAsync(characterId, profession, attrs);
 
         var enemyDef = EnemyRegistry.Resolve(enemyId);
         var seconds = Math.Max(1.0, offlineDuration.TotalSeconds);
