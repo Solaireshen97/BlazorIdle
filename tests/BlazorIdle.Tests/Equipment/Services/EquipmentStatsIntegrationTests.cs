@@ -15,7 +15,10 @@ public class EquipmentStatsIntegrationTests
     public EquipmentStatsIntegrationTests()
     {
         _fakeStatsAggregationService = new FakeStatsAggregationService();
-        _service = new EquipmentStatsIntegration(_fakeStatsAggregationService);
+        _service = new EquipmentStatsIntegration(
+            _fakeStatsAggregationService,
+            new TestHelpers.FakeGearInstanceRepository(),
+            new AttackSpeedCalculator());
     }
 
     [Fact]

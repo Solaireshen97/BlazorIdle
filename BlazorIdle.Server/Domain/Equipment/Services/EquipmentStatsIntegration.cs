@@ -1,5 +1,7 @@
+using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Equipment.Models;
+using BlazorIdle.Server.Domain.Equipment.ValueObjects;
 using BlazorIdle.Shared.Models;
 
 namespace BlazorIdle.Server.Domain.Equipment.Services;
@@ -11,10 +13,17 @@ namespace BlazorIdle.Server.Domain.Equipment.Services;
 public class EquipmentStatsIntegration
 {
     private readonly StatsAggregationService _statsAggregationService;
+    private readonly IGearInstanceRepository _gearInstanceRepository;
+    private readonly AttackSpeedCalculator _attackSpeedCalculator;
 
-    public EquipmentStatsIntegration(StatsAggregationService statsAggregationService)
+    public EquipmentStatsIntegration(
+        StatsAggregationService statsAggregationService,
+        IGearInstanceRepository gearInstanceRepository,
+        AttackSpeedCalculator attackSpeedCalculator)
     {
         _statsAggregationService = statsAggregationService;
+        _gearInstanceRepository = gearInstanceRepository;
+        _attackSpeedCalculator = attackSpeedCalculator;
     }
 
     /// <summary>
@@ -177,6 +186,76 @@ public class EquipmentStatsIntegration
         // TODO: 实现盾牌格挡率计算
         // 需要检查副手槽位是否装备了盾牌
         return Task.FromResult(0.0);
+    }
+
+    /// <summary>
+    /// 获取角色装备的武器信息（Phase 5）
+    /// 用于战斗系统确定攻击速度和伤害倍率
+    /// </summary>
+    /// <param name="characterId">角色ID</param>
+    /// <returns>武器信息，如果没有装备武器则返回默认值（空手）</returns>
+    public async Task<WeaponInfo> GetEquippedWeaponInfoAsync(Guid characterId)
+    {
+        // 获取已装备的装备
+        var equippedGear = await _gearInstanceRepository.GetEquippedGearAsync(characterId);
+        
+        // 查找主手武器
+        var mainHandGear = equippedGear.FirstOrDefault(g => g.SlotType == EquipmentSlot.MainHand);
+        
+        // 如果没有主手武器，返回默认（空手）
+        if (mainHandGear?.Definition == null)
+        {
+            return WeaponInfo.Default;
+        }
+        
+        var mainHandWeaponType = mainHandGear.Definition.WeaponType;
+        
+        // 检查是否装备了双手武器
+        if (AttackSpeedCalculator.IsTwoHandedWeapon(mainHandWeaponType))
+        {
+            return new WeaponInfo
+            {
+                WeaponType = mainHandWeaponType,
+                BaseAttackSpeed = _attackSpeedCalculator.GetBaseAttackSpeed(mainHandWeaponType),
+                DPSCoefficient = _attackSpeedCalculator.GetWeaponDPSCoefficient(mainHandWeaponType),
+                IsTwoHanded = true,
+                IsDualWielding = false
+            };
+        }
+        
+        // 检查副手是否也装备了武器（双持）
+        var offHandGear = equippedGear.FirstOrDefault(g => g.SlotType == EquipmentSlot.OffHand);
+        
+        if (offHandGear?.Definition != null)
+        {
+            var offHandWeaponType = offHandGear.Definition.WeaponType;
+            
+            // 如果副手是武器（不是盾牌），则为双持
+            if (offHandWeaponType != WeaponType.Shield && offHandWeaponType != WeaponType.None)
+            {
+                return new WeaponInfo
+                {
+                    WeaponType = mainHandWeaponType,
+                    BaseAttackSpeed = _attackSpeedCalculator.GetBaseAttackSpeed(mainHandWeaponType),
+                    DPSCoefficient = _attackSpeedCalculator.GetWeaponDPSCoefficient(mainHandWeaponType),
+                    IsTwoHanded = false,
+                    IsDualWielding = true,
+                    OffHandWeaponType = offHandWeaponType,
+                    OffHandBaseAttackSpeed = _attackSpeedCalculator.GetBaseAttackSpeed(offHandWeaponType),
+                    OffHandDPSCoefficient = _attackSpeedCalculator.GetWeaponDPSCoefficient(offHandWeaponType)
+                };
+            }
+        }
+        
+        // 单手武器（无副手武器）
+        return new WeaponInfo
+        {
+            WeaponType = mainHandWeaponType,
+            BaseAttackSpeed = _attackSpeedCalculator.GetBaseAttackSpeed(mainHandWeaponType),
+            DPSCoefficient = _attackSpeedCalculator.GetWeaponDPSCoefficient(mainHandWeaponType),
+            IsTwoHanded = false,
+            IsDualWielding = false
+        };
     }
 
     private static double Clamp01(double value)
