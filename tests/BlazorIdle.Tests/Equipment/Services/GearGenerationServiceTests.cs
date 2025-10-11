@@ -1,3 +1,4 @@
+using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Domain.Equipment.Models;
 using BlazorIdle.Server.Domain.Equipment.Services;
 using BlazorIdle.Server.Domain.Equipment.ValueObjects;
@@ -11,21 +12,94 @@ namespace BlazorIdle.Tests.Equipment.Services;
 public class GearGenerationServiceTests
 {
     private readonly GearGenerationService _service;
+    private readonly FakeAffixRepository _fakeAffixRepository;
 
     public GearGenerationServiceTests()
     {
-        _service = new GearGenerationService();
+        _fakeAffixRepository = new FakeAffixRepository();
+        _service = new GearGenerationService(_fakeAffixRepository);
+        
+        // 设置默认的词条定义
+        SetupDefaultAffixes();
+    }
+
+    private void SetupDefaultAffixes()
+    {
+        var testAffixes = new List<Affix>
+        {
+            new Affix { Id = "affix_str", Name = "力量", StatType = StatType.Strength, ModifierType = ModifierType.Flat, ValueMin = 5, ValueMax = 10 },
+            new Affix { Id = "affix_agi", Name = "敏捷", StatType = StatType.Agility, ModifierType = ModifierType.Flat, ValueMin = 5, ValueMax = 10 },
+            new Affix { Id = "affix_crit", Name = "暴击", StatType = StatType.CritChance, ModifierType = ModifierType.Percent, ValueMin = 1, ValueMax = 3 },
+            new Affix { Id = "affix_1", Name = "攻击", StatType = StatType.AttackPower, ModifierType = ModifierType.Flat, ValueMin = 10, ValueMax = 20 },
+            new Affix { Id = "affix_2", Name = "耐力", StatType = StatType.Stamina, ModifierType = ModifierType.Flat, ValueMin = 10, ValueMax = 20 },
+            new Affix { Id = "affix_3", Name = "急速", StatType = StatType.Haste, ModifierType = ModifierType.Flat, ValueMin = 5, ValueMax = 15 },
+            new Affix { Id = "affix_4", Name = "暴击等级", StatType = StatType.CritRating, ModifierType = ModifierType.Flat, ValueMin = 5, ValueMax = 15 }
+        };
+
+        foreach (var affix in testAffixes)
+        {
+            _fakeAffixRepository.AddAffix(affix);
+        }
+    }
+
+    /// <summary>
+    /// 用于测试的假Affix仓储实现
+    /// </summary>
+    private class FakeAffixRepository : IAffixRepository
+    {
+        private readonly Dictionary<string, Affix> _affixes = new();
+
+        public void AddAffix(Affix affix)
+        {
+            _affixes[affix.Id] = affix;
+        }
+
+        public Task<Affix?> GetByIdAsync(string id, CancellationToken ct = default)
+        {
+            _affixes.TryGetValue(id, out var affix);
+            return Task.FromResult(affix);
+        }
+
+        public Task<List<Affix>> GetAllAsync(CancellationToken ct = default)
+        {
+            return Task.FromResult(_affixes.Values.ToList());
+        }
+
+        public Task<List<Affix>> GetBySlotAsync(EquipmentSlot slot, CancellationToken ct = default)
+        {
+            return Task.FromResult(_affixes.Values
+                .Where(a => a.AllowedSlots == null || a.AllowedSlots.Contains(slot))
+                .ToList());
+        }
+
+        public Task CreateAsync(Affix affix, CancellationToken ct = default)
+        {
+            _affixes[affix.Id] = affix;
+            return Task.CompletedTask;
+        }
+
+        public Task UpdateAsync(Affix affix, CancellationToken ct = default)
+        {
+            _affixes[affix.Id] = affix;
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteAsync(string id, CancellationToken ct = default)
+        {
+            _affixes.Remove(id);
+            return Task.CompletedTask;
+        }
     }
 
     [Fact]
-    public void Generate_ShouldCreateValidGearInstance()
+    public async Task GenerateAsync_ShouldCreateValidGearInstance()
     {
         // Arrange
         var definition = CreateTestGearDefinition();
         var characterLevel = 10;
 
         // Act
-        var gear = _service.Generate(definition, characterLevel);
+        var gear = await _service.GenerateAsync(definition, characterLevel);
 
         // Assert
         Assert.NotNull(gear);
@@ -39,7 +113,7 @@ public class GearGenerationServiceTests
     }
 
     [Fact]
-    public void Generate_ShouldRollBaseStats()
+    public async Task GenerateAsync_ShouldRollBaseStats()
     {
         // Arrange
         var definition = CreateTestGearDefinition();
@@ -51,7 +125,7 @@ public class GearGenerationServiceTests
         var characterLevel = 10;
 
         // Act
-        var gear = _service.Generate(definition, characterLevel);
+        var gear = await _service.GenerateAsync(definition, characterLevel);
 
         // Assert
         Assert.NotEmpty(gear.RolledStats);
@@ -62,7 +136,7 @@ public class GearGenerationServiceTests
     }
 
     [Fact]
-    public void Generate_CommonRarity_ShouldHaveNoAffixes()
+    public async Task GenerateAsync_CommonRarity_ShouldHaveNoAffixes()
     {
         // Arrange
         var definition = CreateTestGearDefinition();
@@ -73,7 +147,7 @@ public class GearGenerationServiceTests
         var characterLevel = 10;
 
         // Act
-        var gear = _service.Generate(definition, characterLevel);
+        var gear = await _service.GenerateAsync(definition, characterLevel);
 
         // Assert
         Assert.Equal(Rarity.Common, gear.Rarity);
@@ -81,7 +155,7 @@ public class GearGenerationServiceTests
     }
 
     [Fact]
-    public void Generate_RareRarity_ShouldHaveOneAffix()
+    public async Task GenerateAsync_RareRarity_ShouldHaveOneAffix()
     {
         // Arrange
         var definition = CreateTestGearDefinition();
@@ -93,7 +167,7 @@ public class GearGenerationServiceTests
         var characterLevel = 10;
 
         // Act
-        var gear = _service.Generate(definition, characterLevel);
+        var gear = await _service.GenerateAsync(definition, characterLevel);
 
         // Assert
         Assert.Equal(Rarity.Rare, gear.Rarity);
@@ -101,7 +175,7 @@ public class GearGenerationServiceTests
     }
 
     [Fact]
-    public void Generate_EpicRarity_ShouldHaveTwoAffixes()
+    public async Task GenerateAsync_EpicRarity_ShouldHaveTwoAffixes()
     {
         // Arrange
         var definition = CreateTestGearDefinition();
@@ -113,7 +187,7 @@ public class GearGenerationServiceTests
         var characterLevel = 10;
 
         // Act
-        var gear = _service.Generate(definition, characterLevel);
+        var gear = await _service.GenerateAsync(definition, characterLevel);
 
         // Assert
         Assert.Equal(Rarity.Epic, gear.Rarity);
@@ -121,7 +195,7 @@ public class GearGenerationServiceTests
     }
 
     [Fact]
-    public void Generate_LegendaryRarity_ShouldHaveThreeAffixes()
+    public async Task GenerateAsync_LegendaryRarity_ShouldHaveThreeAffixes()
     {
         // Arrange
         var definition = CreateTestGearDefinition();
@@ -133,7 +207,7 @@ public class GearGenerationServiceTests
         var characterLevel = 10;
 
         // Act
-        var gear = _service.Generate(definition, characterLevel);
+        var gear = await _service.GenerateAsync(definition, characterLevel);
 
         // Assert
         Assert.Equal(Rarity.Legendary, gear.Rarity);
@@ -141,21 +215,21 @@ public class GearGenerationServiceTests
     }
 
     [Fact]
-    public void Generate_ShouldCalculateQualityScore()
+    public async Task GenerateAsync_ShouldCalculateQualityScore()
     {
         // Arrange
         var definition = CreateTestGearDefinition();
         var characterLevel = 10;
 
         // Act
-        var gear = _service.Generate(definition, characterLevel);
+        var gear = await _service.GenerateAsync(definition, characterLevel);
 
         // Assert
         Assert.True(gear.QualityScore > 0);
     }
 
     [Fact]
-    public void Generate_HigherCharacterLevel_ShouldProduceHigherItemLevel()
+    public async Task GenerateAsync_HigherCharacterLevel_ShouldProduceHigherItemLevel()
     {
         // Arrange
         var definition = CreateTestGearDefinition();
@@ -165,15 +239,15 @@ public class GearGenerationServiceTests
         };
 
         // Act
-        var gear1 = _service.Generate(definition, 5);
-        var gear2 = _service.Generate(definition, 20);
+        var gear1 = await _service.GenerateAsync(definition, 5);
+        var gear2 = await _service.GenerateAsync(definition, 20);
 
         // Assert
         Assert.True(gear2.ItemLevel > gear1.ItemLevel);
     }
 
     [Fact]
-    public void Generate_WithSetId_ShouldPreserveSetId()
+    public async Task GenerateAsync_WithSetId_ShouldPreserveSetId()
     {
         // Arrange
         var definition = CreateTestGearDefinition();
@@ -181,7 +255,7 @@ public class GearGenerationServiceTests
         var characterLevel = 10;
 
         // Act
-        var gear = _service.Generate(definition, characterLevel);
+        var gear = await _service.GenerateAsync(definition, characterLevel);
 
         // Assert
         Assert.Equal("warrior_set", gear.SetId);
