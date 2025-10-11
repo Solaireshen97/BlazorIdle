@@ -11,6 +11,7 @@ using BlazorIdle.Server.Infrastructure.Startup;
 using BlazorIdle.Server.Application.Battles;
 using BlazorIdle.Server.Application.Activities;
 using BlazorIdle.Server.Domain.Equipment.Services;
+using BlazorIdle.Server.Domain.Characters;
 
 namespace BlazorIdle.Server.Infrastructure;
 
@@ -65,6 +66,9 @@ public static class DependencyInjection
         services.AddScoped<EquipmentService>();
         services.AddScoped<StatsAggregationService>();
         services.AddScoped<GearDropService>();
+        
+        // 角色属性构建服务
+        services.AddScoped<CharacterStatsBuilder>();
 
         return services;
     }
