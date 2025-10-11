@@ -1,79 +1,133 @@
+using BlazorIdle.Server.Application.Equipment;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace BlazorIdle.Server.Api;
 
 /// <summary>
-/// 装备系统API控制器（Step 5: 装备系统UI预留）
-/// 当前为占位实现，返回空槽数据
+/// 装备系统API控制器
+/// 提供装备管理、属性查询等功能
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class EquipmentController : ControllerBase
 {
+    private readonly EquipmentService _equipmentService;
+    private readonly StatsAggregationService _statsService;
+
+    public EquipmentController(
+        EquipmentService equipmentService,
+        StatsAggregationService statsService)
+    {
+        _equipmentService = equipmentService;
+        _statsService = statsService;
+    }
     /// <summary>
     /// 获取角色的装备栏
     /// </summary>
     /// <param name="characterId">角色ID</param>
     /// <returns>装备栏信息，包含所有装备槽和总属性</returns>
     [HttpGet("{characterId:guid}")]
-    public ActionResult<object> GetEquipment(Guid characterId)
+    public async Task<ActionResult<object>> GetEquipment(Guid characterId)
     {
-        // 占位实现：返回空装备槽
-        var slots = new[]
+        try
         {
-            new { SlotType = "head", SlotName = "头盔", Item = (object?)null, IsLocked = false },
-            new { SlotType = "weapon", SlotName = "武器", Item = (object?)null, IsLocked = false },
-            new { SlotType = "chest", SlotName = "胸甲", Item = (object?)null, IsLocked = false },
-            new { SlotType = "offhand", SlotName = "副手", Item = (object?)null, IsLocked = false },
-            new { SlotType = "waist", SlotName = "腰带", Item = (object?)null, IsLocked = false },
-            new { SlotType = "legs", SlotName = "腿部", Item = (object?)null, IsLocked = false },
-            new { SlotType = "feet", SlotName = "鞋子", Item = (object?)null, IsLocked = false },
-            new { SlotType = "trinket1", SlotName = "饰品1", Item = (object?)null, IsLocked = false },
-            new { SlotType = "trinket2", SlotName = "饰品2", Item = (object?)null, IsLocked = false }
-        };
+            var equippedGear = await _equipmentService.GetEquippedGearAsync(characterId);
+            var totalStats = await _statsService.GetTotalStatsAsync(characterId);
+            var gearScore = await _statsService.GetTotalGearScoreAsync(characterId);
 
-        var response = new
-        {
-            characterId,
-            characterName = "角色名称",
-            slots,
-            totalStats = new Dictionary<string, double>
+            var response = new
             {
-                { "AttackPower", 0 },
-                { "Armor", 0 },
-                { "HastePercent", 0 },
-                { "CritChance", 0 }
-            }
-        };
+                characterId,
+                equippedGear = equippedGear.Select(g => new
+                {
+                    id = g.Id,
+                    definitionId = g.DefinitionId,
+                    slot = g.SlotType.ToString(),
+                    rarity = g.Rarity.ToString(),
+                    itemLevel = g.ItemLevel,
+                    qualityScore = g.QualityScore,
+                    stats = g.RolledStats,
+                    affixes = g.Affixes.Select(a => new
+                    {
+                        affixId = a.AffixId,
+                        displayText = a.DisplayText,
+                        value = a.RolledValue
+                    })
+                }),
+                totalStats = totalStats.ToDictionary(
+                    kv => kv.Key.ToString(),
+                    kv => kv.Value
+                ),
+                gearScore
+            };
 
-        return Ok(response);
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
     }
 
     /// <summary>
-    /// 装备物品到指定槽位
+    /// 装备物品
     /// </summary>
     /// <param name="characterId">角色ID</param>
-    /// <param name="slot">槽位类型</param>
-    /// <param name="request">装备请求（包含物品ID）</param>
-    /// <returns>装备后的槽位信息</returns>
-    [HttpPost("{characterId:guid}/{slot}")]
-    public ActionResult<object> EquipItem(Guid characterId, string slot, [FromBody] object request)
+    /// <param name="request">装备请求（包含装备实例ID）</param>
+    /// <returns>操作结果</returns>
+    [HttpPost("{characterId:guid}/equip")]
+    public async Task<ActionResult<object>> EquipItem(Guid characterId, [FromBody] EquipRequest request)
     {
-        // 占位实现：返回未实现错误
-        return StatusCode(501, new { error = "装备系统尚未实现" });
+        try
+        {
+            var (success, message) = await _equipmentService.EquipAsync(characterId, request.GearInstanceId);
+            
+            if (!success)
+            {
+                return BadRequest(new { error = message });
+            }
+
+            return Ok(new { message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
     }
+
+    public record EquipRequest(Guid GearInstanceId);
 
     /// <summary>
     /// 卸下指定槽位的装备
     /// </summary>
     /// <param name="characterId">角色ID</param>
     /// <param name="slot">槽位类型</param>
-    /// <returns>卸下后的槽位信息</returns>
+    /// <returns>操作结果</returns>
     [HttpDelete("{characterId:guid}/{slot}")]
-    public ActionResult<object> UnequipItem(Guid characterId, string slot)
+    public async Task<ActionResult<object>> UnequipItem(Guid characterId, string slot)
     {
-        // 占位实现：返回未实现错误
-        return StatusCode(501, new { error = "装备系统尚未实现" });
+        try
+        {
+            if (!Enum.TryParse<Domain.Equipment.Models.EquipmentSlot>(slot, true, out var slotEnum))
+            {
+                return BadRequest(new { error = "无效的槽位类型" });
+            }
+
+            var (success, message) = await _equipmentService.UnequipAsync(characterId, slotEnum);
+            
+            if (!success)
+            {
+                return BadRequest(new { error = message });
+            }
+
+            return Ok(new { message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
     }
 
     /// <summary>
@@ -82,17 +136,23 @@ public class EquipmentController : ControllerBase
     /// <param name="characterId">角色ID</param>
     /// <returns>总属性字典</returns>
     [HttpGet("{characterId:guid}/stats")]
-    public ActionResult<object> GetEquipmentStats(Guid characterId)
+    public async Task<ActionResult<object>> GetEquipmentStats(Guid characterId)
     {
-        // 占位实现：返回空属性
-        var stats = new Dictionary<string, double>
+        try
         {
-            { "AttackPower", 0 },
-            { "Armor", 0 },
-            { "HastePercent", 0 },
-            { "CritChance", 0 }
-        };
+            var stats = await _statsService.GetTotalStatsAsync(characterId);
+            var gearScore = await _statsService.GetTotalGearScoreAsync(characterId);
 
-        return Ok(new { characterId, stats });
+            return Ok(new
+            {
+                characterId,
+                stats = stats.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value),
+                gearScore
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
     }
 }
