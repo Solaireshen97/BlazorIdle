@@ -73,42 +73,54 @@ public class EquipmentCombatIntegrationTests
         var baseStats = BuildBaseCharacterStats();
         var statsWithCrit = BuildStatsWithEquipment(baseStats, critChanceBonus: 0.2); // +20%暴击
 
-        var config1 = new BattleSimulator.BattleConfig
-        {
-            BattleId = Guid.NewGuid(),
-            CharacterId = Guid.NewGuid(),
-            Profession = Profession.Warrior,
-            Stats = baseStats,
-            Seed = 98765UL,
-            EnemyDef = EnemyRegistry.Resolve("dummy"),
-            EnemyCount = 1,
-            Mode = "duration"
-        };
-
-        var config2 = new BattleSimulator.BattleConfig
-        {
-            BattleId = Guid.NewGuid(),
-            CharacterId = Guid.NewGuid(),
-            Profession = Profession.Warrior,
-            Stats = statsWithCrit,
-            Seed = 98765UL,
-            EnemyDef = EnemyRegistry.Resolve("dummy"),
-            EnemyCount = 1,
-            Mode = "duration"
-        };
-
+        // 注意：不能使用相同的seed，因为RNG会产生相同的暴击判定序列
+        // 相反，我们运行多次测试并比较平均击杀时间
         var simulator = new BattleSimulator();
+        var killTimes1 = new List<double>();
+        var killTimes2 = new List<double>();
 
-        // Act - 运行较长时间以确保暴击统计有意义
-        var result1 = simulator.RunForDuration(config1, 30.0);
-        var result2 = simulator.RunForDuration(config2, 30.0);
+        // 运行10次战斗以获得统计意义
+        for (int i = 0; i < 10; i++)
+        {
+            var config1 = new BattleSimulator.BattleConfig
+            {
+                BattleId = Guid.NewGuid(),
+                CharacterId = Guid.NewGuid(),
+                Profession = Profession.Warrior,
+                Stats = baseStats,
+                Seed = (ulong)(98765 + i * 1000),
+                EnemyDef = EnemyRegistry.Resolve("dummy"),
+                EnemyCount = 1,
+                Mode = "duration"
+            };
 
-        // Assert
-        var damage1 = result1.Segments.Sum(s => s.TotalDamage);
-        var damage2 = result2.Segments.Sum(s => s.TotalDamage);
+            var config2 = new BattleSimulator.BattleConfig
+            {
+                BattleId = Guid.NewGuid(),
+                CharacterId = Guid.NewGuid(),
+                Profession = Profession.Warrior,
+                Stats = statsWithCrit,
+                Seed = (ulong)(98765 + i * 1000),
+                EnemyDef = EnemyRegistry.Resolve("dummy"),
+                EnemyCount = 1,
+                Mode = "duration"
+            };
 
-        Assert.True(damage2 > damage1,
-            $"增加暴击率后应造成更多伤害。基础: {damage1}, 高暴击: {damage2}");
+            var result1 = simulator.RunForDuration(config1, 30.0);
+            var result2 = simulator.RunForDuration(config2, 30.0);
+
+            if (result1.Killed && result1.KillTime.HasValue)
+                killTimes1.Add(result1.KillTime.Value);
+            if (result2.Killed && result2.KillTime.HasValue)
+                killTimes2.Add(result2.KillTime.Value);
+        }
+
+        // Assert - 平均击杀时间应该更短（因为更高的暴击率）
+        var avgKillTime1 = killTimes1.Average();
+        var avgKillTime2 = killTimes2.Average();
+
+        Assert.True(avgKillTime2 < avgKillTime1,
+            $"更高暴击率应减少平均击杀时间。基础: {avgKillTime1:F2}s, 高暴击: {avgKillTime2:F2}s");
     }
 
     [Fact]
@@ -148,19 +160,18 @@ public class EquipmentCombatIntegrationTests
         var result1 = simulator.RunForDuration(config1, 20.0);
         var result2 = simulator.RunForDuration(config2, 20.0);
 
-        // Assert - 急速提升应增加总事件数（攻击更频繁）
-        var events1 = result1.Segments.Sum(s => s.EventCount);
-        var events2 = result2.Segments.Sum(s => s.EventCount);
+        // Assert - 急速应该减少击杀时间（攻击更频繁）
+        Assert.True(result1.Killed && result2.Killed, "两场战斗都应该击杀敌人");
+        Assert.NotNull(result1.KillTime);
+        Assert.NotNull(result2.KillTime);
+        
+        Assert.True(result2.KillTime < result1.KillTime,
+            $"急速提升后击杀时间应减少。基础: {result1.KillTime:F2}s, 高急速: {result2.KillTime:F2}s");
 
-        Assert.True(events2 > events1,
-            $"急速提升后应产生更多战斗事件。基础: {events1}, 高急速: {events2}");
-
-        // 同时总伤害也应该增加
-        var damage1 = result1.Segments.Sum(s => s.TotalDamage);
-        var damage2 = result2.Segments.Sum(s => s.TotalDamage);
-
-        Assert.True(damage2 > damage1,
-            $"急速提升后总伤害应增加。基础: {damage1}, 高急速: {damage2}");
+        // 验证击杀时间的减少幅度合理（应该接近急速百分比）
+        var timeReduction = (result1.KillTime.Value - result2.KillTime.Value) / result1.KillTime.Value;
+        Assert.True(timeReduction > 0.10 && timeReduction < 0.35,
+            $"击杀时间减少应在10%-35%之间，实际: {timeReduction:P1}");
     }
 
     /// <summary>

@@ -145,6 +145,9 @@ public sealed class BattleEngine
         var specialTrack = new TrackState(TrackType.Special, Battle.SpecialIntervalSeconds, Battle.SpecialIntervalSeconds);
         Context.Tracks.Add(attackTrack);
         Context.Tracks.Add(specialTrack);
+        
+        // Phase 5: 初始同步急速到攻击轨道（确保装备的急速属性在战斗开始时就生效）
+        SyncTrackHaste(Context);
 
         Scheduler.Schedule(new AttackTickEvent(attackTrack.NextTriggerAt, attackTrack));
         Scheduler.Schedule(new SpecialPulseEvent(specialTrack.NextTriggerAt, specialTrack));
