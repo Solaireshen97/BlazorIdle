@@ -2,6 +2,7 @@
 using BlazorIdle.Server.Application.Activities;
 using BlazorIdle.Server.Application.Battles;
 using BlazorIdle.Server.Application.Economy;
+using BlazorIdle.Server.Application.Equipment;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BlazorIdle.Server.Application;
@@ -47,6 +48,21 @@ public static class ApplicationDI
         //  - 活动计划服务，管理活动计划的生命周期
         //  - 使用 Scoped：与请求生命周期绑定
         services.AddScoped<ActivityPlanService>();
+
+        // GearGenerationService:
+        //  - 装备生成服务，负责生成装备实例
+        //  - 使用 Scoped：与请求生命周期绑定
+        services.AddScoped<GearGenerationService>();
+
+        // EquipmentService:
+        //  - 装备管理服务，负责装备/卸下操作
+        //  - 使用 Scoped：与请求生命周期绑定
+        services.AddScoped<EquipmentService>();
+
+        // StatsAggregationService:
+        //  - 属性聚合服务，负责计算装备总属性
+        //  - 使用 Scoped：与请求生命周期绑定
+        services.AddScoped<StatsAggregationService>();
 
         return services;
     }
