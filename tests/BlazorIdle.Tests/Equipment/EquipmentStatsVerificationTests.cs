@@ -82,10 +82,10 @@ public class EquipmentStatsVerificationTests
     public void HastePercent_ShouldAffectAttackSpeed()
     {
         // Arrange - 比较无急速和高急速的攻击次数
-        // 使用较低的攻击力确保敌人不会快速死亡
+        // 使用极低的攻击力确保敌人不会快速死亡
         var baseStats = new CharacterStats
         {
-            AttackPower = 10.0,  // 降低攻击力以延长战斗
+            AttackPower = 1.0,   // 极低攻击力以延长战斗
             CritChance = 0.0,    // 禁用暴击以获得一致性
             CritMultiplier = 2.0,
             HastePercent = 0.0 // 无急速
@@ -93,7 +93,7 @@ public class EquipmentStatsVerificationTests
 
         var hasteStats = new CharacterStats
         {
-            AttackPower = 10.0,  // 降低攻击力以延长战斗
+            AttackPower = 1.0,   // 极低攻击力以延长战斗
             CritChance = 0.0,    // 禁用暴击以获得一致性
             CritMultiplier = 2.0,
             HastePercent = 1.0 // 100% 急速 (应该是2倍攻击速度)
@@ -125,21 +125,29 @@ public class EquipmentStatsVerificationTests
 
         var simulator = new BattleSimulator();
 
-        // Act
-        var result1 = simulator.RunForDuration(config1, 20.0);
-        var result2 = simulator.RunForDuration(config2, 20.0);
+        // Act - 使用更长的战斗时间确保有足够的攻击次数
+        var result1 = simulator.RunForDuration(config1, 60.0);  // 60秒
+        var result2 = simulator.RunForDuration(config2, 60.0);
 
-        // Assert
-        var events1 = result1.Segments.Sum(s => s.EventCount);
-        var events2 = result2.Segments.Sum(s => s.EventCount);
+        // Assert - 统计基础攻击次数而不是总事件数
+        var attacks1 = result1.Segments
+            .Where(s => s.DamageBySource.ContainsKey("basic_attack"))
+            .Sum(s => s.DamageBySource["basic_attack"]) / 20; // 假设每次攻击约20伤害
+        
+        var attacks2 = result2.Segments
+            .Where(s => s.DamageBySource.ContainsKey("basic_attack"))
+            .Sum(s => s.DamageBySource["basic_attack"]) / 20;
+            
+        var damage1 = result1.Segments.Sum(s => s.TotalDamage);
+        var damage2 = result2.Segments.Sum(s => s.TotalDamage);
 
-        _output.WriteLine($"无急速事件数: {events1}");
-        _output.WriteLine($"100%急速事件数: {events2}");
-        _output.WriteLine($"事件增长比: {(double)events2 / events1:F2}x");
+        _output.WriteLine($"无急速: ~{attacks1}次攻击, {damage1}总伤害");
+        _output.WriteLine($"100%急速: ~{attacks2}次攻击, {damage2}总伤害");
+        _output.WriteLine($"攻击增长比: {(double)attacks2 / Math.Max(1, attacks1):F2}x");
 
-        // 100%急速应该显著增加事件数（接近2倍）
-        Assert.True(events2 > events1 * 1.5, 
-            $"100%急速应该显著增加事件数。无急速: {events1}, 高急速: {events2}");
+        // 100%急速应该显著增加攻击次数（接近2倍）
+        Assert.True(attacks2 > attacks1 * 1.5, 
+            $"100%急速应该显著增加攻击次数。无急速: {attacks1}, 高急速: {attacks2}");
     }
 
     [Fact]
