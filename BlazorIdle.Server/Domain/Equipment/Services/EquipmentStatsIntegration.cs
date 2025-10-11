@@ -98,7 +98,8 @@ public class EquipmentStatsIntegration
                     break;
                 
                 case StatType.Haste:
-                    hasteBonus += value;
+                    // 急速评级转换为急速百分比 (简化: 4000评级 = 1.0 = 100%急速)
+                    hasteBonus += value / 4000.0;
                     break;
                 
                 case StatType.HastePercent:
