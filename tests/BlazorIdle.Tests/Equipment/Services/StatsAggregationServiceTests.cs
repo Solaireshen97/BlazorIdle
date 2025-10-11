@@ -23,7 +23,8 @@ public class StatsAggregationServiceTests : IDisposable
 
         _context = new GameDbContext(options);
         _equipmentService = new EquipmentService(_context);
-        _service = new StatsAggregationService(_equipmentService);
+        var armorCalculationService = new ArmorCalculationService();
+        _service = new StatsAggregationService(_equipmentService, armorCalculationService);
     }
 
     [Fact]

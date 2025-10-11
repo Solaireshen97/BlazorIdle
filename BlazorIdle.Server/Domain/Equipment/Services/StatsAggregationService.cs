@@ -9,10 +9,14 @@ namespace BlazorIdle.Server.Domain.Equipment.Services;
 public class StatsAggregationService
 {
     private readonly EquipmentService _equipmentService;
+    private readonly ArmorCalculationService _armorCalculationService;
 
-    public StatsAggregationService(EquipmentService equipmentService)
+    public StatsAggregationService(
+        EquipmentService equipmentService,
+        ArmorCalculationService armorCalculationService)
     {
         _equipmentService = equipmentService;
+        _armorCalculationService = armorCalculationService;
     }
 
     /// <summary>
@@ -53,10 +57,10 @@ public class StatsAggregationService
                 }
             }
 
-            // 2.3 护甲类型特殊处理
+            // 2.3 护甲类型特殊处理 - 使用ArmorCalculationService
             if (gear.Definition != null && gear.Definition.ArmorType != ArmorType.None)
             {
-                var armorValue = CalculateArmorValue(gear);
+                var armorValue = _armorCalculationService.CalculateGearArmorContribution(gear);
                 if (armorValue > 0)
                 {
                     if (!stats.ContainsKey(StatType.Armor))
@@ -82,34 +86,7 @@ public class StatsAggregationService
         return stats;
     }
 
-    /// <summary>
-    /// 计算护甲值
-    /// </summary>
-    private double CalculateArmorValue(GearInstance gear)
-    {
-        if (gear.Definition == null || gear.Definition.ArmorType == ArmorType.None)
-        {
-            return 0;
-        }
 
-        // 从基础属性中获取护甲值，如果没有则返回0
-        if (gear.RolledStats.TryGetValue(StatType.Armor, out var armorValue))
-        {
-            // 应用护甲类型系数
-            var multiplier = gear.Definition.ArmorType switch
-            {
-                ArmorType.Cloth => 0.5,
-                ArmorType.Leather => 1.0,
-                ArmorType.Mail => 1.5,
-                ArmorType.Plate => 2.0,
-                _ => 1.0
-            };
-
-            return armorValue * multiplier;
-        }
-
-        return 0;
-    }
 
     /// <summary>
     /// 计算套装加成

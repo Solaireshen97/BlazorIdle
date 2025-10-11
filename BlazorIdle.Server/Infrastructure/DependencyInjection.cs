@@ -63,6 +63,7 @@ public static class DependencyInjection
         // 装备系统服务
         services.AddScoped<GearGenerationService>();
         services.AddScoped<EquipmentService>();
+        services.AddScoped<ArmorCalculationService>();
         services.AddScoped<StatsAggregationService>();
         services.AddScoped<DisenchantService>();
         services.AddScoped<ReforgeService>();
