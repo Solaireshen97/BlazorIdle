@@ -1,5 +1,6 @@
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Damage;
+using BlazorIdle.Server.Domain.Equipment.Services;
 
 namespace BlazorIdle.Server.Domain.Combat.Combatants;
 
@@ -46,6 +47,18 @@ public class PlayerCombatant : ICombatant
     /// <summary>是否允许自动复活</summary>
     public bool AutoReviveEnabled { get; set; } = true;
     
+    /// <summary>玩家总护甲值（从装备获取）</summary>
+    public double TotalArmor { get; set; } = 0.0;
+    
+    /// <summary>格挡概率（装备盾牌时）</summary>
+    public double BlockChance { get; set; } = 0.0;
+    
+    /// <summary>护甲计算服务（可选，用于计算减伤）</summary>
+    private readonly ArmorCalculator? _armorCalculator;
+    
+    /// <summary>格挡计算服务（可选，用于格挡判定）</summary>
+    private readonly BlockCalculator? _blockCalculator;
+    
     /// <summary>
     /// 构造函数
     /// </summary>
@@ -53,7 +66,15 @@ public class PlayerCombatant : ICombatant
     /// <param name="name">角色名称</param>
     /// <param name="stats">角色统计数据</param>
     /// <param name="stamina">耐力值（用于计算最大生命值）</param>
-    public PlayerCombatant(string id, string name, CharacterStats stats, int stamina = 10)
+    /// <param name="armorCalculator">护甲计算服务（可选）</param>
+    /// <param name="blockCalculator">格挡计算服务（可选）</param>
+    public PlayerCombatant(
+        string id, 
+        string name, 
+        CharacterStats stats, 
+        int stamina = 10,
+        ArmorCalculator? armorCalculator = null,
+        BlockCalculator? blockCalculator = null)
     {
         Id = id;
         Name = name;
@@ -62,11 +83,13 @@ public class PlayerCombatant : ICombatant
         CurrentHp = MaxHp;
         State = CombatantState.Alive;
         ThreatWeight = 1.0;
+        _armorCalculator = armorCalculator;
+        _blockCalculator = blockCalculator;
     }
     
     /// <summary>
     /// 接收伤害
-    /// Phase 3: 实际扣血并标记死亡状态
+    /// Phase 4: 应用护甲减伤和格挡机制
     /// </summary>
     /// <param name="amount">伤害数值</param>
     /// <param name="type">伤害类型</param>
@@ -77,7 +100,33 @@ public class PlayerCombatant : ICombatant
         if (State == CombatantState.Dead)
             return 0;
 
-        var actualDamage = Math.Min(amount, CurrentHp);
+        int mitigatedDamage = amount;
+        
+        // Phase 4: 应用物理伤害减免（护甲和格挡）
+        if (type == DamageType.Physical)
+        {
+            // 1. 尝试格挡（如果装备盾牌）
+            if (BlockChance > 0 && _blockCalculator != null)
+            {
+                if (_blockCalculator.RollBlock(BlockChance))
+                {
+                    mitigatedDamage = _blockCalculator.ApplyBlockReduction(mitigatedDamage);
+                    // 格挡标记可以通过外部事件系统记录
+                }
+            }
+            
+            // 2. 应用护甲减伤
+            if (TotalArmor > 0 && _armorCalculator != null)
+            {
+                // 使用默认攻击者等级50（典型怪物等级）
+                // TODO: 在EnemyAttackEvent中传递实际敌人等级
+                const int defaultAttackerLevel = 50;
+                double armorReduction = _armorCalculator.CalculateArmorReduction(TotalArmor, defaultAttackerLevel);
+                mitigatedDamage = (int)Math.Ceiling(mitigatedDamage * (1.0 - armorReduction));
+            }
+        }
+        
+        var actualDamage = Math.Min(mitigatedDamage, CurrentHp);
         CurrentHp -= actualDamage;
         
         // Phase 3: 检测死亡

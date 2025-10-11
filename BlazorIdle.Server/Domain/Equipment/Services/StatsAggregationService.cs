@@ -206,7 +206,7 @@ public class StatsAggregationService
     /// <param name="characterId">角色ID</param>
     /// <param name="characterStrength">角色力量值（可选）</param>
     /// <returns>格挡率（0-0.5），无盾牌则返回0</returns>
-    public async Task<double> CalculateBlockChanceAsync(Guid characterId, double characterStrength = 0)
+    public virtual async Task<double> CalculateBlockChanceAsync(Guid characterId, double characterStrength = 0)
     {
         var equippedGear = await _equipmentService.GetEquippedGearAsync(characterId);
         

@@ -20,4 +20,10 @@ public sealed class CharacterStats
     public double ArmorPenPct { get; init; } = 0.0; // 0..1
     public double MagicPenFlat { get; init; } = 0.0;
     public double MagicPenPct { get; init; } = 0.0; // 0..1
+    
+    // Phase 4: 防御属性（护甲和格挡）
+    /// <summary>总护甲值（从装备获取）</summary>
+    public double Armor { get; init; } = 0.0;
+    /// <summary>格挡概率（装备盾牌时，0-0.5）</summary>
+    public double BlockChance { get; init; } = 0.0;
 }
