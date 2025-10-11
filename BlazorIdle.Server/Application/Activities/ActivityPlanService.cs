@@ -4,6 +4,7 @@ using BlazorIdle.Server.Domain.Activities;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Professions;
 using BlazorIdle.Server.Domain.Combat.Rng;
+using BlazorIdle.Server.Domain.Equipment.Services;
 using System;
 using System.Text.Json;
 using System.Threading;
@@ -19,15 +20,18 @@ public class ActivityPlanService
     private readonly IActivityPlanRepository _plans;
     private readonly ICharacterRepository _characters;
     private readonly StepBattleCoordinator _coordinator;
+    private readonly EquipmentStatsIntegration _equipmentStats;
 
     public ActivityPlanService(
         IActivityPlanRepository plans,
         ICharacterRepository characters,
-        StepBattleCoordinator coordinator)
+        StepBattleCoordinator coordinator,
+        EquipmentStatsIntegration equipmentStats)
     {
         _plans = plans;
         _characters = characters;
         _coordinator = coordinator;
+        _equipmentStats = equipmentStats;
     }
 
     /// <summary>
@@ -109,11 +113,10 @@ public class ActivityPlanService
         if (character is null)
             throw new InvalidOperationException("Character not found");
 
+        // 构建包含装备的角色属性
         var profession = character.Profession;
-        var baseStats = ProfessionBaseStatsRegistry.Resolve(profession);
         var attrs = new PrimaryAttributes(character.Strength, character.Agility, character.Intellect, character.Stamina);
-        var derived = StatsBuilder.BuildDerived(profession, attrs);
-        var stats = StatsBuilder.Combine(baseStats, derived);
+        var stats = await _equipmentStats.BuildStatsWithEquipmentAsync(character.Id, profession, attrs);
 
         // 加载战斗状态快照（如果有）
         Battles.Offline.BattleState? battleState = null;

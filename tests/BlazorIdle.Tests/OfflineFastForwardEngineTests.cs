@@ -2,6 +2,8 @@ using BlazorIdle.Server.Application.Battles;
 using BlazorIdle.Server.Application.Battles.Offline;
 using BlazorIdle.Server.Domain.Activities;
 using BlazorIdle.Server.Domain.Characters;
+using BlazorIdle.Server.Domain.Equipment.Models;
+using BlazorIdle.Server.Domain.Equipment.Services;
 using BlazorIdle.Shared.Models;
 using System;
 using System.Text.Json;
@@ -21,7 +23,8 @@ public class OfflineFastForwardEngineTests
     public OfflineFastForwardEngineTests()
     {
         var simulator = new BattleSimulator();
-        _engine = new OfflineFastForwardEngine(simulator);
+        var equipmentStats = TestHelpers.CreateFakeEquipmentStatsIntegration();
+        _engine = new OfflineFastForwardEngine(simulator, equipmentStats);
 
         // 创建测试角色
         _testCharacter = new Character

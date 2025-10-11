@@ -5,6 +5,7 @@ using BlazorIdle.Server.Domain.Combat.Enemies;
 using BlazorIdle.Server.Domain.Combat.Professions;
 using BlazorIdle.Server.Domain.Combat.Rng;
 using BlazorIdle.Server.Domain.Economy;
+using BlazorIdle.Server.Domain.Equipment.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -38,10 +39,12 @@ public sealed class OfflineFastForwardResult
 public class OfflineFastForwardEngine
 {
     private readonly BattleSimulator _simulator;
+    private readonly EquipmentStatsIntegration _equipmentStats;
 
-    public OfflineFastForwardEngine(BattleSimulator simulator)
+    public OfflineFastForwardEngine(BattleSimulator simulator, EquipmentStatsIntegration equipmentStats)
     {
         _simulator = simulator;
+        _equipmentStats = equipmentStats;
     }
 
     /// <summary>
@@ -169,17 +172,15 @@ public class OfflineFastForwardEngine
             }
         }
 
-        // 构建角色战斗数据
+        // 构建角色战斗数据（包含装备）
         var profession = character.Profession;
-        var baseStats = ProfessionBaseStatsRegistry.Resolve(profession);
         var attrs = new PrimaryAttributes(
             character.Strength, 
             character.Agility, 
             character.Intellect, 
             character.Stamina
         );
-        var derived = StatsBuilder.BuildDerived(profession, attrs);
-        var stats = StatsBuilder.Combine(baseStats, derived);
+        var stats = _equipmentStats.BuildStatsWithEquipmentAsync(character.Id, profession, attrs).Result;
 
         // 根据活动类型构建配置
         BattleSimulator.BattleConfig config;
