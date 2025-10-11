@@ -64,6 +64,8 @@ public static class DependencyInjection
         services.AddScoped<GearGenerationService>();
         services.AddScoped<EquipmentService>();
         services.AddScoped<StatsAggregationService>();
+        services.AddScoped<DisenchantService>();
+        services.AddScoped<ReforgeService>();
 
         return services;
     }
