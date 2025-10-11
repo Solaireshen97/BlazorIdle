@@ -67,6 +67,7 @@ public class PlayerCombatant : ICombatant
     /// <summary>
     /// 接收伤害
     /// Phase 3: 实际扣血并标记死亡状态
+    /// Phase 4: 应用护甲减伤（仅物理伤害）
     /// </summary>
     /// <param name="amount">伤害数值</param>
     /// <param name="type">伤害类型</param>
@@ -74,10 +75,31 @@ public class PlayerCombatant : ICombatant
     /// <returns>实际造成的伤害（如果已死亡则返回 0）</returns>
     public int ReceiveDamage(int amount, DamageType type, double now)
     {
+        return ReceiveDamage(amount, type, now, 0);
+    }
+
+    /// <summary>
+    /// 接收伤害（带攻击者等级，用于护甲计算）
+    /// Phase 4: 应用护甲减伤（仅物理伤害）
+    /// </summary>
+    /// <param name="amount">伤害数值</param>
+    /// <param name="type">伤害类型</param>
+    /// <param name="now">当前战斗时间</param>
+    /// <param name="attackerLevel">攻击者等级（用于护甲减伤计算）</param>
+    /// <returns>实际造成的伤害（如果已死亡则返回 0）</returns>
+    public int ReceiveDamage(int amount, DamageType type, double now, int attackerLevel)
+    {
         if (State == CombatantState.Dead)
             return 0;
 
-        var actualDamage = Math.Min(amount, CurrentHp);
+        // Phase 4: 应用护甲减伤（仅物理伤害）
+        int damageAfterReduction = amount;
+        if (type == DamageType.Physical && Stats.Armor > 0)
+        {
+            damageAfterReduction = ApplyArmorReduction(amount, attackerLevel);
+        }
+
+        var actualDamage = Math.Min(damageAfterReduction, CurrentHp);
         CurrentHp -= actualDamage;
         
         // Phase 3: 检测死亡
@@ -98,6 +120,31 @@ public class PlayerCombatant : ICombatant
         }
         
         return actualDamage;
+    }
+
+    /// <summary>
+    /// 应用护甲减伤计算
+    /// 使用与 DamageCalculator 相同的公式：Armor / (Armor + K * AttackerLevel + C)
+    /// </summary>
+    /// <param name="damage">原始伤害</param>
+    /// <param name="attackerLevel">攻击者等级</param>
+    /// <returns>减伤后的伤害</returns>
+    private int ApplyArmorReduction(int damage, int attackerLevel)
+    {
+        const double K = 50.0;
+        const double C = 400.0;
+        const double MAX_REDUCTION = 0.75; // 最大75%减伤
+
+        double armor = Stats.Armor;
+        double denominator = armor + (K * attackerLevel + C);
+        double reduction = armor / denominator;
+
+        // 限制最大减伤
+        reduction = Math.Min(reduction, MAX_REDUCTION);
+
+        // 计算减伤后的伤害
+        double damageAfterReduction = damage * (1.0 - reduction);
+        return Math.Max(0, (int)Math.Round(damageAfterReduction));
     }
     
     /// <summary>

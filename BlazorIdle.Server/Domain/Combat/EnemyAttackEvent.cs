@@ -44,11 +44,12 @@ public record EnemyAttackEvent(double ExecuteAt, EnemyCombatant Enemy) : IGameEv
         
         if (damage > 0)
         {
-            // 对玩家造成伤害
+            // 对玩家造成伤害（Phase 4: 传递敌人等级用于护甲计算）
             var actualDamage = context.Player.ReceiveDamage(
                 damage, 
                 damageType, 
-                ExecuteAt
+                ExecuteAt,
+                Enemy.Encounter.Enemy.Level
             );
 
             // 记录统计

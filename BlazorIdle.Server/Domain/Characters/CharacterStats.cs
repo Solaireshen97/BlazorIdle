@@ -20,4 +20,10 @@ public sealed class CharacterStats
     public double ArmorPenPct { get; init; } = 0.0; // 0..1
     public double MagicPenFlat { get; init; } = 0.0;
     public double MagicPenPct { get; init; } = 0.0; // 0..1
+
+    // 防御面板（Phase 4）
+    /// <summary>
+    /// 护甲值 - 用于物理伤害减免计算
+    /// </summary>
+    public double Armor { get; init; } = 0.0;
 }

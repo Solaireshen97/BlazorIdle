@@ -66,11 +66,12 @@ public record EnemySkillCastEvent(
             
             if (damage > 0 && target is PlayerCombatant player)
             {
-                // 对玩家造成伤害
+                // 对玩家造成伤害（Phase 4: 传递敌人等级用于护甲计算）
                 var actualDamage = player.ReceiveDamage(
                     damage,
                     skill.DamageType,
-                    ExecuteAt
+                    ExecuteAt,
+                    Caster.Encounter.Enemy.Level
                 );
                 
                 // 记录统计

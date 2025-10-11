@@ -66,6 +66,7 @@ public class EquipmentStatsIntegration
         double armorPenPctBonus = 0;
         double magicPenFlatBonus = 0;
         double magicPenPctBonus = 0;
+        double armorBonus = 0;
 
         // 应用装备属性
         foreach (var (statType, value) in equipmentStats)
@@ -106,7 +107,7 @@ public class EquipmentStatsIntegration
                     break;
                 
                 case StatType.Armor:
-                    // 护甲值通过单独的方法获取
+                    armorBonus += value;
                     break;
                 
                 // 主属性通过装备增加
@@ -132,7 +133,8 @@ public class EquipmentStatsIntegration
             ArmorPenFlat = baseStats.ArmorPenFlat + armorPenFlatBonus,
             ArmorPenPct = Clamp01(baseStats.ArmorPenPct + armorPenPctBonus),
             MagicPenFlat = baseStats.MagicPenFlat + magicPenFlatBonus,
-            MagicPenPct = Clamp01(baseStats.MagicPenPct + magicPenPctBonus)
+            MagicPenPct = Clamp01(baseStats.MagicPenPct + magicPenPctBonus),
+            Armor = baseStats.Armor + armorBonus
         };
 
         return result;
