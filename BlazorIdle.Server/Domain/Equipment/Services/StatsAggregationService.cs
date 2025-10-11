@@ -11,15 +11,18 @@ public class StatsAggregationService
     private readonly EquipmentService _equipmentService;
     private readonly ArmorCalculator _armorCalculator;
     private readonly BlockCalculator _blockCalculator;
+    private readonly AttackSpeedCalculator _attackSpeedCalculator;
 
     public StatsAggregationService(
         EquipmentService equipmentService,
         ArmorCalculator armorCalculator,
-        BlockCalculator blockCalculator)
+        BlockCalculator blockCalculator,
+        AttackSpeedCalculator attackSpeedCalculator)
     {
         _equipmentService = equipmentService;
         _armorCalculator = armorCalculator;
         _blockCalculator = blockCalculator;
+        _attackSpeedCalculator = attackSpeedCalculator;
     }
 
     /// <summary>
@@ -221,6 +224,33 @@ public class StatsAggregationService
         }
 
         return _blockCalculator.CalculateBlockChance(shield.ItemLevel, characterStrength);
+    }
+
+    /// <summary>
+    /// 计算武器攻击速度（基于装备的主手武器）
+    /// </summary>
+    /// <param name="characterId">角色ID</param>
+    /// <param name="hastePercent">角色急速百分比</param>
+    /// <returns>攻击速度（秒），无武器返回职业默认值2.5</returns>
+    public virtual async Task<double> CalculateAttackSpeedAsync(Guid characterId, double hastePercent = 0)
+    {
+        var equippedGear = await _equipmentService.GetEquippedGearAsync(characterId);
+        
+        // 查找主手武器
+        var mainHandWeapon = equippedGear.FirstOrDefault(g => 
+            g.SlotType == EquipmentSlot.MainHand);
+
+        if (mainHandWeapon?.Definition?.WeaponType == null || 
+            mainHandWeapon.Definition.WeaponType == WeaponType.None)
+        {
+            // 无武器，返回默认攻击速度
+            return 2.5;
+        }
+
+        // 使用武器类型计算攻击速度（考虑急速）
+        return _attackSpeedCalculator.CalculateAttackSpeed(
+            mainHandWeapon.Definition.WeaponType, 
+            hastePercent);
     }
 }
 

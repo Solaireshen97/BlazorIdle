@@ -28,7 +28,7 @@ public static class TestHelpers
     {
         private Dictionary<Guid, Dictionary<StatType, double>> _equipmentStats = new();
 
-        public FakeStatsAggregationService() : base(null!, new ArmorCalculator(), new BlockCalculator())
+        public FakeStatsAggregationService() : base(null!, new ArmorCalculator(), new BlockCalculator(), new AttackSpeedCalculator())
         {
         }
 
@@ -46,6 +46,12 @@ public static class TestHelpers
         {
             // Return 0 for tests - simulates no shield equipped
             return Task.FromResult(0.0);
+        }
+
+        public override Task<double> CalculateAttackSpeedAsync(Guid characterId, double hastePercent = 0)
+        {
+            // Return default attack speed for tests - simulates no weapon equipped
+            return Task.FromResult(2.5);
         }
 
         public void SetEquipmentStats(Guid characterId, Dictionary<StatType, double> stats)

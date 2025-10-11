@@ -46,8 +46,23 @@ public class EquipmentStatsIntegration
             characterId, 
             primaryAttrs.Strength);
         
-        // 6. 将装备属性应用到战斗属性中（包括护甲和格挡）
-        var finalStats = ApplyEquipmentStats(combinedStats, equipmentStats, blockChance);
+        // 6. 获取武器攻击速度（Phase 5）
+        // 注意：这里传入的急速是合并后的基础急速，装备急速还会在ApplyEquipmentStats中叠加
+        var hasteAfterEquipment = combinedStats.HastePercent;
+        if (equipmentStats.TryGetValue(StatType.Haste, out var hasteBonus))
+        {
+            hasteAfterEquipment += hasteBonus;
+        }
+        if (equipmentStats.TryGetValue(StatType.HastePercent, out var hastePctBonus))
+        {
+            hasteAfterEquipment += hastePctBonus;
+        }
+        var attackSpeed = await _statsAggregationService.CalculateAttackSpeedAsync(
+            characterId, 
+            hasteAfterEquipment);
+        
+        // 7. 将装备属性应用到战斗属性中（包括护甲、格挡和攻击速度）
+        var finalStats = ApplyEquipmentStats(combinedStats, equipmentStats, blockChance, attackSpeed);
         
         return finalStats;
     }
@@ -58,11 +73,13 @@ public class EquipmentStatsIntegration
     /// <param name="baseStats">基础战斗属性</param>
     /// <param name="equipmentStats">装备属性</param>
     /// <param name="blockChance">格挡率</param>
+    /// <param name="attackSpeed">武器攻击速度</param>
     /// <returns>应用装备加成后的战斗属性</returns>
     private CharacterStats ApplyEquipmentStats(
         CharacterStats baseStats,
         Dictionary<StatType, double> equipmentStats,
-        double blockChance = 0)
+        double blockChance = 0,
+        double attackSpeed = 2.5)
     {
         // 累加装备提供的属性
         double attackPowerBonus = 0;
@@ -144,7 +161,9 @@ public class EquipmentStatsIntegration
             MagicPenPct = Clamp01(baseStats.MagicPenPct + magicPenPctBonus),
             // Phase 4: 防御属性
             Armor = armorBonus,
-            BlockChance = Clamp01(blockChance)
+            BlockChance = Clamp01(blockChance),
+            // Phase 5: 武器攻击速度
+            AttackSpeed = attackSpeed
         };
 
         return result;

@@ -26,4 +26,8 @@ public sealed class CharacterStats
     public double Armor { get; init; } = 0.0;
     /// <summary>格挡概率（装备盾牌时，0-0.5）</summary>
     public double BlockChance { get; init; } = 0.0;
+    
+    // Phase 5: 武器攻击速度
+    /// <summary>武器攻击速度（秒/次），从装备的主手武器获取，默认2.5</summary>
+    public double AttackSpeed { get; init; } = 2.5;
 }

@@ -226,7 +226,7 @@ internal class FakeStatsAggregationService : StatsAggregationService
 {
     private readonly Dictionary<Guid, Dictionary<StatType, double>> _equipmentStatsCache = new();
 
-    public FakeStatsAggregationService() : base(null!, new ArmorCalculator(), new BlockCalculator())
+    public FakeStatsAggregationService() : base(null!, new ArmorCalculator(), new BlockCalculator(), new AttackSpeedCalculator())
     {
     }
 
@@ -249,5 +249,11 @@ internal class FakeStatsAggregationService : StatsAggregationService
     {
         // Return 0 for tests - simulates no shield equipped
         return Task.FromResult(0.0);
+    }
+
+    public override Task<double> CalculateAttackSpeedAsync(Guid characterId, double hastePercent = 0)
+    {
+        // Return default attack speed for tests - simulates no weapon equipped
+        return Task.FromResult(2.5);
     }
 }
