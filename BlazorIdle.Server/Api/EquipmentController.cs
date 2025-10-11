@@ -15,15 +15,21 @@ public class EquipmentController : ControllerBase
 {
     private readonly EquipmentService _equipmentService;
     private readonly StatsAggregationService _statsAggregationService;
+    private readonly DisenchantService _disenchantService;
+    private readonly ReforgeService _reforgeService;
     private readonly GameDbContext _context;
 
     public EquipmentController(
         EquipmentService equipmentService,
         StatsAggregationService statsAggregationService,
+        DisenchantService disenchantService,
+        ReforgeService reforgeService,
         GameDbContext context)
     {
         _equipmentService = equipmentService;
         _statsAggregationService = statsAggregationService;
+        _disenchantService = disenchantService;
+        _reforgeService = reforgeService;
         _context = context;
     }
     /// <summary>
@@ -174,6 +180,129 @@ public class EquipmentController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// 分解装备
+    /// </summary>
+    /// <param name="characterId">角色ID</param>
+    /// <param name="request">分解请求</param>
+    /// <returns>分解结果</returns>
+    [HttpPost("{characterId:guid}/disenchant")]
+    public async Task<ActionResult<object>> DisenchantItem(Guid characterId, [FromBody] DisenchantRequest request)
+    {
+        var result = await _disenchantService.DisenchantAsync(characterId, request.GearInstanceId);
+
+        if (!result.IsSuccess)
+        {
+            return BadRequest(new { error = result.Message });
+        }
+
+        return Ok(new
+        {
+            success = true,
+            message = result.Message,
+            materials = result.Materials
+        });
+    }
+
+    /// <summary>
+    /// 批量分解装备
+    /// </summary>
+    /// <param name="characterId">角色ID</param>
+    /// <param name="request">批量分解请求</param>
+    /// <returns>批量分解结果</returns>
+    [HttpPost("{characterId:guid}/disenchant-batch")]
+    public async Task<ActionResult<object>> DisenchantBatch(Guid characterId, [FromBody] DisenchantBatchRequest request)
+    {
+        var result = await _disenchantService.DisenchantBatchAsync(characterId, request.GearInstanceIds);
+
+        return Ok(new
+        {
+            successCount = result.SuccessCount,
+            failCount = result.FailCount,
+            totalMaterials = result.TotalMaterials,
+            errors = result.Errors
+        });
+    }
+
+    /// <summary>
+    /// 预览装备分解
+    /// </summary>
+    /// <param name="gearInstanceId">装备实例ID</param>
+    /// <returns>预览分解产出</returns>
+    [HttpGet("disenchant-preview/{gearInstanceId:guid}")]
+    public async Task<ActionResult<object>> PreviewDisenchant(Guid gearInstanceId)
+    {
+        var materials = await _disenchantService.PreviewDisenchantAsync(gearInstanceId);
+
+        return Ok(new
+        {
+            gearInstanceId,
+            materials
+        });
+    }
+
+    /// <summary>
+    /// 重铸装备（提升品级）
+    /// </summary>
+    /// <param name="characterId">角色ID</param>
+    /// <param name="request">重铸请求</param>
+    /// <returns>重铸结果</returns>
+    [HttpPost("{characterId:guid}/reforge")]
+    public async Task<ActionResult<object>> ReforgeItem(Guid characterId, [FromBody] ReforgeRequest request)
+    {
+        var result = await _reforgeService.ReforgeAsync(characterId, request.GearInstanceId);
+
+        if (!result.IsSuccess)
+        {
+            return BadRequest(new { error = result.Message });
+        }
+
+        return Ok(new
+        {
+            success = true,
+            message = result.Message,
+            gear = result.ReforgedGear != null ? new
+            {
+                Id = result.ReforgedGear.Id,
+                Name = result.ReforgedGear.Definition?.Name ?? "未知装备",
+                TierLevel = result.ReforgedGear.TierLevel,
+                QualityScore = result.ReforgedGear.QualityScore,
+                RolledStats = result.ReforgedGear.RolledStats.ToDictionary(
+                    kvp => kvp.Key.ToString(),
+                    kvp => kvp.Value
+                )
+            } : null
+        });
+    }
+
+    /// <summary>
+    /// 预览重铸成本
+    /// </summary>
+    /// <param name="gearInstanceId">装备实例ID</param>
+    /// <returns>重铸预览</returns>
+    [HttpGet("reforge-preview/{gearInstanceId:guid}")]
+    public async Task<ActionResult<object>> PreviewReforge(Guid gearInstanceId)
+    {
+        var preview = await _reforgeService.PreviewReforgeCostAsync(gearInstanceId);
+
+        return Ok(new
+        {
+            canReforge = preview.CanReforge,
+            message = preview.Message,
+            currentTier = preview.CurrentTier,
+            nextTier = preview.NextTier,
+            cost = preview.Cost,
+            currentStats = preview.CurrentStats.ToDictionary(
+                kvp => kvp.Key.ToString(),
+                kvp => kvp.Value
+            ),
+            previewStats = preview.PreviewStats.ToDictionary(
+                kvp => kvp.Key.ToString(),
+                kvp => kvp.Value
+            )
+        });
+    }
+
     private static string GetSlotDisplayName(EquipmentSlot slot)
     {
         return slot switch
@@ -204,6 +333,30 @@ public class EquipmentController : ControllerBase
 /// 装备请求
 /// </summary>
 public class EquipRequest
+{
+    public Guid GearInstanceId { get; set; }
+}
+
+/// <summary>
+/// 分解请求
+/// </summary>
+public class DisenchantRequest
+{
+    public Guid GearInstanceId { get; set; }
+}
+
+/// <summary>
+/// 批量分解请求
+/// </summary>
+public class DisenchantBatchRequest
+{
+    public List<Guid> GearInstanceIds { get; set; } = new();
+}
+
+/// <summary>
+/// 重铸请求
+/// </summary>
+public class ReforgeRequest
 {
     public Guid GearInstanceId { get; set; }
 }
