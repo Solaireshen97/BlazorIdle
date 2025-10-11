@@ -1,3 +1,5 @@
+using BlazorIdle.Server.Application.Abstractions;
+using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Equipment.Models;
 using BlazorIdle.Server.Domain.Equipment.Services;
 using BlazorIdle.Server.Infrastructure.Persistence;
@@ -13,6 +15,8 @@ public class EquipmentServiceTests : IDisposable
 {
     private readonly GameDbContext _context;
     private readonly EquipmentService _service;
+    private readonly EquipmentValidator _validator;
+    private readonly FakeCharacterRepository _characterRepository;
 
     public EquipmentServiceTests()
     {
@@ -21,7 +25,28 @@ public class EquipmentServiceTests : IDisposable
             .Options;
 
         _context = new GameDbContext(options);
-        _service = new EquipmentService(_context);
+        _validator = new EquipmentValidator();
+        _characterRepository = new FakeCharacterRepository();
+        _service = new EquipmentService(_context, _validator, _characterRepository);
+    }
+
+    /// <summary>
+    /// 假的Character仓储用于测试
+    /// </summary>
+    private class FakeCharacterRepository : ICharacterRepository
+    {
+        private readonly Dictionary<Guid, Character> _characters = new();
+
+        public void AddCharacter(Character character)
+        {
+            _characters[character.Id] = character;
+        }
+
+        public Task<Character?> GetAsync(Guid id, CancellationToken ct = default)
+        {
+            _characters.TryGetValue(id, out var character);
+            return Task.FromResult(character);
+        }
     }
 
     [Fact]

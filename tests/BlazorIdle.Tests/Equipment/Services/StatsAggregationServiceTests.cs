@@ -1,3 +1,5 @@
+using BlazorIdle.Server.Application.Abstractions;
+using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Equipment.Models;
 using BlazorIdle.Server.Domain.Equipment.Services;
 using BlazorIdle.Server.Infrastructure.Persistence;
@@ -14,6 +16,8 @@ public class StatsAggregationServiceTests : IDisposable
     private readonly GameDbContext _context;
     private readonly EquipmentService _equipmentService;
     private readonly StatsAggregationService _service;
+    private readonly EquipmentValidator _validator;
+    private readonly FakeCharacterRepository _characterRepository;
 
     public StatsAggregationServiceTests()
     {
@@ -22,8 +26,21 @@ public class StatsAggregationServiceTests : IDisposable
             .Options;
 
         _context = new GameDbContext(options);
-        _equipmentService = new EquipmentService(_context);
+        _validator = new EquipmentValidator();
+        _characterRepository = new FakeCharacterRepository();
+        _equipmentService = new EquipmentService(_context, _validator, _characterRepository);
         _service = new StatsAggregationService(_equipmentService);
+    }
+
+    /// <summary>
+    /// 假的Character仓储用于测试
+    /// </summary>
+    private class FakeCharacterRepository : ICharacterRepository
+    {
+        public Task<Character?> GetAsync(Guid id, CancellationToken ct = default)
+        {
+            return Task.FromResult<Character?>(null);
+        }
     }
 
     [Fact]
