@@ -217,6 +217,47 @@ public class EquipmentStatsIntegrationTests
         Assert.True(result.SpellPower >= 50, "SpellPower should include equipment bonus");
         Assert.True(result.CritChance > 0, "CritChance should include converted crit rating");
     }
+
+    [Fact]
+    public async Task BuildStatsWithEquipmentAsync_ShouldIncludeArmorValue()
+    {
+        // Arrange
+        var characterId = Guid.NewGuid();
+        var profession = Profession.Warrior;
+        var primaryAttrs = new PrimaryAttributes { Strength = 20, Agility = 10, Intellect = 5, Stamina = 15 };
+
+        var equipmentStats = new Dictionary<StatType, double>
+        {
+            { StatType.Armor, 800 }  // 800 armor from equipment
+        };
+
+        _fakeStatsAggregationService.SetEquipmentStats(characterId, equipmentStats);
+
+        // Act
+        var result = await _service.BuildStatsWithEquipmentAsync(characterId, profession, primaryAttrs);
+
+        // Assert
+        Assert.Equal(800, result.Armor);
+    }
+
+    [Fact]
+    public async Task BuildStatsWithEquipmentAsync_WithoutArmor_ShouldHaveZeroArmor()
+    {
+        // Arrange
+        var characterId = Guid.NewGuid();
+        var profession = Profession.Ranger;
+        var primaryAttrs = new PrimaryAttributes { Strength = 5, Agility = 25, Intellect = 5, Stamina = 10 };
+
+        var equipmentStats = new Dictionary<StatType, double>();
+        _fakeStatsAggregationService.SetEquipmentStats(characterId, equipmentStats);
+
+        // Act
+        var result = await _service.BuildStatsWithEquipmentAsync(characterId, profession, primaryAttrs);
+
+        // Assert
+        Assert.Equal(0, result.Armor);
+        Assert.Equal(0, result.BlockChance);
+    }
 }
 
 /// <summary>

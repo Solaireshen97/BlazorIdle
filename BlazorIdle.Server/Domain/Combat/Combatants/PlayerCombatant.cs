@@ -1,5 +1,6 @@
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Damage;
+using BlazorIdle.Server.Domain.Equipment.Services;
 
 namespace BlazorIdle.Server.Domain.Combat.Combatants;
 
@@ -66,7 +67,7 @@ public class PlayerCombatant : ICombatant
     
     /// <summary>
     /// 接收伤害
-    /// Phase 3: 实际扣血并标记死亡状态
+    /// Phase 4: 应用护甲减伤和格挡机制
     /// </summary>
     /// <param name="amount">伤害数值</param>
     /// <param name="type">伤害类型</param>
@@ -77,7 +78,22 @@ public class PlayerCombatant : ICombatant
         if (State == CombatantState.Dead)
             return 0;
 
-        var actualDamage = Math.Min(amount, CurrentHp);
+        int mitigatedDamage = amount;
+
+        // Phase 4: 只对物理伤害应用护甲减伤
+        if (type == DamageType.Physical)
+        {
+            mitigatedDamage = ApplyArmorReduction(amount);
+        }
+
+        // Phase 4: 格挡判定（所有伤害类型都可能被格挡）
+        bool blocked = RollBlock();
+        if (blocked)
+        {
+            mitigatedDamage = ApplyBlockReduction(mitigatedDamage);
+        }
+
+        var actualDamage = Math.Min(mitigatedDamage, CurrentHp);
         CurrentHp -= actualDamage;
         
         // Phase 3: 检测死亡
@@ -98,6 +114,58 @@ public class PlayerCombatant : ICombatant
         }
         
         return actualDamage;
+    }
+
+    /// <summary>
+    /// 应用护甲减伤
+    /// </summary>
+    /// <param name="amount">原始伤害</param>
+    /// <returns>减伤后伤害</returns>
+    private int ApplyArmorReduction(int amount)
+    {
+        if (Stats.Armor <= 0)
+            return amount;
+
+        // 使用固定的攻击者等级（可以后续优化为传入参数）
+        // 这里假设攻击者等级为玩家等级的近似值
+        const int attackerLevel = 10; // 临时值，后续可从 BattleContext 获取
+
+        // 护甲减伤公式：Armor / (Armor + K * AttackerLevel + C)
+        // K = 50, C = 400
+        const double K = 50.0;
+        const double C = 400.0;
+        double denominator = Stats.Armor + (K * attackerLevel + C);
+        double reduction = Stats.Armor / denominator;
+        
+        // 限制最大减伤75%
+        reduction = Math.Min(reduction, 0.75);
+        
+        int mitigatedDamage = (int)Math.Round(amount * (1.0 - reduction));
+        return Math.Max(1, mitigatedDamage); // 至少造成1点伤害
+    }
+
+    /// <summary>
+    /// 判断是否格挡成功
+    /// </summary>
+    /// <returns>是否格挡</returns>
+    private bool RollBlock()
+    {
+        if (Stats.BlockChance <= 0)
+            return false;
+
+        // 使用随机数判断是否格挡
+        return Random.Shared.NextDouble() < Stats.BlockChance;
+    }
+
+    /// <summary>
+    /// 应用格挡减伤（30%）
+    /// </summary>
+    /// <param name="amount">原始伤害</param>
+    /// <returns>格挡后伤害</returns>
+    private int ApplyBlockReduction(int amount)
+    {
+        const double blockReduction = 0.30; // 格挡减伤30%
+        return (int)Math.Round(amount * (1.0 - blockReduction));
     }
     
     /// <summary>
