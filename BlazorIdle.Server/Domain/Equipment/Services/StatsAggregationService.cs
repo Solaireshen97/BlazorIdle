@@ -20,7 +20,7 @@ public class StatsAggregationService
     /// </summary>
     /// <param name="characterId">角色ID</param>
     /// <returns>属性字典（属性类型 -> 数值）</returns>
-    public async Task<Dictionary<StatType, double>> CalculateEquipmentStatsAsync(Guid characterId)
+    public virtual async Task<Dictionary<StatType, double>> CalculateEquipmentStatsAsync(Guid characterId)
     {
         var stats = new Dictionary<StatType, double>();
 
