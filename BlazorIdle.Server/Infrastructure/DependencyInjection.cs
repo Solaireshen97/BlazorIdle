@@ -10,6 +10,7 @@ using BlazorIdle.Server.Application.Battles.Offline;
 using BlazorIdle.Server.Infrastructure.Startup;
 using BlazorIdle.Server.Application.Battles;
 using BlazorIdle.Server.Application.Activities;
+using BlazorIdle.Server.Domain.Equipment.Services;
 
 namespace BlazorIdle.Server.Infrastructure;
 
@@ -58,6 +59,11 @@ public static class DependencyInjection
 
         // 经济数据校验（应用启动时执行）
         services.AddEconomyValidation(throwOnError: true);
+
+        // 装备系统服务
+        services.AddScoped<GearGenerationService>();
+        services.AddScoped<EquipmentService>();
+        services.AddScoped<StatsAggregationService>();
 
         return services;
     }
