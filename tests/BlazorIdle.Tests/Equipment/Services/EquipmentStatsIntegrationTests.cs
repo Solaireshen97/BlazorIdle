@@ -217,6 +217,130 @@ public class EquipmentStatsIntegrationTests
         Assert.True(result.SpellPower >= 50, "SpellPower should include equipment bonus");
         Assert.True(result.CritChance > 0, "CritChance should include converted crit rating");
     }
+
+    [Fact]
+    public async Task CalculateAttackSpeedAsync_NoWeapon_ShouldUseProfessionBaseSpeed()
+    {
+        // Arrange
+        var characterId = Guid.NewGuid();
+        var professionBaseSpeed = 2.0; // 职业基础攻击间隔2秒
+        var hastePercent = 0.0;
+        
+        // No weapon equipped
+        _fakeStatsAggregationService.SetWeaponType(characterId, new WeaponTypeInfo
+        {
+            MainHandType = WeaponType.None,
+            OffHandType = WeaponType.None,
+            IsTwoHanded = false,
+            IsDualWielding = false
+        });
+
+        // Act
+        var attackSpeed = await _service.CalculateAttackSpeedAsync(characterId, professionBaseSpeed, hastePercent);
+
+        // Assert
+        Assert.Equal(2.0, attackSpeed, precision: 2);
+    }
+
+    [Fact]
+    public async Task CalculateAttackSpeedAsync_TwoHandSword_ShouldUseWeaponSpeed()
+    {
+        // Arrange
+        var characterId = Guid.NewGuid();
+        var professionBaseSpeed = 2.0;
+        var hastePercent = 0.0;
+        
+        // Two-hand sword equipped (base speed 3.4 seconds)
+        _fakeStatsAggregationService.SetWeaponType(characterId, new WeaponTypeInfo
+        {
+            MainHandType = WeaponType.TwoHandSword,
+            OffHandType = WeaponType.None,
+            IsTwoHanded = true,
+            IsDualWielding = false
+        });
+
+        // Act
+        var attackSpeed = await _service.CalculateAttackSpeedAsync(characterId, professionBaseSpeed, hastePercent);
+
+        // Assert
+        // TwoHandSword base speed is 3.4 seconds
+        Assert.Equal(3.4, attackSpeed, precision: 2);
+    }
+
+    [Fact]
+    public async Task CalculateAttackSpeedAsync_WithHaste_ShouldReduceAttackInterval()
+    {
+        // Arrange
+        var characterId = Guid.NewGuid();
+        var professionBaseSpeed = 2.4;
+        var hastePercent = 0.25; // 25% haste
+        
+        // Sword equipped (base speed 2.4 seconds)
+        _fakeStatsAggregationService.SetWeaponType(characterId, new WeaponTypeInfo
+        {
+            MainHandType = WeaponType.Sword,
+            OffHandType = WeaponType.None,
+            IsTwoHanded = false,
+            IsDualWielding = false
+        });
+
+        // Act
+        var attackSpeed = await _service.CalculateAttackSpeedAsync(characterId, professionBaseSpeed, hastePercent);
+
+        // Assert
+        // 2.4 / (1 + 0.25) = 2.4 / 1.25 = 1.92
+        Assert.Equal(1.92, attackSpeed, precision: 2);
+    }
+
+    [Fact]
+    public async Task CalculateAttackSpeedAsync_DualWield_ShouldAverageWeaponSpeeds()
+    {
+        // Arrange
+        var characterId = Guid.NewGuid();
+        var professionBaseSpeed = 2.0;
+        var hastePercent = 0.0;
+        
+        // Dual wielding: Sword (2.4s) + Dagger (1.8s)
+        _fakeStatsAggregationService.SetWeaponType(characterId, new WeaponTypeInfo
+        {
+            MainHandType = WeaponType.Sword,
+            OffHandType = WeaponType.Dagger,
+            IsTwoHanded = false,
+            IsDualWielding = true
+        });
+
+        // Act
+        var attackSpeed = await _service.CalculateAttackSpeedAsync(characterId, professionBaseSpeed, hastePercent);
+
+        // Assert
+        // Average of 2.4 and 1.8 = 2.1
+        Assert.Equal(2.1, attackSpeed, precision: 2);
+    }
+
+    [Fact]
+    public async Task CalculateAttackSpeedAsync_WeaponAndShield_ShouldUseMainHandSpeed()
+    {
+        // Arrange
+        var characterId = Guid.NewGuid();
+        var professionBaseSpeed = 2.0;
+        var hastePercent = 0.0;
+        
+        // Sword + Shield (shield doesn't count as dual wielding)
+        _fakeStatsAggregationService.SetWeaponType(characterId, new WeaponTypeInfo
+        {
+            MainHandType = WeaponType.Sword,
+            OffHandType = WeaponType.Shield,
+            IsTwoHanded = false,
+            IsDualWielding = false
+        });
+
+        // Act
+        var attackSpeed = await _service.CalculateAttackSpeedAsync(characterId, professionBaseSpeed, hastePercent);
+
+        // Assert
+        // Should use Sword base speed: 2.4 seconds
+        Assert.Equal(2.4, attackSpeed, precision: 2);
+    }
 }
 
 /// <summary>
@@ -249,5 +373,29 @@ internal class FakeStatsAggregationService : StatsAggregationService
     {
         // Return 0 for tests - simulates no shield equipped
         return Task.FromResult(0.0);
+    }
+
+    private readonly Dictionary<Guid, WeaponTypeInfo> _weaponTypeCache = new();
+
+    public void SetWeaponType(Guid characterId, WeaponTypeInfo weaponInfo)
+    {
+        _weaponTypeCache[characterId] = weaponInfo;
+    }
+
+    public override Task<WeaponTypeInfo> GetEquippedWeaponTypeAsync(Guid characterId)
+    {
+        if (_weaponTypeCache.TryGetValue(characterId, out var weaponInfo))
+        {
+            return Task.FromResult(weaponInfo);
+        }
+        
+        // Default: no weapon equipped
+        return Task.FromResult(new WeaponTypeInfo
+        {
+            MainHandType = WeaponType.None,
+            OffHandType = WeaponType.None,
+            IsTwoHanded = false,
+            IsDualWielding = false
+        });
     }
 }
