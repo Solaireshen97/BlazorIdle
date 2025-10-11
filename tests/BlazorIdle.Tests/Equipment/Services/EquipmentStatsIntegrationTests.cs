@@ -244,4 +244,10 @@ internal class FakeStatsAggregationService : StatsAggregationService
         
         return Task.FromResult(new Dictionary<StatType, double>());
     }
+
+    public override Task<double> CalculateBlockChanceAsync(Guid characterId, double characterStrength = 0)
+    {
+        // No shield equipped in tests - return 0
+        return Task.FromResult(0.0);
+    }
 }

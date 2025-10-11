@@ -41,8 +41,11 @@ public class EquipmentStatsIntegration
         // 4. 获取装备属性
         var equipmentStats = await _statsAggregationService.CalculateEquipmentStatsAsync(characterId);
         
-        // 5. 将装备属性应用到战斗属性中
-        var finalStats = ApplyEquipmentStats(combinedStats, equipmentStats);
+        // 5. 获取格挡率（如果装备盾牌）
+        var blockChance = await _statsAggregationService.CalculateBlockChanceAsync(characterId, primaryAttrs.Strength);
+        
+        // 6. 将装备属性应用到战斗属性中
+        var finalStats = ApplyEquipmentStats(combinedStats, equipmentStats, blockChance);
         
         return finalStats;
     }
@@ -52,10 +55,12 @@ public class EquipmentStatsIntegration
     /// </summary>
     /// <param name="baseStats">基础战斗属性</param>
     /// <param name="equipmentStats">装备属性</param>
+    /// <param name="blockChance">格挡率</param>
     /// <returns>应用装备加成后的战斗属性</returns>
     private CharacterStats ApplyEquipmentStats(
         CharacterStats baseStats,
-        Dictionary<StatType, double> equipmentStats)
+        Dictionary<StatType, double> equipmentStats,
+        double blockChance = 0)
     {
         // 累加装备提供的属性
         double attackPowerBonus = 0;
@@ -66,6 +71,7 @@ public class EquipmentStatsIntegration
         double armorPenPctBonus = 0;
         double magicPenFlatBonus = 0;
         double magicPenPctBonus = 0;
+        double armorBonus = 0;
 
         // 应用装备属性
         foreach (var (statType, value) in equipmentStats)
@@ -106,7 +112,7 @@ public class EquipmentStatsIntegration
                     break;
                 
                 case StatType.Armor:
-                    // 护甲值通过单独的方法获取
+                    armorBonus += value;
                     break;
                 
                 // 主属性通过装备增加
@@ -132,7 +138,9 @@ public class EquipmentStatsIntegration
             ArmorPenFlat = baseStats.ArmorPenFlat + armorPenFlatBonus,
             ArmorPenPct = Clamp01(baseStats.ArmorPenPct + armorPenPctBonus),
             MagicPenFlat = baseStats.MagicPenFlat + magicPenFlatBonus,
-            MagicPenPct = Clamp01(baseStats.MagicPenPct + magicPenPctBonus)
+            MagicPenPct = Clamp01(baseStats.MagicPenPct + magicPenPctBonus),
+            Armor = baseStats.Armor + armorBonus,
+            BlockChance = Clamp01(blockChance)
         };
 
         return result;
@@ -159,12 +167,11 @@ public class EquipmentStatsIntegration
     /// 获取装备提供的格挡率（如果装备了盾牌）
     /// </summary>
     /// <param name="characterId">角色ID</param>
+    /// <param name="characterStrength">角色力量值（可选）</param>
     /// <returns>格挡率（0-1）</returns>
-    public Task<double> GetEquipmentBlockChanceAsync(Guid characterId)
+    public Task<double> GetEquipmentBlockChanceAsync(Guid characterId, double characterStrength = 0)
     {
-        // TODO: 实现盾牌格挡率计算
-        // 需要检查副手槽位是否装备了盾牌
-        return Task.FromResult(0.0);
+        return _statsAggregationService.CalculateBlockChanceAsync(characterId, characterStrength);
     }
 
     private static double Clamp01(double value)

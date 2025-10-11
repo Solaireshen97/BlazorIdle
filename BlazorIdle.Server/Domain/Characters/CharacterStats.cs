@@ -20,4 +20,11 @@ public sealed class CharacterStats
     public double ArmorPenPct { get; init; } = 0.0; // 0..1
     public double MagicPenFlat { get; init; } = 0.0;
     public double MagicPenPct { get; init; } = 0.0; // 0..1
+
+    // 防御属性（Phase 4）
+    /// <summary>护甲值（用于物理伤害减免）</summary>
+    public double Armor { get; init; } = 0.0;
+    
+    /// <summary>格挡率（0-1，仅在装备盾牌时有效）</summary>
+    public double BlockChance { get; init; } = 0.0;
 }
