@@ -226,7 +226,7 @@ internal class FakeStatsAggregationService : StatsAggregationService
 {
     private readonly Dictionary<Guid, Dictionary<StatType, double>> _equipmentStatsCache = new();
 
-    public FakeStatsAggregationService() : base(null!)
+    public FakeStatsAggregationService() : base(null!, new ArmorCalculator(), new BlockCalculator())
     {
     }
 
