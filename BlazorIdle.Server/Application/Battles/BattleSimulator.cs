@@ -61,12 +61,17 @@ public class BattleSimulator
         var rng = config.Rng ?? new RngContext(config.Seed);
         var seedIndexStart = rng.Index;
 
+        var professionModule = config.Module ?? ProfessionRegistry.Resolve(config.Profession);
+        
         var battle = new Battle
         {
             Id = config.BattleId,
             CharacterId = config.CharacterId,
-            AttackIntervalSeconds = (config.Module ?? ProfessionRegistry.Resolve(config.Profession)).BaseAttackInterval,
-            SpecialIntervalSeconds = (config.Module ?? ProfessionRegistry.Resolve(config.Profession)).BaseSpecialInterval,
+            // Phase 5: 使用装备的武器攻击速度
+            // 如果AttackSpeed为默认值(2.5)且与职业基础攻击间隔不同，则使用职业默认值
+            // 否则使用Stats中的AttackSpeed（这样可以支持装备不同攻击速度的武器）
+            AttackIntervalSeconds = config.Stats.AttackSpeed,
+            SpecialIntervalSeconds = professionModule.BaseSpecialInterval,
             StartedAt = 0
         };
 

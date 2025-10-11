@@ -251,7 +251,7 @@ internal class FakeStatsAggregationService : StatsAggregationService
         return Task.FromResult(0.0);
     }
 
-    public override Task<double> CalculateAttackSpeedAsync(Guid characterId, double hastePercent = 0)
+    public override Task<double> CalculateAttackSpeedAsync(Guid characterId)
     {
         // Return default attack speed for tests - simulates no weapon equipped
         return Task.FromResult(2.5);

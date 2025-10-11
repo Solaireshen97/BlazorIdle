@@ -46,20 +46,9 @@ public class EquipmentStatsIntegration
             characterId, 
             primaryAttrs.Strength);
         
-        // 6. 获取武器攻击速度（Phase 5）
-        // 注意：这里传入的急速是合并后的基础急速，装备急速还会在ApplyEquipmentStats中叠加
-        var hasteAfterEquipment = combinedStats.HastePercent;
-        if (equipmentStats.TryGetValue(StatType.Haste, out var hasteBonus))
-        {
-            hasteAfterEquipment += hasteBonus;
-        }
-        if (equipmentStats.TryGetValue(StatType.HastePercent, out var hastePctBonus))
-        {
-            hasteAfterEquipment += hastePctBonus;
-        }
-        var attackSpeed = await _statsAggregationService.CalculateAttackSpeedAsync(
-            characterId, 
-            hasteAfterEquipment);
+        // 6. 获取武器基础攻击速度（Phase 5）
+        // 注意：返回的是武器基础速度，不包含急速。急速会由战斗系统的Track动态应用
+        var attackSpeed = await _statsAggregationService.CalculateAttackSpeedAsync(characterId);
         
         // 7. 将装备属性应用到战斗属性中（包括护甲、格挡和攻击速度）
         var finalStats = ApplyEquipmentStats(combinedStats, equipmentStats, blockChance, attackSpeed);

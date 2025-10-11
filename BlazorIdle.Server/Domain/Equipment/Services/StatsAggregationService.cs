@@ -227,12 +227,11 @@ public class StatsAggregationService
     }
 
     /// <summary>
-    /// 计算武器攻击速度（基于装备的主手武器）
+    /// 计算武器基础攻击速度（基于装备的主手武器，不含急速）
     /// </summary>
     /// <param name="characterId">角色ID</param>
-    /// <param name="hastePercent">角色急速百分比</param>
-    /// <returns>攻击速度（秒），无武器返回职业默认值2.5</returns>
-    public virtual async Task<double> CalculateAttackSpeedAsync(Guid characterId, double hastePercent = 0)
+    /// <returns>基础攻击速度（秒），无武器返回职业默认值2.5</returns>
+    public virtual async Task<double> CalculateAttackSpeedAsync(Guid characterId)
     {
         var equippedGear = await _equipmentService.GetEquippedGearAsync(characterId);
         
@@ -247,10 +246,8 @@ public class StatsAggregationService
             return 2.5;
         }
 
-        // 使用武器类型计算攻击速度（考虑急速）
-        return _attackSpeedCalculator.CalculateAttackSpeed(
-            mainHandWeapon.Definition.WeaponType, 
-            hastePercent);
+        // 返回武器基础攻击速度（不应用急速，急速由战斗系统的Track动态应用）
+        return _attackSpeedCalculator.GetBaseAttackSpeed(mainHandWeapon.Definition.WeaponType);
     }
 }
 
