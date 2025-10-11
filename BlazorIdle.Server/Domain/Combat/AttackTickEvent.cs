@@ -54,7 +54,9 @@ public record AttackTickEvent(double ExecuteAt, TrackState Track) : IGameEvent
             return;
         }
 
-        const int baseDamage = 10;
+        // 基础攻击伤害 = 基础值 + 攻击强度（装备影响）
+        const int baseAttackDamage = 10;
+        double preCritDamage = baseAttackDamage + context.Stats.AttackPower;
 
         // 普攻暴击：使用面板基础（可被 BuffAggregate 叠加）
         var (chance, mult) = context.Crit.ResolveWith(
@@ -63,7 +65,7 @@ public record AttackTickEvent(double ExecuteAt, TrackState Track) : IGameEvent
             context.Stats.CritMultiplier
         );
         bool isCrit = context.Rng.NextBool(chance);
-        int finalDamage = isCrit ? (int)Math.Round(baseDamage * mult) : baseDamage;
+        int finalDamage = isCrit ? (int)Math.Round(preCritDamage * mult) : (int)Math.Round(preCritDamage);
         if (isCrit) context.SegmentCollector.OnTag("crit:basic_attack", 1);
 
         // Phase 2: 对选中的目标应用伤害
