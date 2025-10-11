@@ -374,6 +374,221 @@ public static class EquipmentSeedData
                 SetId = null,
                 CreatedAt = now,
                 UpdatedAt = now
+            },
+            
+            // 双手武器 - 双手剑
+            new GearDefinition
+            {
+                Id = "weapon_twohand_sword",
+                Name = "双手大剑",
+                Icon = "🗡️",
+                Slot = EquipmentSlot.TwoHand,
+                ArmorType = ArmorType.None,
+                WeaponType = WeaponType.TwoHandSword,
+                RequiredLevel = 5,
+                BaseStats = new Dictionary<StatType, StatRange>
+                {
+                    { StatType.AttackPower, new StatRange { Min = 25, Max = 40 } }
+                },
+                AllowedAffixPool = new List<string> 
+                { 
+                    "affix_attack_power", "affix_crit_chance", "affix_strength" 
+                },
+                RarityWeights = new Dictionary<Rarity, double>
+                {
+                    { Rarity.Common, 45.0 },
+                    { Rarity.Rare, 35.0 },
+                    { Rarity.Epic, 15.0 },
+                    { Rarity.Legendary, 5.0 }
+                },
+                SetId = null,
+                CreatedAt = now,
+                UpdatedAt = now
+            },
+            
+            // 法杖
+            new GearDefinition
+            {
+                Id = "weapon_staff",
+                Name = "木制法杖",
+                Icon = "🪄",
+                Slot = EquipmentSlot.TwoHand,
+                ArmorType = ArmorType.None,
+                WeaponType = WeaponType.Staff,
+                RequiredLevel = 3,
+                BaseStats = new Dictionary<StatType, StatRange>
+                {
+                    { StatType.SpellPower, new StatRange { Min = 20, Max = 35 } },
+                    { StatType.Intellect, new StatRange { Min = 5, Max = 10 } }
+                },
+                AllowedAffixPool = new List<string> 
+                { 
+                    "affix_spell_power", "affix_intellect", "affix_crit_chance" 
+                },
+                RarityWeights = new Dictionary<Rarity, double>
+                {
+                    { Rarity.Common, 45.0 },
+                    { Rarity.Rare, 35.0 },
+                    { Rarity.Epic, 15.0 },
+                    { Rarity.Legendary, 5.0 }
+                },
+                SetId = null,
+                CreatedAt = now,
+                UpdatedAt = now
+            },
+            
+            // 匕首
+            new GearDefinition
+            {
+                Id = "weapon_dagger",
+                Name = "锋利匕首",
+                Icon = "🗡️",
+                Slot = EquipmentSlot.MainHand,
+                ArmorType = ArmorType.None,
+                WeaponType = WeaponType.Dagger,
+                RequiredLevel = 1,
+                BaseStats = new Dictionary<StatType, StatRange>
+                {
+                    { StatType.AttackPower, new StatRange { Min = 8, Max = 12 } },
+                    { StatType.Agility, new StatRange { Min = 2, Max = 5 } }
+                },
+                AllowedAffixPool = new List<string> 
+                { 
+                    "affix_attack_power", "affix_agility", "affix_crit_chance" 
+                },
+                RarityWeights = new Dictionary<Rarity, double>
+                {
+                    { Rarity.Common, 50.0 },
+                    { Rarity.Rare, 30.0 },
+                    { Rarity.Epic, 15.0 },
+                    { Rarity.Legendary, 5.0 }
+                },
+                SetId = null,
+                CreatedAt = now,
+                UpdatedAt = now
+            },
+            
+            // 皮甲胸甲
+            new GearDefinition
+            {
+                Id = "chest_leather_basic",
+                Name = "皮革胸甲",
+                Icon = "👔",
+                Slot = EquipmentSlot.Chest,
+                ArmorType = ArmorType.Leather,
+                WeaponType = WeaponType.None,
+                RequiredLevel = 1,
+                BaseStats = new Dictionary<StatType, StatRange>
+                {
+                    { StatType.Armor, new StatRange { Min = 25, Max = 40 } },
+                    { StatType.Agility, new StatRange { Min = 5, Max = 12 } }
+                },
+                AllowedAffixPool = new List<string> 
+                { 
+                    "affix_agility", "affix_stamina", "affix_armor", "affix_dodge" 
+                },
+                RarityWeights = new Dictionary<Rarity, double>
+                {
+                    { Rarity.Common, 50.0 },
+                    { Rarity.Rare, 30.0 },
+                    { Rarity.Epic, 15.0 },
+                    { Rarity.Legendary, 5.0 }
+                },
+                SetId = "set_rogue_basic",
+                CreatedAt = now,
+                UpdatedAt = now
+            },
+            
+            // 锁甲胸甲
+            new GearDefinition
+            {
+                Id = "chest_mail_basic",
+                Name = "锁甲胸甲",
+                Icon = "🦺",
+                Slot = EquipmentSlot.Chest,
+                ArmorType = ArmorType.Mail,
+                WeaponType = WeaponType.None,
+                RequiredLevel = 1,
+                BaseStats = new Dictionary<StatType, StatRange>
+                {
+                    { StatType.Armor, new StatRange { Min = 30, Max = 50 } },
+                    { StatType.Stamina, new StatRange { Min = 8, Max = 15 } }
+                },
+                AllowedAffixPool = new List<string> 
+                { 
+                    "affix_stamina", "affix_armor", "affix_health", "affix_dodge" 
+                },
+                RarityWeights = new Dictionary<Rarity, double>
+                {
+                    { Rarity.Common, 50.0 },
+                    { Rarity.Rare, 30.0 },
+                    { Rarity.Epic, 15.0 },
+                    { Rarity.Legendary, 5.0 }
+                },
+                SetId = null,
+                CreatedAt = now,
+                UpdatedAt = now
+            },
+            
+            // 项链
+            new GearDefinition
+            {
+                Id = "neck_basic",
+                Name = "普通项链",
+                Icon = "📿",
+                Slot = EquipmentSlot.Neck,
+                ArmorType = ArmorType.None,
+                WeaponType = WeaponType.None,
+                RequiredLevel = 1,
+                BaseStats = new Dictionary<StatType, StatRange>
+                {
+                    { StatType.Health, new StatRange { Min = 30, Max = 60 } },
+                    { StatType.Stamina, new StatRange { Min = 3, Max = 8 } }
+                },
+                AllowedAffixPool = new List<string> 
+                { 
+                    "affix_health", "affix_stamina", "affix_attack_power", "affix_spell_power" 
+                },
+                RarityWeights = new Dictionary<Rarity, double>
+                {
+                    { Rarity.Common, 40.0 },
+                    { Rarity.Rare, 35.0 },
+                    { Rarity.Epic, 20.0 },
+                    { Rarity.Legendary, 5.0 }
+                },
+                SetId = null,
+                CreatedAt = now,
+                UpdatedAt = now
+            },
+            
+            // 饰品
+            new GearDefinition
+            {
+                Id = "trinket_basic",
+                Name = "普通饰品",
+                Icon = "🎴",
+                Slot = EquipmentSlot.Trinket1,
+                ArmorType = ArmorType.None,
+                WeaponType = WeaponType.None,
+                RequiredLevel = 5,
+                BaseStats = new Dictionary<StatType, StatRange>
+                {
+                    { StatType.AttackPower, new StatRange { Min = 8, Max = 15 } }
+                },
+                AllowedAffixPool = new List<string> 
+                { 
+                    "affix_attack_power", "affix_spell_power", "affix_crit_chance", "affix_haste" 
+                },
+                RarityWeights = new Dictionary<Rarity, double>
+                {
+                    { Rarity.Common, 35.0 },
+                    { Rarity.Rare, 35.0 },
+                    { Rarity.Epic, 23.0 },
+                    { Rarity.Legendary, 7.0 }
+                },
+                SetId = null,
+                CreatedAt = now,
+                UpdatedAt = now
             }
         };
 
@@ -434,8 +649,34 @@ public static class EquipmentSeedData
                     },
                     { 4, new List<StatModifier> 
                         { 
-                            new StatModifier(StatType.AttackPower, ModifierType.Flat, 25),
+                            new StatModifier(StatType.SpellPower, ModifierType.Flat, 25),
                             new StatModifier(StatType.CritChance, ModifierType.Percent, 0.03)
+                        } 
+                    }
+                },
+                CreatedAt = now,
+                UpdatedAt = now
+            },
+            
+            new GearSet
+            {
+                Id = "set_rogue_basic",
+                Name = "盗贼基础套装",
+                Pieces = new List<string> 
+                { 
+                    "chest_leather_basic" 
+                },
+                Bonuses = new Dictionary<int, List<StatModifier>>
+                {
+                    { 2, new List<StatModifier> 
+                        { 
+                            new StatModifier(StatType.Agility, ModifierType.Flat, 10) 
+                        } 
+                    },
+                    { 4, new List<StatModifier> 
+                        { 
+                            new StatModifier(StatType.AttackPower, ModifierType.Flat, 30),
+                            new StatModifier(StatType.CritChance, ModifierType.Percent, 0.05)
                         } 
                     }
                 },
