@@ -41,8 +41,13 @@ public class EquipmentStatsIntegration
         // 4. 获取装备属性
         var equipmentStats = await _statsAggregationService.CalculateEquipmentStatsAsync(characterId);
         
-        // 5. 将装备属性应用到战斗属性中
-        var finalStats = ApplyEquipmentStats(combinedStats, equipmentStats);
+        // 5. 获取格挡率（Phase 4）
+        var blockChance = await _statsAggregationService.CalculateBlockChanceAsync(
+            characterId, 
+            primaryAttrs.Strength);
+        
+        // 6. 将装备属性应用到战斗属性中（包括护甲和格挡）
+        var finalStats = ApplyEquipmentStats(combinedStats, equipmentStats, blockChance);
         
         return finalStats;
     }
@@ -52,10 +57,12 @@ public class EquipmentStatsIntegration
     /// </summary>
     /// <param name="baseStats">基础战斗属性</param>
     /// <param name="equipmentStats">装备属性</param>
+    /// <param name="blockChance">格挡率</param>
     /// <returns>应用装备加成后的战斗属性</returns>
     private CharacterStats ApplyEquipmentStats(
         CharacterStats baseStats,
-        Dictionary<StatType, double> equipmentStats)
+        Dictionary<StatType, double> equipmentStats,
+        double blockChance = 0)
     {
         // 累加装备提供的属性
         double attackPowerBonus = 0;
@@ -66,6 +73,7 @@ public class EquipmentStatsIntegration
         double armorPenPctBonus = 0;
         double magicPenFlatBonus = 0;
         double magicPenPctBonus = 0;
+        double armorBonus = 0; // Phase 4: 护甲值
 
         // 应用装备属性
         foreach (var (statType, value) in equipmentStats)
@@ -106,7 +114,8 @@ public class EquipmentStatsIntegration
                     break;
                 
                 case StatType.Armor:
-                    // 护甲值通过单独的方法获取
+                    // Phase 4: 护甲值
+                    armorBonus += value;
                     break;
                 
                 // 主属性通过装备增加
@@ -132,7 +141,10 @@ public class EquipmentStatsIntegration
             ArmorPenFlat = baseStats.ArmorPenFlat + armorPenFlatBonus,
             ArmorPenPct = Clamp01(baseStats.ArmorPenPct + armorPenPctBonus),
             MagicPenFlat = baseStats.MagicPenFlat + magicPenFlatBonus,
-            MagicPenPct = Clamp01(baseStats.MagicPenPct + magicPenPctBonus)
+            MagicPenPct = Clamp01(baseStats.MagicPenPct + magicPenPctBonus),
+            // Phase 4: 防御属性
+            Armor = armorBonus,
+            BlockChance = Clamp01(blockChance)
         };
 
         return result;

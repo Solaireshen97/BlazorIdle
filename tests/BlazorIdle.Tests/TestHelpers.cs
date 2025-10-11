@@ -26,6 +26,8 @@ public static class TestHelpers
     /// </summary>
     public class FakeStatsAggregationService : StatsAggregationService
     {
+        private Dictionary<Guid, Dictionary<StatType, double>> _equipmentStats = new();
+
         public FakeStatsAggregationService() : base(null!, new ArmorCalculator(), new BlockCalculator())
         {
         }
@@ -33,7 +35,22 @@ public static class TestHelpers
         public override Task<Dictionary<StatType, double>> CalculateEquipmentStatsAsync(Guid characterId)
         {
             // Return empty stats for tests - simulates no equipment
+            if (_equipmentStats.TryGetValue(characterId, out var stats))
+            {
+                return Task.FromResult(stats);
+            }
             return Task.FromResult(new Dictionary<StatType, double>());
+        }
+
+        public override Task<double> CalculateBlockChanceAsync(Guid characterId, double characterStrength = 0)
+        {
+            // Return 0 for tests - simulates no shield equipped
+            return Task.FromResult(0.0);
+        }
+
+        public void SetEquipmentStats(Guid characterId, Dictionary<StatType, double> stats)
+        {
+            _equipmentStats[characterId] = stats;
         }
     }
 }
