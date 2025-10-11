@@ -201,7 +201,9 @@ public class EquipmentCombatIntegrationTests
             ArmorPenFlat = baseStats.ArmorPenFlat,
             ArmorPenPct = baseStats.ArmorPenPct,
             MagicPenFlat = baseStats.MagicPenFlat,
-            MagicPenPct = baseStats.MagicPenPct
+            MagicPenPct = baseStats.MagicPenPct,
+            // Phase 5: 包含攻击速度
+            AttackSpeed = baseStats.AttackSpeed
         };
     }
 }

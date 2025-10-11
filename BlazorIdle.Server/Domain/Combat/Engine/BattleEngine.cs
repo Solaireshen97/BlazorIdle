@@ -105,7 +105,8 @@ public sealed class BattleEngine
         {
             Id = battleId,
             CharacterId = characterId,
-            AttackIntervalSeconds = professionModule.BaseAttackInterval,
+            // Phase 5: 使用装备的武器攻击速度
+            AttackIntervalSeconds = stats.AttackSpeed,
             SpecialIntervalSeconds = professionModule.BaseSpecialInterval,
             StartedAt = 0
         };
