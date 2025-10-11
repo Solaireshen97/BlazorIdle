@@ -6,6 +6,7 @@ using BlazorIdle.Server.Domain.Combat.Enemies;
 using BlazorIdle.Server.Domain.Combat.Professions;
 using BlazorIdle.Server.Domain.Combat.Rng;
 using BlazorIdle.Server.Domain.Economy;
+using BlazorIdle.Server.Domain.Equipment.Services;
 using BlazorIdle.Server.Domain.Records;
 using System.Text.Json;
 
@@ -17,14 +18,22 @@ public class StartBattleService
     private readonly IBattleRepository _battles;
     private readonly BattleRunner _runner;
     private readonly BattleSimulator _simulator;
+    private readonly EquipmentStatsIntegration _equipmentStats;
     private readonly string _defaultDropMode; // "expected" | "sampled"
 
-    public StartBattleService(ICharacterRepository characters, IBattleRepository battles, BattleRunner runner, BattleSimulator simulator, IConfiguration cfg)
+    public StartBattleService(
+        ICharacterRepository characters, 
+        IBattleRepository battles, 
+        BattleRunner runner, 
+        BattleSimulator simulator, 
+        EquipmentStatsIntegration equipmentStats,
+        IConfiguration cfg)
     {
         _characters = characters;
         _battles = battles;
         _runner = runner;
         _simulator = simulator;
+        _equipmentStats = equipmentStats;
         _defaultDropMode = cfg.GetValue<string>("Economy:DefaultDropMode")?.Trim().ToLowerInvariant() == "sampled"
             ? "sampled" : "expected";
     }
@@ -57,10 +66,9 @@ public class StartBattleService
             StartedAt = 0
         };
 
-        var baseStats = ProfessionBaseStatsRegistry.Resolve(c.Profession);
+        // Build stats with equipment integration
         var attrs = new PrimaryAttributes(c.Strength, c.Agility, c.Intellect, c.Stamina);
-        var derived = StatsBuilder.BuildDerived(c.Profession, attrs);
-        var stats = StatsBuilder.Combine(baseStats, derived);
+        var stats = await _equipmentStats.BuildStatsWithEquipmentAsync(characterId, c.Profession, attrs);
 
         ulong finalSeed = seed ?? DeriveSeed(characterId);
         var m = (mode ?? "duration").Trim().ToLowerInvariant();
