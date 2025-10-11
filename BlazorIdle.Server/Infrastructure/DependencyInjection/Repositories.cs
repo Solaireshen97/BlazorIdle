@@ -48,6 +48,9 @@ public static class RepositoryRegistration
         //   * 封装套装定义的数据访问。
         services.AddScoped<IGearSetRepository, GearSetRepository>();
 
+        // 装备系统种子数据服务
+        services.AddScoped<BlazorIdle.Server.Domain.Equipment.Services.EquipmentSeedDataService>();
+
         return services;
     }
 }

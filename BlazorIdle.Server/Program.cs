@@ -109,6 +109,10 @@ using (var scope = app.Services.CreateScope())
         // dotnet ef migrations add InitBattle
         // dotnet ef database update
         db.Database.Migrate();
+        
+        // ��ʼ��װ��ϵͳ������
+        var seedService = scope.ServiceProvider.GetRequiredService<BlazorIdle.Server.Domain.Equipment.Services.EquipmentSeedDataService>();
+        await seedService.SeedDataAsync();
     }
     else
     {
