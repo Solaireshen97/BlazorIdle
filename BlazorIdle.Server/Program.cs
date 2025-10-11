@@ -4,6 +4,7 @@ using BlazorIdle.Server.Infrastructure;
 using BlazorIdle.Server.Services;
 using Microsoft.EntityFrameworkCore;
 using BlazorIdle.Server.Infrastructure.Persistence;
+using BlazorIdle.Server.Infrastructure.Persistence.Seed;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -109,6 +110,10 @@ using (var scope = app.Services.CreateScope())
         // dotnet ef migrations add InitBattle
         // dotnet ef database update
         db.Database.Migrate();
+        
+        // 初始化装备系统种子数据
+        await EquipmentSeedData.SeedEquipmentDefinitionsAsync(db);
+        await EquipmentSeedData.SeedAffixDefinitionsAsync(db);
     }
     else
     {
