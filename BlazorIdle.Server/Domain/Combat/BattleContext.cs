@@ -78,13 +78,21 @@ public class BattleContext
         // Phase 6: 设置副本定义
         CurrentDungeon = dungeon;
         
-        // Phase 1: 初始化玩家战斗单位
+        // Phase 1 & Phase 4: 初始化玩家战斗单位（含护甲和格挡）
+        var armorCalculator = new Equipment.Services.ArmorCalculator();
+        var blockCalculator = new Equipment.Services.BlockCalculator();
         Player = new PlayerCombatant(
             id: characterId ?? battle?.CharacterId.ToString() ?? "unknown",
             name: characterName ?? "Player",
             stats: Stats,
-            stamina: stamina
-        );
+            stamina: stamina,
+            armorCalculator: armorCalculator,
+            blockCalculator: blockCalculator
+        )
+        {
+            TotalArmor = Stats.Armor,
+            BlockChance = Stats.BlockChance
+        };
         
         // Phase 6: 根据副本配置设置玩家自动复活
         if (dungeon != null)
