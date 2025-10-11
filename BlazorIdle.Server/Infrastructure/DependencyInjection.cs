@@ -67,6 +67,12 @@ public static class DependencyInjection
         services.AddScoped<DisenchantService>();
         services.AddScoped<ReforgeService>();
         services.AddScoped<EquipmentStatsIntegration>();
+        
+        // 装备系统计算器服务（Phase 4-6）
+        services.AddSingleton<ArmorCalculator>();           // 无状态，线程安全，可为单例
+        services.AddSingleton<BlockCalculator>();           // 无状态，线程安全，可为单例
+        services.AddSingleton<AttackSpeedCalculator>();     // 无状态，线程安全，可为单例
+        services.AddScoped<EquipmentValidator>();           // 验证服务，使用Scoped
 
         return services;
     }

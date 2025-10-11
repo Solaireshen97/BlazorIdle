@@ -9,10 +9,17 @@ namespace BlazorIdle.Server.Domain.Equipment.Services;
 public class StatsAggregationService
 {
     private readonly EquipmentService _equipmentService;
+    private readonly ArmorCalculator _armorCalculator;
+    private readonly BlockCalculator _blockCalculator;
 
-    public StatsAggregationService(EquipmentService equipmentService)
+    public StatsAggregationService(
+        EquipmentService equipmentService,
+        ArmorCalculator armorCalculator,
+        BlockCalculator blockCalculator)
     {
         _equipmentService = equipmentService;
+        _armorCalculator = armorCalculator;
+        _blockCalculator = blockCalculator;
     }
 
     /// <summary>
@@ -87,25 +94,25 @@ public class StatsAggregationService
     /// </summary>
     private double CalculateArmorValue(GearInstance gear)
     {
-        if (gear.Definition == null || gear.Definition.ArmorType == ArmorType.None)
+        if (gear.Definition == null)
         {
             return 0;
         }
 
-        // 从基础属性中获取护甲值，如果没有则返回0
-        if (gear.RolledStats.TryGetValue(StatType.Armor, out var armorValue))
+        // 使用 ArmorCalculator 计算护甲值
+        if (gear.Definition.ArmorType != ArmorType.None && gear.SlotType.HasValue)
         {
-            // 应用护甲类型系数
-            var multiplier = gear.Definition.ArmorType switch
-            {
-                ArmorType.Cloth => 0.5,
-                ArmorType.Leather => 1.0,
-                ArmorType.Mail => 1.5,
-                ArmorType.Plate => 2.0,
-                _ => 1.0
-            };
+            return _armorCalculator.CalculateArmorValue(
+                gear.Definition.ArmorType,
+                gear.SlotType.Value,
+                gear.ItemLevel
+            );
+        }
 
-            return armorValue * multiplier;
+        // 盾牌特殊处理
+        if (gear.Definition.WeaponType == WeaponType.Shield && gear.SlotType == EquipmentSlot.OffHand)
+        {
+            return _armorCalculator.CalculateShieldArmorValue(gear.ItemLevel);
         }
 
         return 0;
@@ -191,6 +198,29 @@ public class StatsAggregationService
             EquippedCount = equippedGear.Count,
             TotalQualityScore = equippedGear.Sum(g => g.QualityScore)
         };
+    }
+
+    /// <summary>
+    /// 计算格挡率（如果装备盾牌）
+    /// </summary>
+    /// <param name="characterId">角色ID</param>
+    /// <param name="characterStrength">角色力量值（可选）</param>
+    /// <returns>格挡率（0-0.5），无盾牌则返回0</returns>
+    public async Task<double> CalculateBlockChanceAsync(Guid characterId, double characterStrength = 0)
+    {
+        var equippedGear = await _equipmentService.GetEquippedGearAsync(characterId);
+        
+        // 查找副手盾牌
+        var shield = equippedGear.FirstOrDefault(g => 
+            g.SlotType == EquipmentSlot.OffHand && 
+            g.Definition?.WeaponType == WeaponType.Shield);
+
+        if (shield == null)
+        {
+            return 0;
+        }
+
+        return _blockCalculator.CalculateBlockChance(shield.ItemLevel, characterStrength);
     }
 }
 
