@@ -28,7 +28,7 @@ public class OfflineOnlineConsistencyTests
 
     public OfflineOnlineConsistencyTests()
     {
-        _offlineEngine = new OfflineFastForwardEngine(_simulator);
+        _offlineEngine = new OfflineFastForwardEngine(_simulator, TestHelper.CreateTestEquipmentStatsIntegration());
     }
 
     [Fact]

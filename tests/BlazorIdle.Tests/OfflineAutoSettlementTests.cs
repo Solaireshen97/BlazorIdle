@@ -144,7 +144,7 @@ public class OfflineAutoSettlementTests
 
         // Act
         var simulator = new BattleSimulator();
-        var engine = new OfflineFastForwardEngine(simulator);
+        var engine = new OfflineFastForwardEngine(simulator, TestHelper.CreateTestEquipmentStatsIntegration());
         var result = engine.FastForward(character, plan, offlineSeconds);
 
         // Assert

@@ -4,6 +4,7 @@ using BlazorIdle.Server.Application.Battles.Step;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Professions;
 using BlazorIdle.Server.Domain.Combat.Rng;
+using BlazorIdle.Server.Domain.Equipment.Services;
 
 namespace BlazorIdle.Server.Api;
 
@@ -14,12 +15,18 @@ public class BattlesReplayController : ControllerBase
     private readonly IBattleRepository _battles;
     private readonly ICharacterRepository _characters;
     private readonly StepBattleCoordinator _coord;
+    private readonly EquipmentStatsIntegration _equipmentStats;
 
-    public BattlesReplayController(IBattleRepository battles, ICharacterRepository characters, StepBattleCoordinator coord)
+    public BattlesReplayController(
+        IBattleRepository battles, 
+        ICharacterRepository characters, 
+        StepBattleCoordinator coord,
+        EquipmentStatsIntegration equipmentStats)
     {
         _battles = battles;
         _characters = characters;
         _coord = coord;
+        _equipmentStats = equipmentStats;
     }
 
     // 用历史 BattleRecord 启动一场 Step 回放/重模拟
@@ -36,11 +43,9 @@ public class BattlesReplayController : ControllerBase
 
         var profession = character.Profession;
 
-        // 构造当前角色的基础+主属性面板（与普通 Step 启动一致）
-        var baseStats = ProfessionBaseStatsRegistry.Resolve(profession);
+        // 构造包含装备加成的完整属性（与普通 Step 启动一致）
         var attrs = new PrimaryAttributes(character.Strength, character.Agility, character.Intellect, character.Stamina);
-        var derived = StatsBuilder.BuildDerived(profession, attrs);
-        var stats = StatsBuilder.Combine(baseStats, derived);
+        var stats = await _equipmentStats.BuildStatsWithEquipmentAsync(record.CharacterId, profession, attrs);
 
         // 复用历史 seed（如不合法则派生）
         ulong seed = 0;
