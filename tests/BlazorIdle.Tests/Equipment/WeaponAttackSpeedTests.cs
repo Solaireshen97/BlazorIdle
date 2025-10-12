@@ -139,4 +139,16 @@ class FakeStatsAggregationServiceWithWeapon : StatsAggregationService
             
         return Task.FromResult(_weaponType);
     }
+    
+    public override Task<WeaponType> GetOffHandWeaponTypeAsync(Guid characterId)
+    {
+        // 测试中模拟无副手武器
+        return Task.FromResult(WeaponType.None);
+    }
+    
+    public override Task<bool> IsDualWieldingAsync(Guid characterId)
+    {
+        // 测试中模拟非双持状态
+        return Task.FromResult(false);
+    }
 }
