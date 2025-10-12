@@ -217,6 +217,12 @@ public sealed class GearInstanceDto
     public List<AffixDto> Affixes { get; set; } = new();
     public string? SetId { get; set; }                // 套装ID
     public Dictionary<string, double> Stats { get; set; } = new();
+    
+    // Phase 6: 增强装备详情
+    public string? ArmorType { get; set; }            // 护甲类型（Cloth/Leather/Mail/Plate/None）
+    public string? WeaponType { get; set; }           // 武器类型
+    public double? AttackSpeed { get; set; }          // 武器攻击速度
+    public int RequiredLevel { get; set; }            // 需求等级
 }
 
 /// <summary>装备词条</summary>

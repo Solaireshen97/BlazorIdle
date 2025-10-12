@@ -72,11 +72,33 @@ public class EquipmentController : ControllerBase
                 Item = gear != null ? new
                 {
                     Id = gear.Id,
+                    DefinitionId = gear.DefinitionId,
                     Name = gear.Definition?.Name ?? "未知装备",
                     Icon = gear.Definition?.Icon ?? "?",
                     Rarity = gear.Rarity.ToString(),
+                    Tier = gear.TierLevel,
                     ItemLevel = gear.ItemLevel,
-                    QualityScore = gear.QualityScore
+                    QualityScore = gear.QualityScore,
+                    Stats = gear.RolledStats.ToDictionary(
+                        kvp => kvp.Key.ToString(),
+                        kvp => kvp.Value
+                    ),
+                    Affixes = gear.Affixes.Select(a => new
+                    {
+                        Id = a.AffixId,
+                        Name = $"{a.StatType}",
+                        StatId = a.StatType.ToString(),
+                        Value = a.RolledValue,
+                        DisplayText = a.DisplayText
+                    }).ToList(),
+                    SetId = gear.SetId,
+                    // Phase 6: 增强装备详情
+                    ArmorType = gear.Definition?.ArmorType.ToString(),
+                    WeaponType = gear.Definition?.WeaponType.ToString(),
+                    AttackSpeed = gear.Definition?.WeaponType != null ? 
+                        new AttackSpeedCalculator().GetBaseAttackSpeed(gear.Definition.WeaponType) : 
+                        (double?)null,
+                    RequiredLevel = gear.Definition?.RequiredLevel ?? 1
                 } : null,
                 IsLocked = false
             };
@@ -327,6 +349,8 @@ public class EquipmentController : ControllerBase
             _ => slot.ToString()
         };
     }
+
+
 }
 
 /// <summary>

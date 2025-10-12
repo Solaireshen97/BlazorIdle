@@ -18,40 +18,70 @@
     }
     else
     {
-        @* 装备槽布局 *@
+        @* 装备槽布局 - Phase 6: 扩展为17个槽位 *@
         <div class="equipment-slots" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px;">
-            @* 第一行：空 - 头盔 - 空 *@
-            <div></div>
-            @RenderSlot("head", "头盔", "🪖")
-            <div></div>
+            @* 第一行：项链 - 头盔 - 护肩 *@
+            @RenderSlot("Neck", "项链", "📿")
+            @RenderSlot("Head", "头盔", "🪖")
+            @RenderSlot("Shoulder", "护肩", "🎽")
 
-            @* 第二行：武器 - 胸甲 - 副手 *@
-            @RenderSlot("weapon", "武器", "⚔️")
-            @RenderSlot("chest", "胸甲", "🛡️")
-            @RenderSlot("offhand", "副手", "🔰")
+            @* 第二行：主手 - 胸甲 - 副手/双手 *@
+            @RenderSlot("MainHand", "主手", "⚔️")
+            @RenderSlot("Chest", "胸甲", "🛡️")
+            @RenderSlotWithDualMode("OffHand", "TwoHand", "副手/双手", "🔰", "⚔️")
 
-            @* 第三行：腰带 - 腿部 - 鞋子 *@
-            @RenderSlot("waist", "腰带", "🎗️")
-            @RenderSlot("legs", "腿部", "🦵")
-            @RenderSlot("feet", "鞋子", "👢")
+            @* 第三行：护腕 - 腰带 - 手套 *@
+            @RenderSlot("Wrist", "护腕", "⌚")
+            @RenderSlot("Waist", "腰带", "🎗️")
+            @RenderSlot("Hands", "手套", "🧤")
 
-            @* 第四行：空 - 饰品1 - 饰品2 *@
+            @* 第四行：戒指1 - 护腿 - 戒指2 *@
+            @RenderSlot("Finger1", "戒指1", "💍")
+            @RenderSlot("Legs", "护腿", "🦵")
+            @RenderSlot("Finger2", "戒指2", "💍")
+
+            @* 第五行：饰品1 - 鞋子 - 饰品2 *@
+            @RenderSlot("Trinket1", "饰品1", "🔮")
+            @RenderSlot("Feet", "鞋子", "👢")
+            @RenderSlot("Trinket2", "饰品2", "🔮")
+
+            @* 第六行：空 - 披风 - 空 *@
             <div></div>
-            @RenderSlot("trinket1", "饰品1", "💍")
-            @RenderSlot("trinket2", "饰品2", "💍")
+            @RenderSlot("Back", "披风", "🧥")
+            <div></div>
         </div>
 
-        @* 总属性面板 *@
+        @* 总属性面板 - Phase 6: 增强显示 *@
         <div class="equipment-stats" style="padding: 12px; background: #f5f5f5; border-radius: 4px; border: 1px solid #e0e0e0;">
-            <div style="font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #555;">📊 总属性</div>
+            <div style="font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #555;">📊 装备总属性</div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 11px;">
                 <div style="display: flex; justify-content: space-between;">
                     <span>⚔️ 攻击力:</span>
                     <span style="font-weight: bold; color: #d32f2f;">@GetStatValue("AttackPower")</span>
                 </div>
                 <div style="display: flex; justify-content: space-between;">
+                    <span>🔮 法术强度:</span>
+                    <span style="font-weight: bold; color: #9c27b0;">@GetStatValue("SpellPower")</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
                     <span>🛡️ 护甲:</span>
                     <span style="font-weight: bold; color: #1976d2;">@GetStatValue("Armor")</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>💪 力量:</span>
+                    <span style="font-weight: bold; color: #e65100;">@GetStatValue("Strength")</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>🏃 敏捷:</span>
+                    <span style="font-weight: bold; color: #558b2f;">@GetStatValue("Agility")</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>🧠 智力:</span>
+                    <span style="font-weight: bold; color: #283593;">@GetStatValue("Intellect")</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>❤️ 耐力:</span>
+                    <span style="font-weight: bold; color: #c62828;">@GetStatValue("Stamina")</span>
                 </div>
                 <div style="display: flex; justify-content: space-between;">
                     <span>⚡ 急速:</span>
@@ -132,6 +162,84 @@
         builder.CloseElement();
     };
 
+    /// <summary>渲染双模式槽位（副手/双手武器）</summary>
+    private RenderFragment RenderSlotWithDualMode(string slotType1, string slotType2, string slotName, string defaultIcon1, string defaultIcon2) => builder =>
+    {
+        // 优先检查双手武器
+        var twoHandSlot = Slots.FirstOrDefault(s => s.SlotType == slotType2);
+        var offHandSlot = Slots.FirstOrDefault(s => s.SlotType == slotType1);
+        
+        // 如果装备了双手武器，显示双手武器
+        if (twoHandSlot?.Item != null)
+        {
+            var slot = twoHandSlot;
+            var bgColor = "#ffe8e8"; // 双手武器特殊背景色
+            var borderColor = "#ff5252";
+            var icon = slot.Item!.Icon ?? defaultIcon2;
+            var itemName = slot.Item!.Name;
+
+            builder.OpenElement(0, "div");
+            builder.AddAttribute(1, "class", "equipment-slot");
+            builder.AddAttribute(2, "style", $"position: relative; padding: 8px; background: {bgColor}; border: 2px solid {borderColor}; border-radius: 6px; text-align: center; cursor: pointer; min-height: 60px; display: flex; flex-direction: column; align-items: center; justify-content: center;");
+            builder.AddAttribute(3, "title", GetItemTooltip(slot.Item!) + "\n(双手武器占用副手位)");
+
+            builder.OpenElement(4, "div");
+            builder.AddAttribute(5, "style", "font-size: 24px; margin-bottom: 2px;");
+            builder.AddContent(6, icon);
+            builder.CloseElement();
+
+            builder.OpenElement(7, "div");
+            builder.AddAttribute(8, "style", "font-size: 9px; color: #555; font-weight: bold; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;");
+            builder.AddContent(9, itemName);
+            builder.CloseElement();
+
+            var rarityColor = GetRarityColor(slot.Item!.Rarity);
+            builder.OpenElement(10, "div");
+            builder.AddAttribute(11, "style", $"position: absolute; top: 2px; right: 2px; font-size: 8px; padding: 1px 4px; background: {rarityColor}; color: white; border-radius: 2px; font-weight: bold;");
+            builder.AddContent(12, GetRarityText(slot.Item!.Rarity));
+            builder.CloseElement();
+
+            builder.CloseElement();
+        }
+        // 否则显示副手槽位
+        else
+        {
+            var slot = offHandSlot;
+            var hasItem = slot?.Item != null;
+            var bgColor = hasItem ? "#e8f5e9" : "#fafafa";
+            var borderColor = hasItem ? "#66bb6a" : "#e0e0e0";
+            var icon = hasItem ? (slot!.Item!.Icon ?? defaultIcon1) : defaultIcon1;
+            var itemName = hasItem ? slot!.Item!.Name : "副手";
+            var opacity = hasItem ? "1.0" : "0.4";
+
+            builder.OpenElement(0, "div");
+            builder.AddAttribute(1, "class", "equipment-slot");
+            builder.AddAttribute(2, "style", $"position: relative; padding: 8px; background: {bgColor}; border: 2px solid {borderColor}; border-radius: 6px; text-align: center; cursor: pointer; opacity: {opacity}; min-height: 60px; display: flex; flex-direction: column; align-items: center; justify-content: center;");
+            builder.AddAttribute(3, "title", hasItem ? GetItemTooltip(slot!.Item!) : "空 - 副手");
+
+            builder.OpenElement(4, "div");
+            builder.AddAttribute(5, "style", "font-size: 24px; margin-bottom: 2px;");
+            builder.AddContent(6, icon);
+            builder.CloseElement();
+
+            builder.OpenElement(7, "div");
+            builder.AddAttribute(8, "style", "font-size: 9px; color: #555; font-weight: bold; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;");
+            builder.AddContent(9, itemName);
+            builder.CloseElement();
+
+            if (hasItem)
+            {
+                var rarityColor = GetRarityColor(slot!.Item!.Rarity);
+                builder.OpenElement(10, "div");
+                builder.AddAttribute(11, "style", $"position: absolute; top: 2px; right: 2px; font-size: 8px; padding: 1px 4px; background: {rarityColor}; color: white; border-radius: 2px; font-weight: bold;");
+                builder.AddContent(12, GetRarityText(slot!.Item!.Rarity));
+                builder.CloseElement();
+            }
+
+            builder.CloseElement();
+        }
+    };
+
     /// <summary>获取属性值</summary>
     private string GetStatValue(string statId)
     {
@@ -184,6 +292,29 @@
         var tooltip = $"{item.Name}\n";
         tooltip += $"品质: {GetRarityText(item.Rarity)} (T{item.Tier})\n";
         tooltip += $"物品等级: {item.ItemLevel}\n";
+        
+        // Phase 6: 显示护甲类型
+        if (!string.IsNullOrEmpty(item.ArmorType) && item.ArmorType != "None")
+        {
+            tooltip += $"护甲类型: {GetArmorTypeText(item.ArmorType)}\n";
+        }
+        
+        // Phase 6: 显示武器类型和攻击速度
+        if (!string.IsNullOrEmpty(item.WeaponType) && item.WeaponType != "None")
+        {
+            tooltip += $"武器类型: {GetWeaponTypeText(item.WeaponType)}\n";
+            if (item.AttackSpeed.HasValue)
+            {
+                tooltip += $"攻击速度: {item.AttackSpeed.Value:F1}秒\n";
+            }
+        }
+        
+        // Phase 6: 显示等级需求
+        if (item.RequiredLevel > 1)
+        {
+            tooltip += $"需要等级: {item.RequiredLevel}\n";
+        }
+        
         tooltip += $"装备评分: {item.QualityScore}\n";
         
         if (item.Stats.Count > 0)
@@ -204,6 +335,50 @@
             }
         }
         
+        if (!string.IsNullOrEmpty(item.SetId))
+        {
+            tooltip += $"\n套装: {item.SetId}\n";
+        }
+        
         return tooltip;
+    }
+
+    /// <summary>获取护甲类型文本</summary>
+    private string GetArmorTypeText(string armorType)
+    {
+        return armorType switch
+        {
+            "Cloth" => "布甲",
+            "Leather" => "皮甲",
+            "Mail" => "锁甲",
+            "Plate" => "板甲",
+            "None" => "无护甲",
+            _ => armorType
+        };
+    }
+
+    /// <summary>获取武器类型文本</summary>
+    private string GetWeaponTypeText(string weaponType)
+    {
+        return weaponType switch
+        {
+            "Sword" => "单手剑",
+            "Axe" => "单手斧",
+            "Mace" => "单手锤",
+            "Dagger" => "匕首",
+            "Fist" => "拳套",
+            "Wand" => "魔杖",
+            "Staff" => "法杖",
+            "TwoHandSword" => "双手剑",
+            "TwoHandAxe" => "双手斧",
+            "TwoHandMace" => "双手锤",
+            "Polearm" => "长柄武器",
+            "Bow" => "弓",
+            "Crossbow" => "弩",
+            "Gun" => "枪械",
+            "Shield" => "盾牌",
+            "None" => "无",
+            _ => weaponType
+        };
     }
 }
