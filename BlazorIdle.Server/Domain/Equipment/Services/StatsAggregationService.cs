@@ -164,24 +164,41 @@ public class StatsAggregationService
     {
         var bonus = new Dictionary<StatType, double>();
 
-        // 简化实现：根据件数给予固定加成
+        // 简化实现：根据件数给予固定加成（累加模式）
+        // 2件套加成
         if (pieceCount >= 2)
         {
-            bonus[StatType.AttackPower] = 50;
+            AddBonusStat(bonus, StatType.AttackPower, 50);
         }
+        
+        // 4件套额外加成
         if (pieceCount >= 4)
         {
-            bonus[StatType.AttackPower] = 100;
-            bonus[StatType.CritRating] = 50;
+            AddBonusStat(bonus, StatType.AttackPower, 50);  // 总共100
+            AddBonusStat(bonus, StatType.CritRating, 50);
         }
+        
+        // 6件套额外加成
         if (pieceCount >= 6)
         {
-            bonus[StatType.AttackPower] = 200;
-            bonus[StatType.CritRating] = 100;
-            bonus[StatType.Haste] = 100;
+            AddBonusStat(bonus, StatType.AttackPower, 100); // 总共200
+            AddBonusStat(bonus, StatType.CritRating, 50);   // 总共100
+            AddBonusStat(bonus, StatType.Haste, 100);
         }
 
         return bonus;
+    }
+    
+    /// <summary>
+    /// 辅助方法：累加套装加成属性
+    /// </summary>
+    private static void AddBonusStat(Dictionary<StatType, double> bonus, StatType statType, double value)
+    {
+        if (!bonus.ContainsKey(statType))
+        {
+            bonus[statType] = 0;
+        }
+        bonus[statType] += value;
     }
 
     /// <summary>

@@ -136,6 +136,106 @@ public class StatsAggregationServiceTests : IDisposable
         Assert.Equal(100, summary.TotalQualityScore);
     }
 
+    [Fact]
+    public async Task CalculateEquipmentStatsAsync_WithSetBonus_ShouldApplyCumulativeBonus()
+    {
+        // Arrange
+        var characterId = Guid.NewGuid();
+        var setId = "test_set";
+        
+        // 创建6件套装装备
+        var gearPieces = new List<GearInstance>();
+        var definitions = new List<GearDefinition>();
+        var slots = new[] 
+        { 
+            EquipmentSlot.Head, EquipmentSlot.Chest, EquipmentSlot.Legs, 
+            EquipmentSlot.Hands, EquipmentSlot.Feet, EquipmentSlot.Waist 
+        };
+        
+        foreach (var slot in slots)
+        {
+            var (def, gear) = CreateTestGearWithStats(characterId, slot);
+            gear.SetId = setId;
+            gear.IsEquipped = true;
+            gear.SlotType = slot;
+            gear.RolledStats = new Dictionary<StatType, double>
+            {
+                { StatType.Strength, 5 } // 基础属性
+            };
+            
+            definitions.Add(def);
+            gearPieces.Add(gear);
+        }
+        
+        await _context.Set<GearDefinition>().AddRangeAsync(definitions);
+        await _context.Set<GearInstance>().AddRangeAsync(gearPieces);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var stats = await _service.CalculateEquipmentStatsAsync(characterId);
+
+        // Assert
+        // 基础属性: 6件 × 5力量 = 30力量
+        Assert.Equal(30, stats[StatType.Strength]);
+        
+        // 套装加成应该是累加的:
+        // 2件套: +50攻击力
+        // 4件套: +50攻击力(总共100) + 50暴击
+        // 6件套: +100攻击力(总共200) + 50暴击(总共100) + 100急速
+        Assert.True(stats.ContainsKey(StatType.AttackPower));
+        Assert.Equal(200, stats[StatType.AttackPower]);
+        
+        Assert.True(stats.ContainsKey(StatType.CritRating));
+        Assert.Equal(100, stats[StatType.CritRating]);
+        
+        Assert.True(stats.ContainsKey(StatType.Haste));
+        Assert.Equal(100, stats[StatType.Haste]);
+    }
+
+    [Fact]
+    public async Task CalculateEquipmentStatsAsync_With4PieceSet_ShouldApplyCorrectBonus()
+    {
+        // Arrange
+        var characterId = Guid.NewGuid();
+        var setId = "test_set";
+        
+        // 创建4件套装装备
+        var gearPieces = new List<GearInstance>();
+        var definitions = new List<GearDefinition>();
+        var slots = new[] { EquipmentSlot.Head, EquipmentSlot.Chest, EquipmentSlot.Legs, EquipmentSlot.Hands };
+        
+        foreach (var slot in slots)
+        {
+            var (def, gear) = CreateTestGearWithStats(characterId, slot);
+            gear.SetId = setId;
+            gear.IsEquipped = true;
+            gear.SlotType = slot;
+            gear.RolledStats = new Dictionary<StatType, double>();
+            
+            definitions.Add(def);
+            gearPieces.Add(gear);
+        }
+        
+        await _context.Set<GearDefinition>().AddRangeAsync(definitions);
+        await _context.Set<GearInstance>().AddRangeAsync(gearPieces);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var stats = await _service.CalculateEquipmentStatsAsync(characterId);
+
+        // Assert
+        // 2件套: +50攻击力
+        // 4件套: +50攻击力(总共100) + 50暴击
+        Assert.True(stats.ContainsKey(StatType.AttackPower));
+        Assert.Equal(100, stats[StatType.AttackPower]);
+        
+        Assert.True(stats.ContainsKey(StatType.CritRating));
+        Assert.Equal(50, stats[StatType.CritRating]);
+        
+        // 6件套加成不应该存在
+        Assert.False(stats.ContainsKey(StatType.Haste));
+    }
+
     private (GearDefinition, GearInstance) CreateTestGearWithStats(Guid characterId, EquipmentSlot slot)
     {
         var definition = new GearDefinition
