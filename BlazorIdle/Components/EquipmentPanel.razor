@@ -114,11 +114,22 @@
                 </div>
             </div>
             
-            @* 武器信息 *@
-            @if (!string.IsNullOrEmpty(WeaponInfo))
+            @* 武器信息和DPS *@
+            @if (!string.IsNullOrEmpty(WeaponInfo) || GetEstimatedDps() > 0)
             {
-                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e0e0e0; font-size: 11px; color: #666;">
-                    🗡️ @WeaponInfo
+                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e0e0e0; font-size: 11px;">
+                    @if (!string.IsNullOrEmpty(WeaponInfo))
+                    {
+                        <div style="color: #666; margin-bottom: 4px;">
+                            🗡️ @WeaponInfo
+                        </div>
+                    }
+                    @if (GetEstimatedDps() > 0)
+                    {
+                        <div style="color: #d32f2f; font-weight: bold;">
+                            ⚔️ 预估DPS: @GetFormattedDps()
+                        </div>
+                    }
                 </div>
             }
         </div>
@@ -164,6 +175,9 @@
     
     /// <summary>装备限制辅助服务（用于检查职业和等级限制）</summary>
     private EquipmentRestrictionHelper? _restrictionHelper = new();
+    
+    /// <summary>DPS计算服务（用于显示战斗输出）</summary>
+    private DpsCalculatorService? _dpsCalculator = new();
 
     /// <summary>渲染单个装备槽</summary>
     private RenderFragment RenderSlot(string slotType, string slotName, string defaultIcon) => builder =>
@@ -420,8 +434,8 @@
             return tooltip;
         }
         
-        // 进行对比
-        var comparison = _comparisonService.Compare(currentItem, item);
+        // 进行对比（传入全部属性以便计算DPS）
+        var comparison = _comparisonService.Compare(currentItem, item, TotalStats);
         
         // 添加对比信息
         tooltip += "\n\n━━━━━━━━━━━━━━━━\n";
@@ -435,15 +449,48 @@
             foreach (var (statId, difference) in comparison.StatDifferences.OrderByDescending(x => Math.Abs(x.Value)))
             {
                 var arrow = difference > 0 ? "↑" : "↓";
-                var color = difference > 0 ? "绿" : "红";
                 var displayValue = _comparisonService.GetDifferenceDisplayText(statId, difference, false);
                 var statName = _comparisonService.GetStatDisplayName(statId);
                 tooltip += $"  {arrow} {statName}: {displayValue}\n";
             }
         }
         
+        // 如果是武器，显示DPS变化
+        if (comparison.HasWeaponChange && _dpsCalculator != null)
+        {
+            tooltip += $"\n⚔️ DPS变化: {_dpsCalculator.FormatDpsDifference(comparison.DpsDifference, true, GetEstimatedDps())}\n";
+        }
+        
         tooltip += $"\n总体评估: {(comparison.IsUpgrade ? "✓ 升级" : "✗ 降级")}";
         
         return tooltip;
+    }
+    
+    /// <summary>
+    /// 计算预估DPS
+    /// </summary>
+    private double GetEstimatedDps()
+    {
+        if (_dpsCalculator == null || TotalStats == null || TotalStats.Count == 0)
+        {
+            return 0;
+        }
+        
+        var dpsResult = _dpsCalculator.CalculateDps(TotalStats, WeaponInfo);
+        return dpsResult.TotalDps;
+    }
+    
+    /// <summary>
+    /// 获取格式化的DPS显示
+    /// </summary>
+    private string GetFormattedDps()
+    {
+        if (_dpsCalculator == null)
+        {
+            return "0";
+        }
+        
+        var dps = GetEstimatedDps();
+        return _dpsCalculator.FormatDps(dps);
     }
 }
