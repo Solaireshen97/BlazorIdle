@@ -7,16 +7,22 @@ namespace BlazorIdle.Server.Domain.Equipment.Services;
 /// <summary>
 /// 装备管理服务
 /// 负责装备/卸下操作、装备验证等
+/// Phase 8优化：集成缓存失效机制
 /// </summary>
 public class EquipmentService
 {
     private readonly GameDbContext _context;
     private readonly EquipmentValidator _validator;
+    private readonly StatsAggregationService? _statsAggregationService;
 
-    public EquipmentService(GameDbContext context, EquipmentValidator validator)
+    public EquipmentService(
+        GameDbContext context, 
+        EquipmentValidator validator,
+        StatsAggregationService? statsAggregationService = null)
     {
         _context = context;
         _validator = validator;
+        _statsAggregationService = statsAggregationService;
     }
 
     /// <summary>
@@ -102,6 +108,9 @@ public class EquipmentService
 
         await _context.SaveChangesAsync();
 
+        // Phase 8优化：装备变化时使缓存失效
+        _statsAggregationService?.InvalidateCache(characterId);
+
         return EquipmentResult.Success($"成功装备 {gear.Definition?.Name ?? "装备"}");
     }
 
@@ -128,6 +137,9 @@ public class EquipmentService
         gear.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
+
+        // Phase 8优化：装备变化时使缓存失效
+        _statsAggregationService?.InvalidateCache(characterId);
 
         return EquipmentResult.Success("成功卸下装备");
     }

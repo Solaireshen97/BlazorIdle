@@ -8,14 +8,19 @@ namespace BlazorIdle.Server.Domain.Equipment.Services;
 /// <summary>
 /// 装备重铸服务
 /// 负责装备品级提升（T1->T2->T3）
+/// Phase 8优化：集成缓存失效机制
 /// </summary>
 public class ReforgeService
 {
     private readonly GameDbContext _context;
+    private readonly StatsAggregationService? _statsAggregationService;
 
-    public ReforgeService(GameDbContext context)
+    public ReforgeService(
+        GameDbContext context,
+        StatsAggregationService? statsAggregationService = null)
     {
         _context = context;
+        _statsAggregationService = statsAggregationService;
     }
 
     /// <summary>
@@ -71,6 +76,12 @@ public class ReforgeService
         // TODO: 集成背包系统扣除材料
 
         await _context.SaveChangesAsync();
+
+        // Phase 8优化：如果装备已装备，使缓存失效
+        if (gear.IsEquipped && gear.CharacterId.HasValue)
+        {
+            _statsAggregationService?.InvalidateCache(gear.CharacterId.Value);
+        }
 
         return ReforgeResult.Success($"成功将装备提升至 T{newTier}", gear);
     }

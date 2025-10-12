@@ -1,34 +1,54 @@
 using BlazorIdle.Server.Domain.Equipment.Models;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace BlazorIdle.Server.Domain.Equipment.Services;
 
 /// <summary>
 /// 属性聚合服务
 /// 负责计算装备总属性、套装效果等
+/// Phase 8优化：添加缓存机制提升性能
 /// </summary>
 public class StatsAggregationService
 {
     private readonly EquipmentService _equipmentService;
     private readonly ArmorCalculator _armorCalculator;
     private readonly BlockCalculator _blockCalculator;
+    private readonly IMemoryCache? _cache;
+
+    // 缓存配置
+    private const int CacheTTLSeconds = 300; // 5分钟缓存过期时间
+    private const string CacheKeyPrefix = "equipment_stats_";
 
     public StatsAggregationService(
         EquipmentService equipmentService,
         ArmorCalculator armorCalculator,
-        BlockCalculator blockCalculator)
+        BlockCalculator blockCalculator,
+        IMemoryCache? cache = null)
     {
         _equipmentService = equipmentService;
         _armorCalculator = armorCalculator;
         _blockCalculator = blockCalculator;
+        _cache = cache;
     }
 
     /// <summary>
     /// 计算角色装备总属性
+    /// Phase 8优化：支持缓存，避免重复计算
     /// </summary>
     /// <param name="characterId">角色ID</param>
     /// <returns>属性字典（属性类型 -> 数值）</returns>
     public virtual async Task<Dictionary<StatType, double>> CalculateEquipmentStatsAsync(Guid characterId)
     {
+        // 尝试从缓存获取
+        if (_cache != null)
+        {
+            var cacheKey = $"{CacheKeyPrefix}{characterId}";
+            if (_cache.TryGetValue(cacheKey, out Dictionary<StatType, double>? cachedStats) && cachedStats != null)
+            {
+                return cachedStats;
+            }
+        }
+
         var stats = new Dictionary<StatType, double>();
 
         // 1. 获取所有已装备的装备
@@ -107,7 +127,28 @@ public class StatsAggregationService
             }
         }
 
+        // 4. 缓存计算结果（Phase 8优化）
+        if (_cache != null)
+        {
+            var cacheKey = $"{CacheKeyPrefix}{characterId}";
+            _cache.Set(cacheKey, stats, TimeSpan.FromSeconds(CacheTTLSeconds));
+        }
+
         return stats;
+    }
+
+    /// <summary>
+    /// 使缓存失效
+    /// 当装备发生变化时调用，确保获取最新的属性
+    /// </summary>
+    /// <param name="characterId">角色ID</param>
+    public void InvalidateCache(Guid characterId)
+    {
+        if (_cache != null)
+        {
+            var cacheKey = $"{CacheKeyPrefix}{characterId}";
+            _cache.Remove(cacheKey);
+        }
     }
 
     /// <summary>
