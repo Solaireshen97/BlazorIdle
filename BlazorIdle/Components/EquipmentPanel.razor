@@ -1,6 +1,6 @@
 @using BlazorIdle.Client.Services
 
-@* 装备面板组件 - Step 5: 装备系统UI预留 *@
+@* 装备面板组件 - Phase 6: 17槽位装备系统UI *@
 <div class="equipment-panel" style="margin-top: 16px; padding: 16px; background: @BackgroundColor; border-radius: 4px; border: 1px solid @BorderColor;">
     <h6 style="margin: 0 0 12px 0; font-size: 14px; font-weight: bold;">🎒 @Title</h6>
     
@@ -18,49 +18,85 @@
     }
     else
     {
-        @* 装备槽布局 *@
-        <div class="equipment-slots" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px;">
-            @* 第一行：空 - 头盔 - 空 *@
-            <div></div>
-            @RenderSlot("head", "头盔", "🪖")
+        @* 17槽位装备布局 - 纸娃娃风格 *@
+        <div class="equipment-slots" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 16px;">
+            @* 第一行：护肩 - 项链 - 头盔 - 披风 - 空 *@
+            @RenderSlot("Shoulder", "护肩", "👔")
+            @RenderSlot("Neck", "项链", "📿")
+            @RenderSlot("Head", "头盔", "🪖")
+            @RenderSlot("Back", "披风", "🧥")
             <div></div>
 
-            @* 第二行：武器 - 胸甲 - 副手 *@
-            @RenderSlot("weapon", "武器", "⚔️")
-            @RenderSlot("chest", "胸甲", "🛡️")
-            @RenderSlot("offhand", "副手", "🔰")
+            @* 第二行：护腕 - 主手 - 胸甲 - 副手 - 双手武器 *@
+            @RenderSlot("Wrist", "护腕", "⌚")
+            @RenderSlot("MainHand", "主手", "⚔️")
+            @RenderSlot("Chest", "胸甲", "🛡️")
+            @RenderSlot("OffHand", "副手", "🔰")
+            @RenderSlot("TwoHand", "双手", "🗡️")
 
-            @* 第三行：腰带 - 腿部 - 鞋子 *@
-            @RenderSlot("waist", "腰带", "🎗️")
-            @RenderSlot("legs", "腿部", "🦵")
-            @RenderSlot("feet", "鞋子", "👢")
-
-            @* 第四行：空 - 饰品1 - 饰品2 *@
+            @* 第三行：手套 - 腰带 - 护腿 - 鞋子 - 空 *@
+            @RenderSlot("Hands", "手套", "🧤")
+            @RenderSlot("Waist", "腰带", "🎗️")
+            @RenderSlot("Legs", "护腿", "🦵")
+            @RenderSlot("Feet", "鞋子", "👢")
             <div></div>
-            @RenderSlot("trinket1", "饰品1", "💍")
-            @RenderSlot("trinket2", "饰品2", "💍")
+
+            @* 第四行：戒指1 - 戒指2 - 饰品1 - 饰品2 - 空 *@
+            @RenderSlot("Finger1", "戒指1", "💍")
+            @RenderSlot("Finger2", "戒指2", "💍")
+            @RenderSlot("Trinket1", "饰品1", "✨")
+            @RenderSlot("Trinket2", "饰品2", "✨")
+            <div></div>
         </div>
 
-        @* 总属性面板 *@
+        @* 总属性面板 - 扩展显示 *@
         <div class="equipment-stats" style="padding: 12px; background: #f5f5f5; border-radius: 4px; border: 1px solid #e0e0e0;">
-            <div style="font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #555;">📊 总属性</div>
+            <div style="font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #555;">📊 装备总属性</div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 11px;">
+                @* 攻击属性 *@
                 <div style="display: flex; justify-content: space-between;">
                     <span>⚔️ 攻击力:</span>
                     <span style="font-weight: bold; color: #d32f2f;">@GetStatValue("AttackPower")</span>
                 </div>
                 <div style="display: flex; justify-content: space-between;">
+                    <span>🔮 法术强度:</span>
+                    <span style="font-weight: bold; color: #673ab7;">@GetStatValue("SpellPower")</span>
+                </div>
+                
+                @* 防御属性 *@
+                <div style="display: flex; justify-content: space-between;">
                     <span>🛡️ 护甲:</span>
                     <span style="font-weight: bold; color: #1976d2;">@GetStatValue("Armor")</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>🔰 格挡:</span>
+                    <span style="font-weight: bold; color: #0288d1;">@GetStatPercent("BlockChance")</span>
+                </div>
+                
+                @* 二级属性 *@
+                <div style="display: flex; justify-content: space-between;">
+                    <span>💥 暴击:</span>
+                    <span style="font-weight: bold; color: #7b1fa2;">@GetStatPercent("CritChance")</span>
                 </div>
                 <div style="display: flex; justify-content: space-between;">
                     <span>⚡ 急速:</span>
                     <span style="font-weight: bold; color: #f57c00;">@GetStatPercent("HastePercent")</span>
                 </div>
+                
+                @* 穿透属性 *@
                 <div style="display: flex; justify-content: space-between;">
-                    <span>💥 暴击:</span>
-                    <span style="font-weight: bold; color: #7b1fa2;">@GetStatPercent("CritChance")</span>
+                    <span>🗡️ 护甲穿透:</span>
+                    <span style="font-weight: bold; color: #e64a19;">@GetStatValue("ArmorPenFlat")</span>
                 </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>✨ 法术穿透:</span>
+                    <span style="font-weight: bold; color: #5e35b1;">@GetStatValue("MagicPenFlat")</span>
+                </div>
+            </div>
+            
+            @* 装备统计 *@
+            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e0e0e0; font-size: 10px; color: #777; text-align: center;">
+                已装备: @GetEquippedCount() / 17
             </div>
         </div>
     }
@@ -188,16 +224,18 @@
         
         if (item.Stats.Count > 0)
         {
-            tooltip += "\n属性:\n";
+            tooltip += "\n装备属性:\n";
             foreach (var stat in item.Stats)
             {
-                tooltip += $"  {stat.Key}: +{stat.Value:F0}\n";
+                var statName = GetStatDisplayName(stat.Key);
+                var statValue = FormatStatValue(stat.Key, stat.Value);
+                tooltip += $"  {statName}: {statValue}\n";
             }
         }
         
         if (item.Affixes.Count > 0)
         {
-            tooltip += "\n词条:\n";
+            tooltip += "\n附加词条:\n";
             foreach (var affix in item.Affixes)
             {
                 tooltip += $"  {affix.DisplayText}\n";
@@ -205,5 +243,44 @@
         }
         
         return tooltip;
+    }
+    
+    /// <summary>获取属性显示名称</summary>
+    private string GetStatDisplayName(string statId)
+    {
+        return statId switch
+        {
+            "AttackPower" => "⚔️ 攻击力",
+            "SpellPower" => "🔮 法术强度",
+            "Armor" => "🛡️ 护甲",
+            "BlockChance" => "🔰 格挡",
+            "CritChance" => "💥 暴击",
+            "HastePercent" => "⚡ 急速",
+            "ArmorPenFlat" => "🗡️ 护甲穿透",
+            "MagicPenFlat" => "✨ 法术穿透",
+            "Stamina" => "💚 耐力",
+            "Strength" => "💪 力量",
+            "Agility" => "🏃 敏捷",
+            "Intellect" => "🧠 智力",
+            _ => statId
+        };
+    }
+    
+    /// <summary>格式化属性值显示</summary>
+    private string FormatStatValue(string statId, double value)
+    {
+        // 百分比属性
+        if (statId.Contains("Percent") || statId.Contains("Chance"))
+        {
+            return $"+{value * 100:F1}%";
+        }
+        // 固定值属性
+        return $"+{value:F0}";
+    }
+    
+    /// <summary>获取已装备数量</summary>
+    private int GetEquippedCount()
+    {
+        return Slots.Count(s => s.Item != null);
     }
 }
