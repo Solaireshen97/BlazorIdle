@@ -1,0 +1,89 @@
+@* 确认对话框组件 *@
+<div class="modal @(Show ? "show" : "")" style="display: @(Show ? "block" : "none"); @(Show ? "background-color: rgba(0,0,0,0.5);" : "")" @onclick="HandleBackdropClick">
+    <div class="modal-dialog" @onclick:stopPropagation="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">@Title</h5>
+                <button type="button" class="btn-close" @onclick="OnCancel" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>@Message</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="OnCancel">
+                    @CancelText
+                </button>
+                <button type="button" class="btn @ConfirmButtonClass" @onclick="OnConfirm">
+                    @ConfirmText
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// 是否显示对话框
+    /// </summary>
+    [Parameter]
+    public bool Show { get; set; }
+
+    /// <summary>
+    /// 对话框标题
+    /// </summary>
+    [Parameter]
+    public string Title { get; set; } = "确认操作";
+
+    /// <summary>
+    /// 对话框消息内容
+    /// </summary>
+    [Parameter]
+    public string Message { get; set; } = "确定要执行此操作吗？";
+
+    /// <summary>
+    /// 确认按钮文本
+    /// </summary>
+    [Parameter]
+    public string ConfirmText { get; set; } = "确认";
+
+    /// <summary>
+    /// 取消按钮文本
+    /// </summary>
+    [Parameter]
+    public string CancelText { get; set; } = "取消";
+
+    /// <summary>
+    /// 确认按钮样式类（默认为危险操作样式）
+    /// </summary>
+    [Parameter]
+    public string ConfirmButtonClass { get; set; } = "btn-danger";
+
+    /// <summary>
+    /// 确认回调
+    /// </summary>
+    [Parameter]
+    public EventCallback OnConfirm { get; set; }
+
+    /// <summary>
+    /// 取消回调
+    /// </summary>
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    /// <summary>
+    /// 是否允许点击背景关闭
+    /// </summary>
+    [Parameter]
+    public bool AllowBackdropClose { get; set; } = true;
+
+    /// <summary>
+    /// 处理背景点击
+    /// </summary>
+    private async Task HandleBackdropClick()
+    {
+        if (AllowBackdropClose)
+        {
+            await OnCancel.InvokeAsync();
+        }
+    }
+}

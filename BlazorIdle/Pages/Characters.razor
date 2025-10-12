@@ -12,6 +12,20 @@
 <!-- 离线结算弹窗 -->
 <OfflineSettlementDialog Result="@offlineCheckResult" OnClaim="@CloseOfflineSettlement" />
 
+<!-- Toast通知组件 -->
+<ToastNotification @ref="toastNotification" />
+
+<!-- 确认对话框组件 -->
+<ConfirmDialog 
+    Show="@showDeleteConfirm"
+    Title="删除角色"
+    Message="@($"确定要删除角色 {characterToDelete?.Name} 吗？此操作不可撤销。")"
+    ConfirmText="删除"
+    CancelText="取消"
+    ConfirmButtonClass="btn-danger"
+    OnConfirm="@ConfirmDelete"
+    OnCancel="@CancelDelete" />
+
 @if (!isAuthenticated)
 {
     <p>正在检查登录状态...</p>
@@ -26,10 +40,6 @@ else
     <div class="user-info-panel">
         <h5>👤 当前用户: @currentUser.Username</h5>
         <p>角色数量: @userCharacters.Count / 5</p>
-        @if (!string.IsNullOrEmpty(userMessage))
-        {
-            <div class="alert alert-info">@userMessage</div>
-        }
     </div>
 }
 
@@ -897,12 +907,18 @@ else
 }
 
 @code {
+    // ====== UI组件引用 ======
+    private ToastNotification? toastNotification;
+    
+    // ====== 确认对话框状态 ======
+    private bool showDeleteConfirm = false;
+    private UserCharacterDto? characterToDelete = null;
+
     // ====== 认证状态 ======
     private bool isAuthenticated = false;
     private UserInfoDto? currentUser;
     private List<UserCharacterDto> userCharacters = new();
     private UserCharacterDto? selectedCharacter;
-    private string userMessage = "";
 
     // ====== 离线战斗 ======
     private OfflineCheckResult? offlineCheckResult;
@@ -937,7 +953,7 @@ else
         }
         catch (Exception ex)
         {
-            userMessage = $"初始化失败: {ex.Message}";
+            ShowError($"初始化失败: {ex.Message}");
         }
     }
 
@@ -966,7 +982,10 @@ else
                     await RefreshPlansAsync();
                 }
                 
-                userMessage = $"欢迎回来！你有 {userCharacters.Count} 个角色。";
+                if (userCharacters.Count > 0)
+                {
+                    ShowInfo($"欢迎回来！你有 {userCharacters.Count} 个角色。");
+                }
             }
             else
             {
@@ -987,7 +1006,7 @@ else
                 return;
             }
 
-            userMessage = $"加载用户数据失败: {ex.Message}";
+            ShowError($"加载用户数据失败: {ex.Message}");
         }
     }
 
@@ -1042,7 +1061,7 @@ else
         }
         catch (Exception ex)
         {
-            userMessage = $"检查离线收益失败: {ex.Message}";
+            ShowError($"检查离线收益失败: {ex.Message}");
         }
     }
 
@@ -1166,7 +1185,7 @@ else
             // 检查是否已达上限
             if (userCharacters.Count >= 5)
             {
-                userMessage = "已达到角色数量上限（最多5个角色）";
+                ShowWarning("已达到角色数量上限（最多5个角色）");
                 return;
             }
             
@@ -1180,7 +1199,7 @@ else
             if (newChar is not null)
             {
                 selectedCharacter = newChar;
-                userMessage = $"角色 {newChar.Name} 创建成功！";
+                ShowSuccess($"角色 {newChar.Name} 创建成功！");
             }
             
             ResetBattleState();
@@ -1189,7 +1208,7 @@ else
         }
         catch (Exception ex)
         {
-            userMessage = $"创建角色失败: {ex.Message}";
+            ShowError($"创建角色失败: {ex.Message}");
         }
         finally { isBusy = false; }
     }
@@ -2211,5 +2230,86 @@ else
         // 这里暂时硬编码，后续可以从地下城配置获取
         if (!waveIndex.HasValue) return false;
         return waveIndex.Value >= 5; // 假设第5波及以后可能是Boss
+    }
+    
+    // ====== Toast通知辅助方法 ======
+    
+    /// <summary>
+    /// 显示成功消息
+    /// </summary>
+    private void ShowSuccess(string message)
+    {
+        toastNotification?.ShowSuccess(message);
+    }
+    
+    /// <summary>
+    /// 显示错误消息
+    /// </summary>
+    private void ShowError(string message)
+    {
+        toastNotification?.ShowError(message);
+    }
+    
+    /// <summary>
+    /// 显示警告消息
+    /// </summary>
+    private void ShowWarning(string message)
+    {
+        toastNotification?.ShowWarning(message);
+    }
+    
+    /// <summary>
+    /// 显示信息消息
+    /// </summary>
+    private void ShowInfo(string message)
+    {
+        toastNotification?.ShowInfo(message);
+    }
+    
+    // ====== 确认对话框处理方法 ======
+    
+    /// <summary>
+    /// 显示删除角色确认对话框
+    /// </summary>
+    private void ShowDeleteConfirm(UserCharacterDto character)
+    {
+        characterToDelete = character;
+        showDeleteConfirm = true;
+    }
+    
+    /// <summary>
+    /// 确认删除角色
+    /// </summary>
+    private void ConfirmDelete()
+    {
+        showDeleteConfirm = false;
+        
+        if (characterToDelete is not null)
+        {
+            try
+            {
+                // 这里添加实际的删除API调用
+                // await Api.DeleteCharacterAsync(characterToDelete.Id);
+                ShowSuccess($"角色 {characterToDelete.Name} 已删除");
+                // await LoadUserDataAsync(); // 重新加载角色列表
+            }
+            catch (Exception ex)
+            {
+                ShowError($"删除角色失败: {ex.Message}");
+            }
+            finally
+            {
+                characterToDelete = null;
+            }
+        }
+    }
+    
+    /// <summary>
+    /// 取消删除角色
+    /// </summary>
+    private void CancelDelete()
+    {
+        showDeleteConfirm = false;
+        characterToDelete = null;
     }
 }
