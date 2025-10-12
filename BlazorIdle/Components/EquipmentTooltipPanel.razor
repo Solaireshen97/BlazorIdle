@@ -1,0 +1,253 @@
+@* 装备详情浮窗组件 - 显示装备的详细信息 *@
+@using BlazorIdle.Client.Services
+@using BlazorIdle.Shared.Models
+
+@if (Item != null && IsVisible)
+{
+    <div class="equipment-tooltip" style="position: fixed; left: @PositionX; top: @PositionY; z-index: 10000; background: white; border: 2px solid @GetRarityColor(Item.Rarity); border-radius: 6px; padding: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); min-width: 250px; max-width: 350px; font-size: 12px;">
+        @* 装备名称和品质 *@
+        <div style="font-size: 14px; font-weight: bold; color: @GetRarityColor(Item.Rarity); margin-bottom: 8px; border-bottom: 2px solid @GetRarityColor(Item.Rarity); padding-bottom: 6px;">
+            @Item.Icon @Item.Name
+        </div>
+        
+        @* 基本信息 *@
+        <div style="margin-bottom: 8px; color: #555;">
+            <div><b>品质:</b> <span style="color: @GetRarityColor(Item.Rarity);">@GetRarityText(Item.Rarity)</span> (T@Item.Tier)</div>
+            <div><b>物品等级:</b> @Item.ItemLevel</div>
+            <div><b>装备评分:</b> <span style="color: #ff9800;">@Item.QualityScore</span></div>
+            
+            @* 护甲类型 *@
+            @if (!string.IsNullOrEmpty(Item.ArmorType) && Item.ArmorType != "None")
+            {
+                <div><b>护甲类型:</b> @GetArmorTypeName(Item.ArmorType)</div>
+            }
+            
+            @* 武器类型 *@
+            @if (!string.IsNullOrEmpty(Item.WeaponType) && Item.WeaponType != "None")
+            {
+                <div><b>武器类型:</b> @GetWeaponTypeName(Item.WeaponType)</div>
+            }
+            
+            @* 套装 *@
+            @if (!string.IsNullOrEmpty(Item.SetId))
+            {
+                <div><b>套装:</b> <span style="color: #4caf50;">@Item.SetId</span></div>
+            }
+        </div>
+        
+        @* 属性 *@
+        @if (Item.Stats.Count > 0)
+        {
+            <div style="margin-bottom: 8px; padding: 8px; background: #f5f5f5; border-radius: 4px;">
+                <div style="font-weight: bold; margin-bottom: 4px; color: #333;">⚡ 属性</div>
+                @foreach (var stat in Item.Stats.OrderByDescending(s => s.Value))
+                {
+                    var displayValue = IsPercentageStat(stat.Key) 
+                        ? $"+{stat.Value * 100:F1}%" 
+                        : $"+{stat.Value:F0}";
+                    <div style="color: #28a745; padding: 2px 0;">
+                        • @GetStatDisplayName(stat.Key): <b>@displayValue</b>
+                    </div>
+                }
+            </div>
+        }
+        
+        @* 词条 *@
+        @if (Item.Affixes.Count > 0)
+        {
+            <div style="margin-bottom: 8px; padding: 8px; background: #e3f2fd; border-radius: 4px;">
+                <div style="font-weight: bold; margin-bottom: 4px; color: #1976d2;">💎 词条</div>
+                @foreach (var affix in Item.Affixes)
+                {
+                    <div style="color: #0277bd; padding: 2px 0;">
+                        • @affix.DisplayText
+                    </div>
+                }
+            </div>
+        }
+        
+        @* 限制提示 *@
+        @if (ShowRestrictions && RestrictionMessage != null)
+        {
+            <div style="margin-top: 8px; padding: 8px; background: #ffebee; border-radius: 4px; border-left: 3px solid #f44336;">
+                <div style="font-weight: bold; margin-bottom: 4px; color: #c62828;">⚠️ 装备限制</div>
+                <div style="color: #d32f2f; font-size: 11px; white-space: pre-line;">@RestrictionMessage</div>
+            </div>
+        }
+        
+        @* 对比信息（如果有） *@
+        @if (ComparisonItem != null)
+        {
+            <div style="margin-top: 8px; padding: 8px; background: #fff3e0; border-radius: 4px; border-left: 3px solid #ff9800;">
+                <div style="font-weight: bold; margin-bottom: 4px; color: #e65100;">📊 与当前装备对比</div>
+                @foreach (var comparison in GetStatComparisons())
+                {
+                    var color = comparison.Diff > 0 ? "#4caf50" : (comparison.Diff < 0 ? "#f44336" : "#666");
+                    var arrow = comparison.Diff > 0 ? "↑" : (comparison.Diff < 0 ? "↓" : "=");
+                    <div style="color: @color; font-size: 11px; padding: 2px 0;">
+                        @arrow @comparison.StatName: @comparison.DiffText
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    /// <summary>要显示的装备</summary>
+    [Parameter] public GearInstanceDto? Item { get; set; }
+    
+    /// <summary>是否显示浮窗</summary>
+    [Parameter] public bool IsVisible { get; set; }
+    
+    /// <summary>浮窗X坐标</summary>
+    [Parameter] public string PositionX { get; set; } = "0px";
+    
+    /// <summary>浮窗Y坐标</summary>
+    [Parameter] public string PositionY { get; set; } = "0px";
+    
+    /// <summary>是否显示限制信息</summary>
+    [Parameter] public bool ShowRestrictions { get; set; } = true;
+    
+    /// <summary>限制提示消息</summary>
+    [Parameter] public string? RestrictionMessage { get; set; }
+    
+    /// <summary>对比装备（用于显示差异）</summary>
+    [Parameter] public GearInstanceDto? ComparisonItem { get; set; }
+    
+    /// <summary>获取品质颜色</summary>
+    private string GetRarityColor(string rarity)
+    {
+        return rarity switch
+        {
+            "Common" or "普通" => "#9e9e9e",
+            "Rare" or "稀有" or "优秀" => "#2196f3",
+            "Epic" or "史诗" or "精良" => "#9c27b0",
+            "Legendary" or "传说" => "#ff9800",
+            _ => "#9e9e9e"
+        };
+    }
+    
+    /// <summary>获取品质文本</summary>
+    private string GetRarityText(string rarity)
+    {
+        return rarity switch
+        {
+            "Common" => "普通",
+            "Rare" => "稀有",
+            "Epic" => "史诗",
+            "Legendary" => "传说",
+            "普通" or "优秀" or "精良" or "传说" => rarity,
+            _ => "未知"
+        };
+    }
+    
+    /// <summary>获取护甲类型显示名称</summary>
+    private string GetArmorTypeName(string armorType)
+    {
+        return armorType switch
+        {
+            "Cloth" => "布甲",
+            "Leather" => "皮甲",
+            "Mail" => "锁甲",
+            "Plate" => "板甲",
+            _ => armorType
+        };
+    }
+    
+    /// <summary>获取武器类型显示名称</summary>
+    private string GetWeaponTypeName(string weaponType)
+    {
+        return weaponType switch
+        {
+            "Sword" => "单手剑",
+            "Dagger" => "匕首",
+            "Axe" => "单手斧",
+            "Mace" => "单手锤",
+            "Staff" => "法杖",
+            "Wand" => "魔杖",
+            "Bow" => "弓",
+            "Crossbow" => "弩",
+            "Gun" => "枪",
+            "TwoHandSword" => "双手剑",
+            "TwoHandAxe" => "双手斧",
+            "TwoHandMace" => "双手锤",
+            "Polearm" => "长柄武器",
+            "Fist" => "拳套",
+            "Shield" => "盾牌",
+            _ => weaponType
+        };
+    }
+    
+    /// <summary>判断是否为百分比属性</summary>
+    private bool IsPercentageStat(string statId)
+    {
+        var percentageStats = new[] { "CritChance", "HastePercent", "BlockChance", "DodgeChance", "ParryChance" };
+        return percentageStats.Contains(statId);
+    }
+    
+    /// <summary>获取属性显示名称</summary>
+    private string GetStatDisplayName(string statId)
+    {
+        return statId switch
+        {
+            "AttackPower" => "攻击力",
+            "SpellPower" => "法术强度",
+            "Armor" => "护甲",
+            "Strength" => "力量",
+            "Agility" => "敏捷",
+            "Intellect" => "智力",
+            "Stamina" => "耐力",
+            "CritChance" => "暴击率",
+            "HastePercent" => "急速",
+            "BlockChance" => "格挡率",
+            "DodgeChance" => "躲闪率",
+            "ParryChance" => "招架率",
+            _ => statId
+        };
+    }
+    
+    /// <summary>获取属性对比信息</summary>
+    private List<StatComparison> GetStatComparisons()
+    {
+        if (Item == null || ComparisonItem == null)
+            return new List<StatComparison>();
+        
+        var comparisons = new List<StatComparison>();
+        
+        // 获取所有属性的并集
+        var allStats = Item.Stats.Keys.Union(ComparisonItem.Stats.Keys).Distinct();
+        
+        foreach (var statId in allStats)
+        {
+            var newValue = Item.Stats.TryGetValue(statId, out var nv) ? nv : 0;
+            var oldValue = ComparisonItem.Stats.TryGetValue(statId, out var ov) ? ov : 0;
+            var diff = newValue - oldValue;
+            
+            if (Math.Abs(diff) > 0.01) // 只显示有差异的属性
+            {
+                var isPercent = IsPercentageStat(statId);
+                var diffText = isPercent 
+                    ? $"{(diff > 0 ? "+" : "")}{diff * 100:F1}%" 
+                    : $"{(diff > 0 ? "+" : "")}{diff:F0}";
+                
+                comparisons.Add(new StatComparison
+                {
+                    StatName = GetStatDisplayName(statId),
+                    Diff = diff,
+                    DiffText = diffText
+                });
+            }
+        }
+        
+        return comparisons.OrderByDescending(c => Math.Abs(c.Diff)).ToList();
+    }
+    
+    /// <summary>属性对比信息</summary>
+    private class StatComparison
+    {
+        public string StatName { get; set; } = "";
+        public double Diff { get; set; }
+        public string DiffText { get; set; } = "";
+    }
+}

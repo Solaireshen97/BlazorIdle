@@ -1,0 +1,56 @@
+@* 可折叠区域组件 - 用于改善页面布局和用户体验 *@
+<div class="collapsible-section" style="@SectionStyle">
+    <div class="collapsible-header" @onclick="ToggleCollapse" style="cursor: pointer; padding: 12px; background: @HeaderBackground; border-radius: 4px; border: 1px solid @HeaderBorder; display: flex; justify-content: space-between; align-items: center; user-select: none;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+            @if (!string.IsNullOrEmpty(Icon))
+            {
+                <span style="font-size: 16px;">@Icon</span>
+            }
+            <h4 style="margin: 0; font-size: 14px; font-weight: bold;">@Title</h4>
+        </div>
+        <span class="collapsible-icon" style="font-size: 12px; transition: transform 0.3s ease; transform: rotate(@(IsExpanded ? "180deg" : "0deg"));">▼</span>
+    </div>
+    
+    @if (IsExpanded)
+    {
+        <div class="collapsible-content" style="@ContentStyle">
+            @ChildContent
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>标题文本</summary>
+    [Parameter] public string Title { get; set; } = "区域";
+    
+    /// <summary>图标（emoji或文本）</summary>
+    [Parameter] public string Icon { get; set; } = "";
+    
+    /// <summary>是否默认展开</summary>
+    [Parameter] public bool IsExpanded { get; set; } = true;
+    
+    /// <summary>头部背景色</summary>
+    [Parameter] public string HeaderBackground { get; set; } = "#f5f5f5";
+    
+    /// <summary>头部边框色</summary>
+    [Parameter] public string HeaderBorder { get; set; } = "#e0e0e0";
+    
+    /// <summary>区域样式（可选）</summary>
+    [Parameter] public string SectionStyle { get; set; } = "";
+    
+    /// <summary>内容样式（可选）</summary>
+    [Parameter] public string ContentStyle { get; set; } = "padding: 16px; margin-top: 8px;";
+    
+    /// <summary>子内容</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    
+    /// <summary>展开/收起状态改变时的回调</summary>
+    [Parameter] public EventCallback<bool> OnExpandedChanged { get; set; }
+    
+    /// <summary>切换展开/收起状态</summary>
+    private async Task ToggleCollapse()
+    {
+        IsExpanded = !IsExpanded;
+        await OnExpandedChanged.InvokeAsync(IsExpanded);
+    }
+}

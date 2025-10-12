@@ -1,0 +1,226 @@
+@* 装备统计面板 - 显示装备系统的详细统计信息 *@
+@using BlazorIdle.Client.Services
+@using BlazorIdle.Shared.Models
+
+<div class="equipment-stats-panel" style="margin-top: 16px; padding: 16px; background: #f9f9f9; border-radius: 4px; border: 1px solid #ddd;">
+    <h6 style="margin: 0 0 12px 0; font-size: 14px; font-weight: bold;">📊 装备统计</h6>
+    
+    @if (EquipmentSlots.Count == 0)
+    {
+        <div style="text-align: center; padding: 20px; color: #999;">
+            <em>暂无装备数据</em>
+        </div>
+    }
+    else
+    {
+        @* 装备概览 *@
+        <div class="stats-section" style="margin-bottom: 16px;">
+            <div style="font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #555;">
+                🎒 装备概览
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11px;">
+                <div class="stat-item" style="padding: 8px; background: white; border-radius: 4px; border: 1px solid #e0e0e0;">
+                    <div style="color: #666;">已装备</div>
+                    <div style="font-size: 16px; font-weight: bold; color: #2196f3;">@EquippedCount / @TotalSlots</div>
+                </div>
+                <div class="stat-item" style="padding: 8px; background: white; border-radius: 4px; border: 1px solid #e0e0e0;">
+                    <div style="color: #666;">空槽位</div>
+                    <div style="font-size: 16px; font-weight: bold; color: #ff9800;">@EmptySlots</div>
+                </div>
+                <div class="stat-item" style="padding: 8px; background: white; border-radius: 4px; border: 1px solid #e0e0e0;">
+                    <div style="color: #666;">平均物品等级</div>
+                    <div style="font-size: 16px; font-weight: bold; color: #9c27b0;">@AverageItemLevel.ToString("F1")</div>
+                </div>
+                <div class="stat-item" style="padding: 8px; background: white; border-radius: 4px; border: 1px solid #e0e0e0;">
+                    <div style="color: #666;">平均品级</div>
+                    <div style="font-size: 16px; font-weight: bold; color: #4caf50;">T@AverageTier.ToString("F1")</div>
+                </div>
+            </div>
+        </div>
+        
+        @* 品质分布 *@
+        <div class="stats-section" style="margin-bottom: 16px;">
+            <div style="font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #555;">
+                💎 品质分布
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 6px; font-size: 11px;">
+                @foreach (var rarity in RarityDistribution.OrderByDescending(r => GetRarityOrder(r.Key)))
+                {
+                    <div class="rarity-item" style="padding: 6px; background: @GetRarityBgColor(rarity.Key); border-radius: 4px; text-align: center;">
+                        <div style="color: white; font-weight: bold; font-size: 10px;">@rarity.Key</div>
+                        <div style="color: white; font-size: 14px; font-weight: bold;">@rarity.Value</div>
+                    </div>
+                }
+            </div>
+        </div>
+        
+        @* 套装统计 *@
+        @if (SetBonuses.Count > 0)
+        {
+            <div class="stats-section">
+                <div style="font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #555;">
+                    ✨ 套装效果
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 4px; font-size: 11px;">
+                    @foreach (var set in SetBonuses)
+                    {
+                        <div style="padding: 6px; background: white; border-radius: 4px; border-left: 3px solid #4caf50;">
+                            <div style="font-weight: bold; color: #2e7d32;">@set.SetName (@set.PieceCount/件)</div>
+                            @if (set.ActiveBonuses.Count > 0)
+                            {
+                                <div style="color: #666; margin-top: 2px;">
+                                    激活: @string.Join(", ", set.ActiveBonuses)
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+        
+        @* 护甲类型统计 *@
+        @if (ArmorTypes.Count > 0)
+        {
+            <div class="stats-section" style="margin-top: 16px;">
+                <div style="font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #555;">
+                    🛡️ 护甲类型
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(60px, 1fr)); gap: 6px; font-size: 11px;">
+                    @foreach (var armor in ArmorTypes)
+                    {
+                        <div style="padding: 6px; background: white; border-radius: 4px; text-align: center; border: 1px solid #e0e0e0;">
+                            <div style="color: #666; font-size: 10px;">@armor.Key</div>
+                            <div style="font-weight: bold; color: #1976d2;">@armor.Value</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    /// <summary>装备槽列表</summary>
+    [Parameter] public List<EquipmentSlotDto> EquipmentSlots { get; set; } = new();
+    
+    /// <summary>总槽位数</summary>
+    private int TotalSlots => EquipmentSlots.Count;
+    
+    /// <summary>已装备数量</summary>
+    private int EquippedCount => EquipmentSlots.Count(s => s.Item != null);
+    
+    /// <summary>空槽位数量</summary>
+    private int EmptySlots => TotalSlots - EquippedCount;
+    
+    /// <summary>平均物品等级</summary>
+    private double AverageItemLevel
+    {
+        get
+        {
+            var items = EquipmentSlots.Where(s => s.Item != null).Select(s => s.Item!).ToList();
+            return items.Count > 0 ? items.Average(i => i.ItemLevel) : 0;
+        }
+    }
+    
+    /// <summary>平均品级</summary>
+    private double AverageTier
+    {
+        get
+        {
+            var items = EquipmentSlots.Where(s => s.Item != null).Select(s => s.Item!).ToList();
+            return items.Count > 0 ? items.Average(i => i.Tier) : 0;
+        }
+    }
+    
+    /// <summary>品质分布</summary>
+    private Dictionary<string, int> RarityDistribution
+    {
+        get
+        {
+            return EquipmentSlots
+                .Where(s => s.Item != null)
+                .GroupBy(s => s.Item!.Rarity)
+                .ToDictionary(g => g.Key, g => g.Count());
+        }
+    }
+    
+    /// <summary>套装统计</summary>
+    private List<SetBonusInfo> SetBonuses
+    {
+        get
+        {
+            // 简化版：统计每个套装的装备数量
+            var setSummary = EquipmentSlots
+                .Where(s => s.Item != null && !string.IsNullOrEmpty(s.Item!.SetId))
+                .GroupBy(s => s.Item!.SetId)
+                .Select(g => new SetBonusInfo
+                {
+                    SetName = g.Key ?? "",
+                    PieceCount = g.Count(),
+                    ActiveBonuses = GetActiveBonuses(g.Count())
+                })
+                .Where(s => s.PieceCount >= 2) // 只显示至少2件套的套装
+                .ToList();
+            
+            return setSummary;
+        }
+    }
+    
+    /// <summary>护甲类型统计</summary>
+    private Dictionary<string, int> ArmorTypes
+    {
+        get
+        {
+            return EquipmentSlots
+                .Where(s => s.Item != null && !string.IsNullOrEmpty(s.Item!.ArmorType))
+                .GroupBy(s => s.Item!.ArmorType)
+                .ToDictionary(g => g.Key ?? "未知", g => g.Count());
+        }
+    }
+    
+    /// <summary>获取品质背景色</summary>
+    private string GetRarityBgColor(string rarity)
+    {
+        return rarity switch
+        {
+            "普通" => "#9e9e9e",
+            "优秀" => "#4caf50",
+            "精良" => "#2196f3",
+            "史诗" => "#9c27b0",
+            "传说" => "#ff9800",
+            _ => "#757575"
+        };
+    }
+    
+    /// <summary>获取品质排序权重</summary>
+    private int GetRarityOrder(string rarity)
+    {
+        return rarity switch
+        {
+            "传说" => 5,
+            "史诗" => 4,
+            "精良" => 3,
+            "优秀" => 2,
+            "普通" => 1,
+            _ => 0
+        };
+    }
+    
+    /// <summary>获取激活的套装效果</summary>
+    private List<string> GetActiveBonuses(int pieceCount)
+    {
+        var bonuses = new List<string>();
+        if (pieceCount >= 2) bonuses.Add("2件套");
+        if (pieceCount >= 4) bonuses.Add("4件套");
+        if (pieceCount >= 6) bonuses.Add("6件套");
+        return bonuses;
+    }
+    
+    /// <summary>套装奖励信息</summary>
+    private class SetBonusInfo
+    {
+        public string SetName { get; set; } = "";
+        public int PieceCount { get; set; }
+        public List<string> ActiveBonuses { get; set; } = new();
+    }
+}
