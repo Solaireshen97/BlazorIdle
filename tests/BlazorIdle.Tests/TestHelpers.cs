@@ -48,6 +48,24 @@ public static class TestHelpers
             return Task.FromResult(0.0);
         }
 
+        public override Task<WeaponType> GetMainHandWeaponTypeAsync(Guid characterId)
+        {
+            // Return None for tests - simulates no weapon equipped
+            return Task.FromResult(WeaponType.None);
+        }
+
+        public override Task<WeaponType> GetOffHandWeaponTypeAsync(Guid characterId)
+        {
+            // Return None for tests - simulates no weapon equipped
+            return Task.FromResult(WeaponType.None);
+        }
+
+        public override Task<bool> IsDualWieldingAsync(Guid characterId)
+        {
+            // Return false for tests - simulates not dual wielding
+            return Task.FromResult(false);
+        }
+
         public void SetEquipmentStats(Guid characterId, Dictionary<StatType, double> stats)
         {
             _equipmentStats[characterId] = stats;
