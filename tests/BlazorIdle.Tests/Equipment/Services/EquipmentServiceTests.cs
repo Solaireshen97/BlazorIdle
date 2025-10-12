@@ -21,31 +21,33 @@ public class EquipmentServiceTests : IDisposable
             .Options;
 
         _context = new GameDbContext(options);
-        _service = new EquipmentService(_context);
+        var validator = new EquipmentValidator();
+        _service = new EquipmentService(_context, validator);
     }
 
     [Fact]
     public async Task EquipAsync_ValidGear_ShouldEquipSuccessfully()
     {
         // Arrange
-        var characterId = Guid.NewGuid();
-        var (definition, gear) = CreateTestGear(characterId, EquipmentSlot.Head);
+        var character = CreateTestCharacter();
+        var (definition, gear) = CreateTestGear(character.Id, EquipmentSlot.Head);
         
+        await _context.Characters.AddAsync(character);
         await _context.Set<GearDefinition>().AddAsync(definition);
         await _context.Set<GearInstance>().AddAsync(gear);
         await _context.SaveChangesAsync();
 
         // Act
-        var result = await _service.EquipAsync(characterId, gear.Id);
+        var result = await _service.EquipAsync(character.Id, gear.Id);
 
         // Assert
-        Assert.True(result.IsSuccess);
+        Assert.True(result.IsSuccess, result.Message);
         
         var updatedGear = await _context.Set<GearInstance>().FindAsync(gear.Id);
         Assert.NotNull(updatedGear);
         Assert.True(updatedGear!.IsEquipped);
         Assert.Equal(EquipmentSlot.Head, updatedGear.SlotType);
-        Assert.Equal(characterId, updatedGear.CharacterId);
+        Assert.Equal(character.Id, updatedGear.CharacterId);
     }
 
     [Fact]
@@ -108,10 +110,11 @@ public class EquipmentServiceTests : IDisposable
     public async Task EquipAsync_TwoHandWeapon_ShouldUnequipMainHandAndOffHand()
     {
         // Arrange
-        var characterId = Guid.NewGuid();
-        var (mainHandDef, mainHandGear) = CreateTestGear(characterId, EquipmentSlot.MainHand);
-        var (offHandDef, offHandGear) = CreateTestGear(characterId, EquipmentSlot.OffHand);
-        var (twoHandDef, twoHandGear) = CreateTestGear(characterId, EquipmentSlot.TwoHand);
+        var character = CreateTestCharacter();
+        var (mainHandDef, mainHandGear) = CreateTestGear(character.Id, EquipmentSlot.MainHand);
+        var (offHandDef, offHandGear) = CreateTestGear(character.Id, EquipmentSlot.OffHand);
+        var (twoHandDef, twoHandGear) = CreateTestGear(character.Id, EquipmentSlot.TwoHand);
+        twoHandDef.WeaponType = WeaponType.TwoHandSword;  // Set weapon type for two-hand weapon
         
         // 先装备主手和副手
         mainHandGear.IsEquipped = true;
@@ -119,15 +122,16 @@ public class EquipmentServiceTests : IDisposable
         offHandGear.IsEquipped = true;
         offHandGear.SlotType = EquipmentSlot.OffHand;
         
+        await _context.Characters.AddAsync(character);
         await _context.Set<GearDefinition>().AddRangeAsync(mainHandDef, offHandDef, twoHandDef);
         await _context.Set<GearInstance>().AddRangeAsync(mainHandGear, offHandGear, twoHandGear);
         await _context.SaveChangesAsync();
 
         // Act
-        var result = await _service.EquipAsync(characterId, twoHandGear.Id);
+        var result = await _service.EquipAsync(character.Id, twoHandGear.Id);
 
         // Assert
-        Assert.True(result.IsSuccess);
+        Assert.True(result.IsSuccess, result.Message);
         
         var updatedTwoHand = await _context.Set<GearInstance>().FindAsync(twoHandGear.Id);
         Assert.True(updatedTwoHand!.IsEquipped);
@@ -236,6 +240,104 @@ public class EquipmentServiceTests : IDisposable
 
         // Assert
         Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task EquipAsync_WrongProfessionForWeapon_ShouldFail()
+    {
+        // Arrange - Warrior trying to equip a Wand (only for casters)
+        var character = CreateTestCharacter();
+        var definition = new GearDefinition
+        {
+            Id = "test_wand",
+            Name = "测试法杖",
+            Slot = EquipmentSlot.MainHand,
+            ArmorType = ArmorType.None,
+            WeaponType = WeaponType.Wand,
+            RequiredLevel = 1
+        };
+        
+        var gear = new GearInstance
+        {
+            Id = Guid.NewGuid(),
+            DefinitionId = definition.Id,
+            CharacterId = character.Id,
+            Rarity = Rarity.Common,
+            TierLevel = 1,
+            ItemLevel = 10,
+            IsEquipped = false,
+            Definition = definition
+        };
+
+        await _context.Characters.AddAsync(character);
+        await _context.Set<GearDefinition>().AddAsync(definition);
+        await _context.Set<GearInstance>().AddAsync(gear);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _service.EquipAsync(character.Id, gear.Id);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Contains("无法装备", result.Message);
+    }
+
+    [Fact]
+    public async Task EquipAsync_InsufficientLevel_ShouldFail()
+    {
+        // Arrange - Level 60 required gear for level 10 character
+        var character = CreateTestCharacter();
+        character.Level = 10;
+        
+        var definition = new GearDefinition
+        {
+            Id = "test_high_level",
+            Name = "高等级装备",
+            Slot = EquipmentSlot.Chest,
+            ArmorType = ArmorType.Plate,
+            WeaponType = WeaponType.None,
+            RequiredLevel = 60
+        };
+        
+        var gear = new GearInstance
+        {
+            Id = Guid.NewGuid(),
+            DefinitionId = definition.Id,
+            CharacterId = character.Id,
+            Rarity = Rarity.Epic,
+            TierLevel = 3,
+            ItemLevel = 60,
+            IsEquipped = false,
+            Definition = definition
+        };
+
+        await _context.Characters.AddAsync(character);
+        await _context.Set<GearDefinition>().AddAsync(definition);
+        await _context.Set<GearInstance>().AddAsync(gear);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _service.EquipAsync(character.Id, gear.Id);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Contains("需要等级", result.Message);
+    }
+
+    private Server.Domain.Characters.Character CreateTestCharacter()
+    {
+        return new Server.Domain.Characters.Character
+        {
+            Id = Guid.NewGuid(),
+            UserId = Guid.NewGuid(),
+            Name = "测试角色",
+            Profession = BlazorIdle.Shared.Models.Profession.Warrior,
+            Level = 60,
+            Strength = 20,
+            Agility = 10,
+            Intellect = 5,
+            Stamina = 15
+        };
     }
 
     private (GearDefinition, GearInstance) CreateTestGear(Guid characterId, EquipmentSlot slot)

@@ -22,7 +22,8 @@ public class StatsAggregationServiceTests : IDisposable
             .Options;
 
         _context = new GameDbContext(options);
-        _equipmentService = new EquipmentService(_context);
+        var validator = new EquipmentValidator();
+        _equipmentService = new EquipmentService(_context, validator);
         var armorCalculator = new ArmorCalculator();
         var blockCalculator = new BlockCalculator();
         _service = new StatsAggregationService(_equipmentService, armorCalculator, blockCalculator);
