@@ -124,6 +124,21 @@ class FakeStatsAggregationServiceWithHaste : StatsAggregationService
     {
         return Task.FromResult(0.0);
     }
+    
+    public override Task<WeaponType> GetMainHandWeaponTypeAsync(Guid characterId)
+    {
+        return Task.FromResult(WeaponType.None);
+    }
+    
+    public override Task<WeaponType> GetOffHandWeaponTypeAsync(Guid characterId)
+    {
+        return Task.FromResult(WeaponType.None);
+    }
+    
+    public override Task<bool> IsDualWieldingAsync(Guid characterId)
+    {
+        return Task.FromResult(false);
+    }
 }
 
 class FakeStatsAggregationServiceWithCrit : StatsAggregationService
@@ -153,6 +168,21 @@ class FakeStatsAggregationServiceWithCrit : StatsAggregationService
     {
         return Task.FromResult(0.0);
     }
+    
+    public override Task<WeaponType> GetMainHandWeaponTypeAsync(Guid characterId)
+    {
+        return Task.FromResult(WeaponType.None);
+    }
+    
+    public override Task<WeaponType> GetOffHandWeaponTypeAsync(Guid characterId)
+    {
+        return Task.FromResult(WeaponType.None);
+    }
+    
+    public override Task<bool> IsDualWieldingAsync(Guid characterId)
+    {
+        return Task.FromResult(false);
+    }
 }
 
 class FakeStatsAggregationServiceWithHastePercent : StatsAggregationService
@@ -181,5 +211,20 @@ class FakeStatsAggregationServiceWithHastePercent : StatsAggregationService
     public override Task<double> CalculateBlockChanceAsync(Guid characterId, double characterStrength = 0)
     {
         return Task.FromResult(0.0);
+    }
+    
+    public override Task<WeaponType> GetMainHandWeaponTypeAsync(Guid characterId)
+    {
+        return Task.FromResult(WeaponType.None);
+    }
+    
+    public override Task<WeaponType> GetOffHandWeaponTypeAsync(Guid characterId)
+    {
+        return Task.FromResult(WeaponType.None);
+    }
+    
+    public override Task<bool> IsDualWieldingAsync(Guid characterId)
+    {
+        return Task.FromResult(false);
     }
 }

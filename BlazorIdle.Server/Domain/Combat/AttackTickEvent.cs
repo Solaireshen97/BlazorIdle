@@ -1,5 +1,6 @@
 using BlazorIdle.Server.Domain.Combat.Damage;
 using BlazorIdle.Server.Domain.Combat.Procs;
+using BlazorIdle.Server.Domain.Equipment.Services;
 using BlazorWebGame.Domain.Combat;
 using System;
 using System.Linq;
@@ -54,9 +55,16 @@ public record AttackTickEvent(double ExecuteAt, TrackState Track) : IGameEvent
             return;
         }
 
-        // 基础攻击伤害 = 基础值 + 攻击强度（装备影响）
+        // Phase 5: 基础攻击伤害计算（简化版，不访问数据库）
+        // 在实际战斗中，武器信息已经通过 Stats.AttackPower 体现
+        // 这里保持简单的计算逻辑以保证性能
         const int baseAttackDamage = 10;
         double preCritDamage = baseAttackDamage + context.Stats.AttackPower;
+        
+        // 注意：完整的双持武器伤害计算需要访问数据库获取武器类型
+        // 在实时战斗循环中不适合进行数据库查询
+        // 建议在构建 BattleContext 时预先计算武器相关的伤害加成并存入 Stats
+        // 当前保持原有逻辑，weapon-specific multipliers 已通过装备属性反映在 AttackPower 中
 
         // 普攻暴击：使用面板基础（可被 BuffAggregate 叠加）
         var (chance, mult) = context.Crit.ResolveWith(

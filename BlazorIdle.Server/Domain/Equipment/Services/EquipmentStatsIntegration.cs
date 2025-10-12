@@ -46,8 +46,11 @@ public class EquipmentStatsIntegration
             characterId, 
             primaryAttrs.Strength);
         
-        // 6. 将装备属性应用到战斗属性中（包括护甲和格挡）
-        var finalStats = ApplyEquipmentStats(combinedStats, equipmentStats, blockChance);
+        // 6. 获取武器伤害倍率（Phase 5）
+        var weaponDamageMultiplier = await CalculateWeaponDamageMultiplierAsync(characterId);
+        
+        // 7. 将装备属性应用到战斗属性中（包括护甲、格挡和武器伤害）
+        var finalStats = ApplyEquipmentStats(combinedStats, equipmentStats, blockChance, weaponDamageMultiplier);
         
         return finalStats;
     }
@@ -58,11 +61,13 @@ public class EquipmentStatsIntegration
     /// <param name="baseStats">基础战斗属性</param>
     /// <param name="equipmentStats">装备属性</param>
     /// <param name="blockChance">格挡率</param>
+    /// <param name="weaponDamageMultiplier">武器伤害倍率</param>
     /// <returns>应用装备加成后的战斗属性</returns>
     private CharacterStats ApplyEquipmentStats(
         CharacterStats baseStats,
         Dictionary<StatType, double> equipmentStats,
-        double blockChance = 0)
+        double blockChance = 0,
+        double weaponDamageMultiplier = 1.0)
     {
         // 累加装备提供的属性
         double attackPowerBonus = 0;
@@ -131,10 +136,14 @@ public class EquipmentStatsIntegration
             }
         }
 
+        // Phase 5: 应用武器伤害倍率到攻击强度
+        // 这样在战斗循环中就不需要每次攻击都查询武器类型
+        var effectiveAttackPower = (baseStats.AttackPower + attackPowerBonus) * weaponDamageMultiplier;
+
         // 创建新的CharacterStats（init-only properties）
         var result = new CharacterStats
         {
-            AttackPower = baseStats.AttackPower + attackPowerBonus,
+            AttackPower = effectiveAttackPower,
             SpellPower = baseStats.SpellPower + spellPowerBonus,
             CritChance = Clamp01(baseStats.CritChance + critChanceBonus),
             CritMultiplier = baseStats.CritMultiplier,
@@ -218,6 +227,39 @@ public class EquipmentStatsIntegration
             OffHandWeaponType = offHandType,
             IsDualWielding = isDualWielding
         };
+    }
+    
+    /// <summary>
+    /// 计算武器伤害倍率（Phase 5）
+    /// 将武器类型的伤害加成预先计算，避免战斗循环中的重复计算
+    /// </summary>
+    /// <param name="characterId">角色ID</param>
+    /// <returns>武器伤害倍率（1.0 = 100%基础伤害）</returns>
+    private async Task<double> CalculateWeaponDamageMultiplierAsync(Guid characterId)
+    {
+        var attackSpeedCalc = new AttackSpeedCalculator();
+        var weaponDamageCalc = new WeaponDamageCalculator(attackSpeedCalc);
+        
+        var weaponInfo = await GetWeaponInfoAsync(characterId);
+        
+        // 如果没装备武器，使用空手倍率 (1.0)
+        if (weaponInfo.MainHandWeaponType == WeaponType.None)
+        {
+            return 1.0;
+        }
+        
+        // 使用 WeaponDamageCalculator 计算伤害倍率
+        // 这里我们计算 (baseDamage=0, attackPower=1) 的结果来获取纯武器倍率
+        var damageWith1AP = weaponDamageCalc.CalculateWeaponDamage(
+            baseDamage: 0,
+            attackPower: 1.0,
+            mainHandWeapon: weaponInfo.MainHandWeaponType,
+            offHandWeapon: weaponInfo.OffHandWeaponType,
+            isDualWielding: weaponInfo.IsDualWielding
+        );
+        
+        // 返回的值就是武器伤害倍率
+        return damageWith1AP;
     }
 
     private static double Clamp01(double value)

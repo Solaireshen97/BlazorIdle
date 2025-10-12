@@ -250,4 +250,23 @@ internal class FakeStatsAggregationService : StatsAggregationService
         // Return 0 for tests - simulates no shield equipped
         return Task.FromResult(0.0);
     }
+    
+    // Phase 5: Override weapon-related methods to return default values for tests
+    public override Task<WeaponType> GetMainHandWeaponTypeAsync(Guid characterId)
+    {
+        // Return None for tests - simulates no weapon equipped
+        return Task.FromResult(WeaponType.None);
+    }
+    
+    public override Task<WeaponType> GetOffHandWeaponTypeAsync(Guid characterId)
+    {
+        // Return None for tests - simulates no weapon equipped
+        return Task.FromResult(WeaponType.None);
+    }
+    
+    public override Task<bool> IsDualWieldingAsync(Guid characterId)
+    {
+        // Return false for tests - simulates not dual wielding
+        return Task.FromResult(false);
+    }
 }
