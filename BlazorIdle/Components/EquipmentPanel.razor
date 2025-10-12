@@ -1,6 +1,7 @@
 @using BlazorIdle.Client.Services
+@using BlazorIdle.Shared.Models
 
-@* 装备面板组件 - Step 5: 装备系统UI预留 *@
+@* 装备面板组件 - Step 5: 装备系统UI预留 + Phase 6: 装备对比和限制提示 *@
 <div class="equipment-panel" style="margin-top: 16px; padding: 16px; background: @BackgroundColor; border-radius: 4px; border: 1px solid @BorderColor;">
     <h6 style="margin: 0 0 12px 0; font-size: 14px; font-weight: bold;">🎒 @Title</h6>
     
@@ -152,16 +153,35 @@
     /// <summary>武器信息显示</summary>
     [Parameter] public string WeaponInfo { get; set; } = "";
     
+    /// <summary>角色职业（用于职业限制检查）</summary>
+    [Parameter] public Profession CharacterProfession { get; set; }
+    
+    /// <summary>角色等级（用于等级限制检查）</summary>
+    [Parameter] public int CharacterLevel { get; set; }
+    
     /// <summary>装备对比服务（可选，用于显示对比信息）</summary>
     private EquipmentComparisonService? _comparisonService = new();
+    
+    /// <summary>装备限制辅助服务（用于检查职业和等级限制）</summary>
+    private EquipmentRestrictionHelper? _restrictionHelper = new();
 
     /// <summary>渲染单个装备槽</summary>
     private RenderFragment RenderSlot(string slotType, string slotName, string defaultIcon) => builder =>
     {
         var slot = Slots.FirstOrDefault(s => s.SlotType == slotType);
         var hasItem = slot?.Item != null;
-        var bgColor = hasItem ? "#e8f5e9" : "#fafafa";
-        var borderColor = hasItem ? "#66bb6a" : "#e0e0e0";
+        
+        // 检查装备限制
+        bool canEquip = true;
+        if (hasItem && _restrictionHelper != null)
+        {
+            var restriction = _restrictionHelper.CheckRestrictions(slot!.Item!, CharacterProfession, CharacterLevel);
+            canEquip = restriction.CanEquip;
+        }
+        
+        // 根据限制情况调整颜色
+        var bgColor = hasItem ? (canEquip ? "#e8f5e9" : "#ffebee") : "#fafafa";
+        var borderColor = hasItem ? (canEquip ? "#66bb6a" : "#f44336") : "#e0e0e0";
         var icon = hasItem ? (slot!.Item!.Icon ?? defaultIcon) : defaultIcon;
         var itemName = hasItem ? slot!.Item!.Name : slotName;
         var opacity = hasItem ? "1.0" : "0.4";
@@ -190,6 +210,15 @@
             builder.OpenElement(10, "div");
             builder.AddAttribute(11, "style", $"position: absolute; top: 2px; right: 2px; font-size: 8px; padding: 1px 4px; background: {rarityColor}; color: white; border-radius: 2px; font-weight: bold;");
             builder.AddContent(12, GetRarityText(slot!.Item!.Rarity));
+            builder.CloseElement();
+        }
+        
+        // 限制状态标识（如果有装备且无法装备）
+        if (hasItem && !canEquip && _restrictionHelper != null)
+        {
+            builder.OpenElement(13, "div");
+            builder.AddAttribute(14, "style", "position: absolute; top: 2px; left: 2px; font-size: 12px; color: #f44336; background: rgba(255,255,255,0.8); border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-weight: bold;");
+            builder.AddContent(15, _restrictionHelper.GetRestrictionIcon(false));
             builder.CloseElement();
         }
 
@@ -260,6 +289,17 @@
         if (!string.IsNullOrEmpty(item.WeaponType) && item.WeaponType != "None")
         {
             tooltip += $"武器类型: {GetWeaponTypeName(item.WeaponType)}\n";
+        }
+        
+        // 检查职业和等级限制（如果有限制辅助服务）
+        if (_restrictionHelper != null)
+        {
+            var restriction = _restrictionHelper.CheckRestrictions(item, CharacterProfession, CharacterLevel);
+            if (!restriction.CanEquip)
+            {
+                tooltip += "\n━━━━━━━━━━━━━━━━\n";
+                tooltip += _restrictionHelper.GenerateRestrictionTooltip(restriction) + "\n";
+            }
         }
         
         if (item.Stats.Count > 0)
