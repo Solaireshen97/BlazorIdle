@@ -7,10 +7,27 @@ namespace BlazorIdle.Server.Domain.Equipment.Services;
 /// <summary>
 /// 装备属性集成服务
 /// 负责将装备属性集成到角色战斗属性中
+/// 
+/// 【设计理念】
+/// 本服务采用预计算策略，将装备相关的计算在战斗开始前完成，避免战斗循环中的重复查询和计算。
+/// 
+/// 【性能优化】
+/// 1. 武器伤害倍率预计算（Phase 5）：在BuildStatsWithEquipmentAsync中计算武器伤害倍率，
+///    将其直接应用到AttackPower中，战斗循环中无需再查询装备表
+/// 2. 属性聚合一次完成：所有装备属性（基础、词条、套装）在一次调用中完成聚合
+/// 3. 格挡率预计算：如果装备盾牌，格挡率在战斗开始时计算完成
+/// 
+/// 【集成点】
+/// - 战斗系统：通过BuildStatsWithEquipmentAsync获取包含装备加成的完整属性
+/// - 属性显示：通过GetEquipmentArmorAsync等方法获取装备相关数值
 /// </summary>
 public class EquipmentStatsIntegration
 {
     private readonly StatsAggregationService _statsAggregationService;
+    
+    // 评级转换常数：4000评级 = 100%属性提升（1.0）
+    // 这个值可以在未来根据数值平衡需求调整
+    private const double RATING_CONVERSION_DIVISOR = 4000.0;
 
     public EquipmentStatsIntegration(StatsAggregationService statsAggregationService)
     {
@@ -98,13 +115,18 @@ public class EquipmentStatsIntegration
                     break;
                 
                 case StatType.CritRating:
-                    // 暴击评级转换为暴击率 (简化: 4000评级 = 1.0暴击率)
-                    critChanceBonus += value / 4000.0;
+                    // 暴击评级转换为暴击率
+                    // 转换公式: 暴击率 = 暴击评级 / RATING_CONVERSION_DIVISOR
+                    // 例如: 400评级 = 10%暴击率, 2000评级 = 50%暴击率
+                    critChanceBonus += value / RATING_CONVERSION_DIVISOR;
                     break;
                 
                 case StatType.Haste:
-                    // 急速评级转换为急速百分比 (简化: 4000评级 = 1.0 = 100%急速)
-                    hasteBonus += value / 4000.0;
+                    // 急速评级转换为急速百分比
+                    // 转换公式: 急速% = 急速评级 / RATING_CONVERSION_DIVISOR
+                    // 例如: 400评级 = 10%急速, 2000评级 = 50%急速
+                    // 急速影响: 攻击间隔 = 基础间隔 / (1 + 急速%)
+                    hasteBonus += value / RATING_CONVERSION_DIVISOR;
                     break;
                 
                 case StatType.HastePercent:
