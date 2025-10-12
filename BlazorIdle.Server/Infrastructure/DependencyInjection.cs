@@ -74,6 +74,7 @@ public static class DependencyInjection
         services.AddSingleton<ArmorCalculator>();           // 无状态，线程安全，可为单例
         services.AddSingleton<BlockCalculator>();           // 无状态，线程安全，可为单例
         services.AddSingleton<AttackSpeedCalculator>();     // 无状态，线程安全，可为单例
+        services.AddSingleton<WeaponDamageCalculator>();    // 武器伤害计算（Phase 5）
         services.AddScoped<EquipmentValidator>();           // 验证服务，使用Scoped
 
         return services;

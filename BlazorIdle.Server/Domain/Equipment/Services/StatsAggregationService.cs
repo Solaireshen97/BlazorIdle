@@ -254,6 +254,57 @@ public class StatsAggregationService
         
         return WeaponType.None;
     }
+    
+    /// <summary>
+    /// 获取副手武器类型（Phase 5）
+    /// </summary>
+    /// <param name="characterId">角色ID</param>
+    /// <returns>武器类型，无武器或装备盾牌则返回None</returns>
+    public virtual async Task<WeaponType> GetOffHandWeaponTypeAsync(Guid characterId)
+    {
+        var equippedGear = await _equipmentService.GetEquippedGearAsync(characterId);
+        
+        // 检查是否装备双手武器（如果是，副手为空）
+        var twoHandWeapon = equippedGear.FirstOrDefault(g => 
+            g.SlotType == EquipmentSlot.TwoHand && 
+            g.Definition != null);
+        
+        if (twoHandWeapon != null)
+        {
+            return WeaponType.None;
+        }
+        
+        // 检查副手武器
+        var offHandWeapon = equippedGear.FirstOrDefault(g => 
+            g.SlotType == EquipmentSlot.OffHand && 
+            g.Definition != null);
+        
+        if (offHandWeapon?.Definition?.WeaponType != null && 
+            offHandWeapon.Definition.WeaponType != WeaponType.None &&
+            offHandWeapon.Definition.WeaponType != WeaponType.Shield)
+        {
+            return offHandWeapon.Definition.WeaponType;
+        }
+        
+        return WeaponType.None;
+    }
+    
+    /// <summary>
+    /// 检查角色是否在双持武器（Phase 5）
+    /// </summary>
+    /// <param name="characterId">角色ID</param>
+    /// <returns>true表示双持，false表示单手或双手武器</returns>
+    public virtual async Task<bool> IsDualWieldingAsync(Guid characterId)
+    {
+        var mainHandType = await GetMainHandWeaponTypeAsync(characterId);
+        var offHandType = await GetOffHandWeaponTypeAsync(characterId);
+        
+        // 主手和副手都装备了可双持的武器
+        return mainHandType != WeaponType.None && 
+               offHandType != WeaponType.None &&
+               AttackSpeedCalculator.CanDualWield(mainHandType) &&
+               AttackSpeedCalculator.CanDualWield(offHandType);
+    }
 }
 
 /// <summary>
