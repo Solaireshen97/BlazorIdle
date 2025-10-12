@@ -66,8 +66,14 @@ else
 }
 
 <!-- 1) 创建角色 -->
-<div class="panel">
-    <h4>1. 创建角色</h4>
+<div class="panel collapsible-section">
+    <div class="collapsible-header" @onclick="@(() => showCreateCharacter = !showCreateCharacter)">
+        <h4>1. 创建角色</h4>
+        <span class="collapsible-icon @(showCreateCharacter ? "expanded" : "")">▼</span>
+    </div>
+    @if (showCreateCharacter)
+    {
+        <div class="collapsible-content">
     <input @bind="newName" placeholder="角色名" />
     <select @bind="selectedProfession">
         @foreach (var p in Enum.GetValues<Profession>())
@@ -86,6 +92,8 @@ else
     {
         <p>已创建: @lastCreated.Name (@lastCreated.Id)</p>
         <button class="btn btn-sm" @onclick="ResetBattleState" disabled="@isBusy">重置战斗状态</button>
+    }
+        </div>
     }
 </div>
 
@@ -109,8 +117,14 @@ else
 <!-- 2) 同步战斗 -->
 @if (lastCreated is not null)
 {
-    <div class="panel">
-        <h4>2. 发起战斗（同步一次性）</h4>
+    <div class="panel collapsible-section">
+        <div class="collapsible-header" @onclick="@(() => showSyncBattle = !showSyncBattle)">
+            <h4>2. 发起战斗（同步一次性）</h4>
+            <span class="collapsible-icon @(showSyncBattle ? "expanded" : "")">▼</span>
+        </div>
+        @if (showSyncBattle)
+        {
+            <div class="collapsible-content">
         时长(s): <input type="number" min="1" max="120" @bind="battleSeconds" style="width:80px" />
         敌人:
         <select @bind="selectedEnemyId" style="width:240px">
@@ -135,13 +149,21 @@ else
         {
             <p>当前 BattleId: @currentBattleId</p>
         }
+            </div>
+        }
     </div>
 }
 
 @if (currentBattleId != Guid.Empty || summary is not null)
 {
-    <div class="panel">
-        <h4>3. 战斗结果@(battleInProgress ? "（进行中/轮询）" : "")</h4>
+    <div class="panel collapsible-section">
+        <div class="collapsible-header" @onclick="@(() => showBattleResult = !showBattleResult)">
+            <h4>3. 战斗结果@(battleInProgress ? "（进行中/轮询）" : "")</h4>
+            <span class="collapsible-icon @(showBattleResult ? "expanded" : "")">▼</span>
+        </div>
+        @if (showBattleResult)
+        {
+            <div class="collapsible-content">
         <p>
             总伤害: @summary?.TotalDamage |
             时长: @summary?.DurationSeconds s |
@@ -209,14 +231,22 @@ else
                 </tbody>
             </table>
         }
+            </div>
+        }
     </div>
 }
 
 <!-- 4) 活动计划管理 -->
 @if (lastCreated is not null)
 {
-    <div class="panel" style="margin-top: 18px;">
-        <h4>4. 活动计划管理</h4>
+    <div class="panel collapsible-section" style="margin-top: 18px;">
+        <div class="collapsible-header" @onclick="@(() => showActivityPlans = !showActivityPlans)">
+            <h4>4. 活动计划管理</h4>
+            <span class="collapsible-icon @(showActivityPlans ? "expanded" : "")">▼</span>
+        </div>
+        @if (showActivityPlans)
+        {
+            <div class="collapsible-content">
 
         <div class="form-row">
             <div>
@@ -458,14 +488,22 @@ else
             </div>
         }
     
+            </div>
+        }
     </div>
 }
 
 <!-- 5) 异步 Step 战斗（调试 - 保留原功能） -->
 @if (lastCreated is not null)
 {
-    <div class="panel" style="margin-top: 18px;">
-        <h4>5. 异步 Step 战斗（调试）</h4>
+    <div class="panel collapsible-section" style="margin-top: 18px;">
+        <div class="collapsible-header" @onclick="@(() => showStepBattle = !showStepBattle)">
+            <h4>5. 异步 Step 战斗（调试）</h4>
+            <span class="collapsible-icon @(showStepBattle ? "expanded" : "")">▼</span>
+        </div>
+        @if (showStepBattle)
+        {
+            <div class="collapsible-content">
 
         <div class="form-row">
             <div>
@@ -817,13 +855,21 @@ else
                 }
             </div>
         }
+            </div>
+        }
     </div>
 }
 
 @if (lastCreated is not null)
 {
-    <div class="panel" style="margin-top: 18px;">
-        <h4>6. 批量模拟器</h4>
+    <div class="panel collapsible-section" style="margin-top: 18px;">
+        <div class="collapsible-header" @onclick="@(() => showBatchSimulator = !showBatchSimulator)">
+            <h4>6. 批量模拟器</h4>
+            <span class="collapsible-icon @(showBatchSimulator ? "expanded" : "")">▼</span>
+        </div>
+        @if (showBatchSimulator)
+        {
+            <div class="collapsible-content">
 
         <div class="row" style="gap:12px; align-items:end;">
             <div>
@@ -902,6 +948,8 @@ else
                 </div>
             </div>
         }
+            </div>
+        }
     </div>
 }
 }
@@ -913,6 +961,14 @@ else
     // ====== 确认对话框状态 ======
     private bool showDeleteConfirm = false;
     private UserCharacterDto? characterToDelete = null;
+    
+    // ====== 折叠面板状态 ======
+    private bool showCreateCharacter = true;
+    private bool showSyncBattle = true;
+    private bool showBattleResult = true;
+    private bool showActivityPlans = true;
+    private bool showStepBattle = false;  // 调试功能默认折叠
+    private bool showBatchSimulator = false;  // 调试功能默认折叠
 
     // ====== 认证状态 ======
     private bool isAuthenticated = false;
