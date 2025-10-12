@@ -81,6 +81,10 @@ public static class DependencyInjection
         // 商店系统配置
         services.Configure<ShopOptions>(configuration.GetSection("Shop"));
         services.AddSingleton<IShopConfigurationLoader, ShopConfigurationLoader>();
+        
+        // 商店系统缓存
+        services.AddMemoryCache();
+        services.AddSingleton<BlazorIdle.Server.Application.Shop.IShopCacheService, BlazorIdle.Server.Application.Shop.ShopCacheService>();
 
         return services;
     }
