@@ -255,7 +255,6 @@ public class SmoothProgressTests
         int enemyKillCount = 0;
         int previousEnemyCount = 3;
         double? prevNextAttackAt = null;
-        bool detectedReset = false;
         
         for (int i = 0; i < 50; i++)
         {
@@ -275,15 +274,8 @@ public class SmoothProgressTests
             {
                 enemyKillCount++;
                 
-                // 检查NextAttackAt是否被重置（根据后端ResetAttackProgress逻辑）
-                if (prevNextAttackAt.HasValue && status.NextAttackAt.HasValue)
-                {
-                    // 切换目标后，NextAttackAt应该被重置
-                    if (status.NextAttackAt.Value > prevNextAttackAt.Value)
-                    {
-                        detectedReset = true;
-                    }
-                }
+                // Note: 重置行为由后端ResetAttackProgress实现
+                // 前端通过追踪NextAttackAt变化来适应
                 
                 previousEnemyCount = currentEnemyCount;
             }
