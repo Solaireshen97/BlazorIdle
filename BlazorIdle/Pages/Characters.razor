@@ -12,6 +12,9 @@
 <!-- 离线结算弹窗 -->
 <OfflineSettlementDialog Result="@offlineCheckResult" OnClaim="@CloseOfflineSettlement" />
 
+<!-- Toast 通知组件 -->
+<ToastNotification @ref="toastNotification" />
+
 @if (!isAuthenticated)
 {
     <p>正在检查登录状态...</p>
@@ -903,6 +906,7 @@ else
     private List<UserCharacterDto> userCharacters = new();
     private UserCharacterDto? selectedCharacter;
     private string userMessage = "";
+    private ToastNotification? toastNotification;
 
     // ====== 离线战斗 ======
     private OfflineCheckResult? offlineCheckResult;
@@ -938,6 +942,7 @@ else
         catch (Exception ex)
         {
             userMessage = $"初始化失败: {ex.Message}";
+            toastNotification?.ShowError($"初始化失败: {ex.Message}");
         }
     }
 
@@ -967,6 +972,7 @@ else
                 }
                 
                 userMessage = $"欢迎回来！你有 {userCharacters.Count} 个角色。";
+                toastNotification?.ShowInfo($"欢迎回来！你有 {userCharacters.Count} 个角色。", "", 2000);
             }
             else
             {
@@ -988,6 +994,7 @@ else
             }
 
             userMessage = $"加载用户数据失败: {ex.Message}";
+            toastNotification?.ShowError($"加载用户数据失败: {ex.Message}");
         }
     }
 
@@ -1043,6 +1050,7 @@ else
         catch (Exception ex)
         {
             userMessage = $"检查离线收益失败: {ex.Message}";
+            toastNotification?.ShowError($"检查离线收益失败: {ex.Message}");
         }
     }
 
@@ -1167,6 +1175,7 @@ else
             if (userCharacters.Count >= 5)
             {
                 userMessage = "已达到角色数量上限（最多5个角色）";
+                toastNotification?.ShowWarning("已达到角色数量上限（最多5个角色）");
                 return;
             }
             
@@ -1181,6 +1190,7 @@ else
             {
                 selectedCharacter = newChar;
                 userMessage = $"角色 {newChar.Name} 创建成功！";
+                toastNotification?.ShowSuccess($"角色 {newChar.Name} 创建成功！");
             }
             
             ResetBattleState();
@@ -1190,6 +1200,7 @@ else
         catch (Exception ex)
         {
             userMessage = $"创建角色失败: {ex.Message}";
+            toastNotification?.ShowError($"创建角色失败: {ex.Message}");
         }
         finally { isBusy = false; }
     }
