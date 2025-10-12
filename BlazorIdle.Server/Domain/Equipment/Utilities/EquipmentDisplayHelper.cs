@@ -246,4 +246,111 @@ public static class EquipmentDisplayHelper
             _ => materialId
         };
     }
+
+    /// <summary>
+    /// 获取属性类型显示名称
+    /// </summary>
+    /// <param name="statType">属性类型</param>
+    /// <returns>中文名称</returns>
+    public static string GetStatTypeName(StatType statType)
+    {
+        return statType switch
+        {
+            StatType.Strength => "力量",
+            StatType.Agility => "敏捷",
+            StatType.Intellect => "智力",
+            StatType.Stamina => "耐力",
+            StatType.AttackPower => "攻击强度",
+            StatType.SpellPower => "法术强度",
+            StatType.CritRating => "暴击等级",
+            StatType.CritChance => "暴击率",
+            StatType.Haste => "急速等级",
+            StatType.HastePercent => "急速",
+            StatType.Armor => "护甲",
+            StatType.BlockRating => "格挡等级",
+            StatType.BlockChance => "格挡率",
+            StatType.HitRating => "命中等级",
+            StatType.MasteryRating => "精通等级",
+            StatType.DodgeRating => "闪避等级",
+            StatType.ParryRating => "招架等级",
+            StatType.Health => "生命值",
+            StatType.Mana => "法力值",
+            _ => statType.ToString()
+        };
+    }
+
+    /// <summary>
+    /// 格式化装备简要信息（单行显示）
+    /// </summary>
+    /// <param name="gear">装备实例</param>
+    /// <returns>简要信息字符串</returns>
+    public static string GetGearSummary(GearInstance? gear)
+    {
+        if (gear == null || gear.Definition == null)
+            return "空";
+
+        return $"{GetRarityName(gear.Rarity)} {gear.Definition.Name} (物品等级{gear.ItemLevel})";
+    }
+
+    /// <summary>
+    /// 比较两个稀有度的等级（用于排序）
+    /// </summary>
+    /// <param name="rarity1">稀有度1</param>
+    /// <param name="rarity2">稀有度2</param>
+    /// <returns>比较结果（负数表示rarity1更低，0表示相等，正数表示rarity1更高）</returns>
+    public static int CompareRarity(Rarity rarity1, Rarity rarity2)
+    {
+        return GetRarityOrder(rarity1) - GetRarityOrder(rarity2);
+    }
+
+    /// <summary>
+    /// 获取稀有度的排序值
+    /// </summary>
+    /// <param name="rarity">稀有度</param>
+    /// <returns>排序值（数值越大表示稀有度越高）</returns>
+    private static int GetRarityOrder(Rarity rarity)
+    {
+        return rarity switch
+        {
+            Rarity.Common => 0,
+            Rarity.Rare => 1,
+            Rarity.Epic => 2,
+            Rarity.Legendary => 3,
+            _ => -1
+        };
+    }
+
+    /// <summary>
+    /// 判断装备是否为武器
+    /// </summary>
+    /// <param name="slot">装备槽位</param>
+    /// <returns>是否为武器槽位</returns>
+    public static bool IsWeaponSlot(EquipmentSlot slot)
+    {
+        return slot is EquipmentSlot.MainHand or EquipmentSlot.OffHand or EquipmentSlot.TwoHand;
+    }
+
+    /// <summary>
+    /// 判断装备是否为护甲
+    /// </summary>
+    /// <param name="slot">装备槽位</param>
+    /// <returns>是否为护甲槽位</returns>
+    public static bool IsArmorSlot(EquipmentSlot slot)
+    {
+        return slot is EquipmentSlot.Head or EquipmentSlot.Shoulder or EquipmentSlot.Chest 
+            or EquipmentSlot.Wrist or EquipmentSlot.Hands or EquipmentSlot.Waist 
+            or EquipmentSlot.Legs or EquipmentSlot.Feet;
+    }
+
+    /// <summary>
+    /// 判断装备是否为饰品
+    /// </summary>
+    /// <param name="slot">装备槽位</param>
+    /// <returns>是否为饰品槽位</returns>
+    public static bool IsAccessorySlot(EquipmentSlot slot)
+    {
+        return slot is EquipmentSlot.Neck or EquipmentSlot.Back 
+            or EquipmentSlot.Finger1 or EquipmentSlot.Finger2 
+            or EquipmentSlot.Trinket1 or EquipmentSlot.Trinket2;
+    }
 }

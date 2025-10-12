@@ -25,8 +25,20 @@ public class EquipmentService
     /// <param name="characterId">角色ID</param>
     /// <param name="gearInstanceId">装备实例ID</param>
     /// <returns>操作结果</returns>
+    /// <exception cref="ArgumentException">当ID无效时抛出</exception>
     public async Task<EquipmentResult> EquipAsync(Guid characterId, Guid gearInstanceId)
     {
+        // 参数验证
+        if (characterId == Guid.Empty)
+        {
+            throw new ArgumentException("角色ID不能为空", nameof(characterId));
+        }
+        
+        if (gearInstanceId == Guid.Empty)
+        {
+            throw new ArgumentException("装备ID不能为空", nameof(gearInstanceId));
+        }
+        
         // 1. 获取装备实例
         var gear = await _context.Set<GearInstance>()
             .Include(g => g.Definition)
@@ -111,8 +123,15 @@ public class EquipmentService
     /// <param name="characterId">角色ID</param>
     /// <param name="slot">装备槽位</param>
     /// <returns>操作结果</returns>
+    /// <exception cref="ArgumentException">当角色ID无效时抛出</exception>
     public async Task<EquipmentResult> UnequipAsync(Guid characterId, EquipmentSlot slot)
     {
+        // 参数验证
+        if (characterId == Guid.Empty)
+        {
+            throw new ArgumentException("角色ID不能为空", nameof(characterId));
+        }
+        
         var gear = await _context.Set<GearInstance>()
             .FirstOrDefaultAsync(g => g.CharacterId == characterId 
                                    && g.SlotType == slot 
@@ -136,9 +155,16 @@ public class EquipmentService
     /// 获取角色所有已装备的装备
     /// </summary>
     /// <param name="characterId">角色ID</param>
-    /// <returns>装备列表</returns>
+    /// <returns>装备列表，如果没有装备则返回空列表</returns>
+    /// <exception cref="ArgumentException">当角色ID无效时抛出</exception>
     public async Task<List<GearInstance>> GetEquippedGearAsync(Guid characterId)
     {
+        // 参数验证
+        if (characterId == Guid.Empty)
+        {
+            throw new ArgumentException("角色ID不能为空", nameof(characterId));
+        }
+        
         return await _context.Set<GearInstance>()
             .Include(g => g.Definition)
             .Where(g => g.CharacterId == characterId && g.IsEquipped)
@@ -150,9 +176,16 @@ public class EquipmentService
     /// </summary>
     /// <param name="characterId">角色ID</param>
     /// <param name="slot">装备槽位</param>
-    /// <returns>装备实例</returns>
+    /// <returns>装备实例，如果槽位没有装备则返回null</returns>
+    /// <exception cref="ArgumentException">当角色ID无效时抛出</exception>
     public async Task<GearInstance?> GetEquippedGearInSlotAsync(Guid characterId, EquipmentSlot slot)
     {
+        // 参数验证
+        if (characterId == Guid.Empty)
+        {
+            throw new ArgumentException("角色ID不能为空", nameof(characterId));
+        }
+        
         return await _context.Set<GearInstance>()
             .Include(g => g.Definition)
             .FirstOrDefaultAsync(g => g.CharacterId == characterId 

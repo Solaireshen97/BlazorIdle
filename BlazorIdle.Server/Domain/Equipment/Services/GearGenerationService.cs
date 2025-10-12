@@ -27,8 +27,21 @@ public class GearGenerationService
     /// <param name="characterLevel">角色等级（影响物品等级）</param>
     /// <param name="ct">取消令牌</param>
     /// <returns>生成的装备实例</returns>
+    /// <exception cref="ArgumentNullException">当装备定义为null时抛出</exception>
+    /// <exception cref="ArgumentException">当角色等级无效时抛出</exception>
     public async Task<GearInstance> GenerateAsync(GearDefinition definition, int characterLevel, CancellationToken ct = default)
     {
+        // 参数验证
+        if (definition == null)
+        {
+            throw new ArgumentNullException(nameof(definition), "装备定义不能为null");
+        }
+        
+        if (characterLevel < 1)
+        {
+            throw new ArgumentException("角色等级必须大于0", nameof(characterLevel));
+        }
+        
         // 1. 确定稀有度
         var rarity = RollRarity(definition.RarityWeights);
         

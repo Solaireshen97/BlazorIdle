@@ -1,4 +1,5 @@
 using BlazorIdle.Server.Domain.Equipment.Models;
+using BlazorIdle.Server.Domain.Equipment.Utilities;
 using BlazorIdle.Shared.Models;
 
 namespace BlazorIdle.Server.Domain.Equipment.Services;
@@ -70,7 +71,7 @@ public class EquipmentValidator
 
         if (!allowedArmor.Contains(armorType))
         {
-            return ValidationResult.Failure($"{GetProfessionName(profession)}无法装备{ArmorCalculator.GetArmorTypeName(armorType)}");
+            return ValidationResult.Failure($"{GetProfessionName(profession)}无法装备{EquipmentDisplayHelper.GetArmorTypeName(armorType)}");
         }
 
         return ValidationResult.Success();
@@ -93,7 +94,7 @@ public class EquipmentValidator
 
         if (!allowedWeapons.Contains(weaponType))
         {
-            return ValidationResult.Failure($"{GetProfessionName(profession)}无法装备{AttackSpeedCalculator.GetWeaponTypeName(weaponType)}");
+            return ValidationResult.Failure($"{GetProfessionName(profession)}无法装备{EquipmentDisplayHelper.GetWeaponTypeName(weaponType)}");
         }
 
         return ValidationResult.Success();
@@ -138,7 +139,7 @@ public class EquipmentValidator
         // 其他装备必须匹配槽位
         if (gearSlot != targetSlot)
         {
-            return ValidationResult.Failure($"该装备只能装备到{GetSlotName(gearSlot)}槽位");
+            return ValidationResult.Failure($"该装备只能装备到{EquipmentDisplayHelper.GetSlotName(gearSlot)}槽位");
         }
 
         return ValidationResult.Success();
@@ -147,12 +148,23 @@ public class EquipmentValidator
     /// <summary>
     /// 完整验证装备是否可装备
     /// </summary>
+    /// <param name="definition">装备定义</param>
+    /// <param name="profession">职业</param>
+    /// <param name="characterLevel">角色等级</param>
+    /// <param name="targetSlot">目标槽位</param>
+    /// <returns>验证结果</returns>
+    /// <exception cref="ArgumentNullException">当装备定义为null时抛出</exception>
     public ValidationResult ValidateEquip(
         GearDefinition definition,
         Profession profession,
         int characterLevel,
         EquipmentSlot targetSlot)
     {
+        // 参数验证
+        if (definition == null)
+        {
+            throw new ArgumentNullException(nameof(definition), "装备定义不能为null");
+        }
         // 验证等级
         var levelResult = ValidateLevel(characterLevel, definition.RequiredLevel);
         if (!levelResult.IsSuccess)
@@ -210,6 +222,11 @@ public class EquipmentValidator
             : new HashSet<WeaponType> { WeaponType.None };
     }
 
+    /// <summary>
+    /// 获取职业显示名称
+    /// </summary>
+    /// <param name="profession">职业</param>
+    /// <returns>中文名称</returns>
     private static string GetProfessionName(Profession profession)
     {
         return profession switch
@@ -217,31 +234,6 @@ public class EquipmentValidator
             Profession.Warrior => "战士",
             Profession.Ranger => "游侠",
             _ => "未知职业"
-        };
-    }
-
-    private static string GetSlotName(EquipmentSlot slot)
-    {
-        return slot switch
-        {
-            EquipmentSlot.Head => "头部",
-            EquipmentSlot.Neck => "颈部",
-            EquipmentSlot.Shoulder => "肩部",
-            EquipmentSlot.Back => "背部",
-            EquipmentSlot.Chest => "胸部",
-            EquipmentSlot.Wrist => "腕部",
-            EquipmentSlot.Hands => "手部",
-            EquipmentSlot.Waist => "腰部",
-            EquipmentSlot.Legs => "腿部",
-            EquipmentSlot.Feet => "脚部",
-            EquipmentSlot.Finger1 => "戒指1",
-            EquipmentSlot.Finger2 => "戒指2",
-            EquipmentSlot.Trinket1 => "饰品1",
-            EquipmentSlot.Trinket2 => "饰品2",
-            EquipmentSlot.MainHand => "主手",
-            EquipmentSlot.OffHand => "副手",
-            EquipmentSlot.TwoHand => "双手",
-            _ => "未知"
         };
     }
 }
