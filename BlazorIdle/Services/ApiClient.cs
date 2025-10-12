@@ -201,6 +201,52 @@ public class ApiClient
         return _http.GetFromJsonAsync<EquipmentResponse>($"/api/equipment/{characterId}", ct);
     }
 
+    // ===== 装备增强系统（Phase 7: 装备分解与重铸） =====
+    
+    /// <summary>预览装备分解产出</summary>
+    public Task<DisenchantPreviewResponse?> PreviewDisenchantAsync(Guid gearInstanceId, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        return _http.GetFromJsonAsync<DisenchantPreviewResponse>($"/api/equipment/disenchant-preview/{gearInstanceId}", ct);
+    }
+
+    /// <summary>分解装备</summary>
+    public async Task<DisenchantResult?> DisenchantItemAsync(Guid characterId, Guid gearInstanceId, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        var response = await _http.PostAsJsonAsync($"/api/equipment/{characterId}/disenchant", 
+            new { GearInstanceId = gearInstanceId }, ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<DisenchantResult>(ct);
+    }
+
+    /// <summary>批量分解装备</summary>
+    public async Task<DisenchantBatchResult?> DisenchantBatchAsync(Guid characterId, List<Guid> gearInstanceIds, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        var response = await _http.PostAsJsonAsync($"/api/equipment/{characterId}/disenchant-batch", 
+            new { GearInstanceIds = gearInstanceIds }, ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<DisenchantBatchResult>(ct);
+    }
+
+    /// <summary>预览重铸成本和效果</summary>
+    public Task<ReforgePreviewResponse?> PreviewReforgeAsync(Guid gearInstanceId, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        return _http.GetFromJsonAsync<ReforgePreviewResponse>($"/api/equipment/reforge-preview/{gearInstanceId}", ct);
+    }
+
+    /// <summary>重铸装备（提升品级）</summary>
+    public async Task<ReforgeResult?> ReforgeItemAsync(Guid characterId, Guid gearInstanceId, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        var response = await _http.PostAsJsonAsync($"/api/equipment/{characterId}/reforge", 
+            new { GearInstanceId = gearInstanceId }, ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ReforgeResult>(ct);
+    }
+
     // ===== 活动计划 =====
     public async Task<ActivityPlanDto> CreateCombatPlanAsync(
         Guid characterId,

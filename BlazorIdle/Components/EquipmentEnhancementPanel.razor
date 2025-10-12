@@ -1,0 +1,400 @@
+@* 装备增强面板组件 - 用于装备分解和重铸 *@
+@using BlazorIdle.Client.Services
+@using BlazorIdle.Services
+@inject ApiClient Api
+
+<div class="panel" style="margin-top: 16px;">
+    <h4>⚒️ 装备增强</h4>
+    
+    @if (!string.IsNullOrEmpty(ErrorMessage))
+    {
+        <div class="alert alert-danger">@ErrorMessage</div>
+    }
+    
+    @if (IsLoading)
+    {
+        <p style="color: #666;">加载中...</p>
+    }
+    else
+    {
+        <!-- 标签页 -->
+        <div class="tabs" style="margin-bottom: 16px; border-bottom: 2px solid #ddd;">
+            <button class="@GetTabClass(EnhancementTab.Disenchant)" @onclick="() => SelectTab(EnhancementTab.Disenchant)">
+                🔮 装备分解
+            </button>
+            <button class="@GetTabClass(EnhancementTab.Reforge)" @onclick="() => SelectTab(EnhancementTab.Reforge)">
+                ⚡ 装备重铸
+            </button>
+        </div>
+
+        <!-- 装备分解标签 -->
+        @if (CurrentTab == EnhancementTab.Disenchant)
+        {
+            <div class="tab-content">
+                <p style="font-size: 13px; color: #666; margin-bottom: 12px;">
+                    💡 提示：将不需要的装备分解为材料，用于重铸其他装备。
+                </p>
+
+                @if (InventoryItems.Count == 0)
+                {
+                    <p style="color: #999; font-style: italic;">背包中没有可分解的装备</p>
+                }
+                else
+                {
+                    <div class="items-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px;">
+                        @foreach (var item in InventoryItems)
+                        {
+                            var isSelected = SelectedDisenchantIds.Contains(item.Id);
+                            var cardClass = isSelected ? "item-card selected" : "item-card";
+                            <div class="@cardClass" @key="item.Id" @onclick="() => ToggleDisenchantSelection(item.Id)" style="cursor: pointer; padding: 12px; border: 2px solid @(isSelected ? "#007bff" : "#ddd"); border-radius: 4px; background: @(isSelected ? "#e7f3ff" : "white"); transition: all 0.2s;">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                                    <span style="font-size: 24px;">@(item.Icon ?? "?")</span>
+                                    <div style="flex: 1;">
+                                        <div style="font-weight: 600; font-size: 13px; color: @GetRarityColor(item.Rarity);">@item.Name</div>
+                                        <div style="font-size: 11px; color: #666;">等级 @item.ItemLevel</div>
+                                    </div>
+                                </div>
+                                @if (DisenchantPreviews.ContainsKey(item.Id))
+                                {
+                                    <div style="font-size: 11px; color: #28a745; margin-top: 4px;">
+                                        @foreach (var mat in DisenchantPreviews[item.Id].Materials)
+                                        {
+                                            <div>• @mat.Key x@mat.Value</div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <button class="btn btn-primary" @onclick="DisenchantSelected" disabled="@(SelectedDisenchantIds.Count == 0 || IsBusy)">
+                            🔮 分解选中的装备 (@SelectedDisenchantIds.Count)
+                        </button>
+                        @if (SelectedDisenchantIds.Count > 0)
+                        {
+                            <button class="btn btn-secondary" @onclick="ClearDisenchantSelection" disabled="@IsBusy">
+                                清除选择
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- 装备重铸标签 -->
+        @if (CurrentTab == EnhancementTab.Reforge)
+        {
+            <div class="tab-content">
+                <p style="font-size: 13px; color: #666; margin-bottom: 12px;">
+                    💡 提示：消耗材料提升装备品级，增强装备属性。
+                </p>
+
+                @if (EquippedItems.Count == 0)
+                {
+                    <p style="color: #999; font-style: italic;">当前没有已装备的物品</p>
+                }
+                else
+                {
+                    <div class="items-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px;">
+                        @foreach (var item in EquippedItems)
+                        {
+                            <div class="item-card" @key="item.Id" style="padding: 12px; border: 2px solid #ddd; border-radius: 4px; background: white;">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                    <span style="font-size: 24px;">@(item.Icon ?? "?")</span>
+                                    <div style="flex: 1;">
+                                        <div style="font-weight: 600; font-size: 13px; color: @GetRarityColor(item.Rarity);">@item.Name</div>
+                                        <div style="font-size: 11px; color: #666;">品级 T@item.TierLevel | 等级 @item.ItemLevel</div>
+                                        <div style="font-size: 11px; color: #666;">@item.SlotName</div>
+                                    </div>
+                                </div>
+                                
+                                @if (ReforgePreviews.ContainsKey(item.Id))
+                                {
+                                    var preview = ReforgePreviews[item.Id];
+                                    @if (preview.CanReforge)
+                                    {
+                                        <div style="font-size: 11px; background: #f0f8ff; padding: 8px; border-radius: 4px; margin-bottom: 8px;">
+                                            <div style="font-weight: 600; color: #007bff; margin-bottom: 4px;">T@preview.CurrentTier → T@preview.NextTier</div>
+                                            <div style="color: #666; margin-bottom: 4px;">成本:</div>
+                                            @foreach (var cost in preview.Cost)
+                                            {
+                                                <div style="color: #d9534f;">• @cost.Key x@cost.Value</div>
+                                            }
+                                        </div>
+                                        <button class="btn btn-sm btn-success" @onclick="() => ReforgeItem(item.Id)" disabled="@IsBusy" style="width: 100%; font-size: 12px;">
+                                            ⚡ 重铸
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <div style="font-size: 11px; color: #999; font-style: italic;">@preview.Message</div>
+                                    }
+                                }
+                                else
+                                {
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => LoadReforgePreview(item.Id)" disabled="@IsBusy" style="width: 100%; font-size: 12px;">
+                                        查看重铸预览
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+<style>
+    .tabs button {
+        padding: 10px 20px;
+        border: none;
+        background: none;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        color: #666;
+        border-bottom: 3px solid transparent;
+        transition: all 0.2s;
+    }
+
+    .tabs button:hover {
+        color: #007bff;
+    }
+
+    .tabs button.active {
+        color: #007bff;
+        border-bottom-color: #007bff;
+    }
+
+    .item-card {
+        transition: transform 0.1s, box-shadow 0.1s;
+    }
+
+    .item-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .item-card.selected {
+        box-shadow: 0 0 0 2px #007bff;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public Guid CharacterId { get; set; }
+
+    [Parameter]
+    public bool IsLoading { get; set; }
+
+    [Parameter]
+    public string ErrorMessage { get; set; } = "";
+
+    [Parameter]
+    public List<InventoryItemDto> InventoryItems { get; set; } = new();
+
+    [Parameter]
+    public List<EquippedItemDto> EquippedItems { get; set; } = new();
+
+    [Parameter]
+    public EventCallback OnItemsChanged { get; set; }
+
+    /// <summary>标签页枚举</summary>
+    private enum EnhancementTab
+    {
+        Disenchant,
+        Reforge
+    }
+
+    private EnhancementTab CurrentTab = EnhancementTab.Disenchant;
+    private bool IsBusy = false;
+    private HashSet<Guid> SelectedDisenchantIds = new();
+    private Dictionary<Guid, DisenchantPreviewResponse> DisenchantPreviews = new();
+    private Dictionary<Guid, ReforgePreviewResponse> ReforgePreviews = new();
+
+    /// <summary>选择标签页</summary>
+    private void SelectTab(EnhancementTab tab)
+    {
+        CurrentTab = tab;
+        StateHasChanged();
+    }
+
+    /// <summary>获取标签按钮样式</summary>
+    private string GetTabClass(EnhancementTab tab)
+    {
+        return CurrentTab == tab ? "active" : "";
+    }
+
+    /// <summary>获取稀有度颜色</summary>
+    private string GetRarityColor(string rarity)
+    {
+        return rarity?.ToLower() switch
+        {
+            "common" => "#9d9d9d",
+            "rare" => "#0070dd",
+            "epic" => "#a335ee",
+            "legendary" => "#ff8000",
+            _ => "#333"
+        };
+    }
+
+    /// <summary>切换分解选择</summary>
+    private async Task ToggleDisenchantSelection(Guid itemId)
+    {
+        if (SelectedDisenchantIds.Contains(itemId))
+        {
+            SelectedDisenchantIds.Remove(itemId);
+        }
+        else
+        {
+            SelectedDisenchantIds.Add(itemId);
+            // 加载分解预览
+            if (!DisenchantPreviews.ContainsKey(itemId))
+            {
+                await LoadDisenchantPreview(itemId);
+            }
+        }
+        StateHasChanged();
+    }
+
+    /// <summary>清除分解选择</summary>
+    private void ClearDisenchantSelection()
+    {
+        SelectedDisenchantIds.Clear();
+        StateHasChanged();
+    }
+
+    /// <summary>加载分解预览</summary>
+    private async Task LoadDisenchantPreview(Guid itemId)
+    {
+        try
+        {
+            var preview = await Api.PreviewDisenchantAsync(itemId);
+            if (preview != null)
+            {
+                DisenchantPreviews[itemId] = preview;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"加载分解预览失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>分解选中的装备</summary>
+    private async Task DisenchantSelected()
+    {
+        if (SelectedDisenchantIds.Count == 0) return;
+
+        try
+        {
+            IsBusy = true;
+            var result = await Api.DisenchantBatchAsync(CharacterId, SelectedDisenchantIds.ToList());
+            
+            if (result != null)
+            {
+                // 清除选择
+                SelectedDisenchantIds.Clear();
+                DisenchantPreviews.Clear();
+                
+                // 通知父组件刷新
+                if (OnItemsChanged.HasDelegate)
+                {
+                    await OnItemsChanged.InvokeAsync();
+                }
+                
+                // 这里可以显示Toast通知
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"分解装备失败: {ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>加载重铸预览</summary>
+    private async Task LoadReforgePreview(Guid itemId)
+    {
+        try
+        {
+            IsBusy = true;
+            var preview = await Api.PreviewReforgeAsync(itemId);
+            if (preview != null)
+            {
+                ReforgePreviews[itemId] = preview;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"加载重铸预览失败: {ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>重铸装备</summary>
+    private async Task ReforgeItem(Guid itemId)
+    {
+        try
+        {
+            IsBusy = true;
+            var result = await Api.ReforgeItemAsync(CharacterId, itemId);
+            
+            if (result != null && result.Success)
+            {
+                // 清除预览缓存
+                ReforgePreviews.Remove(itemId);
+                
+                // 通知父组件刷新
+                if (OnItemsChanged.HasDelegate)
+                {
+                    await OnItemsChanged.InvokeAsync();
+                }
+                
+                // 这里可以显示Toast通知
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"重铸装备失败: {ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>简化的背包物品DTO</summary>
+    public class InventoryItemDto
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = "";
+        public string? Icon { get; set; }
+        public string Rarity { get; set; } = "";
+        public int ItemLevel { get; set; }
+    }
+
+    /// <summary>简化的已装备物品DTO</summary>
+    public class EquippedItemDto
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = "";
+        public string? Icon { get; set; }
+        public string Rarity { get; set; } = "";
+        public int ItemLevel { get; set; }
+        public int TierLevel { get; set; }
+        public string SlotName { get; set; } = "";
+    }
+}
