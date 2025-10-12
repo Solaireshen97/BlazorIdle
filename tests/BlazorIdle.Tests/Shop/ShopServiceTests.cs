@@ -6,6 +6,10 @@ using BlazorIdle.Server.Infrastructure.Persistence;
 using BlazorIdle.Shared.Models;
 using BlazorIdle.Shared.Models.Shop;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using Xunit;
 
@@ -19,6 +23,7 @@ public class ShopServiceTests : IDisposable
     private readonly GameDbContext _context;
     private readonly ShopService _shopService;
     private readonly PurchaseValidator _validator;
+    private readonly IShopCacheService _cacheService;
     private readonly Guid _testCharacterId;
 
     public ShopServiceTests()
@@ -30,7 +35,26 @@ public class ShopServiceTests : IDisposable
 
         _context = new GameDbContext(options);
         _validator = new PurchaseValidator(_context);
-        _shopService = new ShopService(_context, _validator);
+        
+        // 创建缓存服务（测试时禁用缓存以确保测试数据新鲜）
+        var serviceProvider = new ServiceCollection()
+            .AddMemoryCache()
+            .AddLogging()
+            .BuildServiceProvider();
+            
+        var cache = serviceProvider.GetRequiredService<IMemoryCache>();
+        var logger = serviceProvider.GetRequiredService<ILogger<ShopCacheService>>();
+        
+        // 创建配置（禁用缓存以便测试）
+        var configBuilder = new ConfigurationBuilder();
+        configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            { "Shop:EnableCaching", "false" }
+        });
+        var configuration = configBuilder.Build();
+        
+        _cacheService = new ShopCacheService(cache, logger, configuration);
+        _shopService = new ShopService(_context, _validator, _cacheService);
 
         // 设置测试数据
         _testCharacterId = Guid.NewGuid();

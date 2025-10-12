@@ -15,11 +15,16 @@ public class ShopService : IShopService
 {
     private readonly GameDbContext _context;
     private readonly IPurchaseValidator _validator;
+    private readonly IShopCacheService _cacheService;
 
-    public ShopService(GameDbContext context, IPurchaseValidator validator)
+    public ShopService(
+        GameDbContext context, 
+        IPurchaseValidator validator,
+        IShopCacheService cacheService)
     {
         _context = context;
         _validator = validator;
+        _cacheService = cacheService;
     }
 
     public async Task<ListShopsResponse> ListShopsAsync(string characterId)
@@ -37,11 +42,21 @@ public class ShopService : IShopService
             return new ListShopsResponse();
         }
 
-        var shops = await _context.ShopDefinitions
-            .Include(s => s.Items)
-            .Where(s => s.IsEnabled)
-            .OrderBy(s => s.SortOrder)
-            .ToListAsync();
+        // 尝试从缓存获取商店列表
+        var shops = await _cacheService.GetShopsAsync();
+        
+        if (shops == null)
+        {
+            // 缓存未命中，从数据库加载
+            shops = await _context.ShopDefinitions
+                .Include(s => s.Items)
+                .Where(s => s.IsEnabled)
+                .OrderBy(s => s.SortOrder)
+                .ToListAsync();
+            
+            // 将结果缓存
+            _cacheService.SetShops(shops);
+        }
 
         var shopDtos = shops.Select(s => new ShopDto
         {
@@ -73,10 +88,20 @@ public class ShopService : IShopService
             return new ListShopItemsResponse();
         }
 
-        var items = await _context.ShopItems
-            .Where(i => i.ShopId == shopId && i.IsEnabled)
-            .OrderBy(i => i.SortOrder)
-            .ToListAsync();
+        // 尝试从缓存获取商品列表
+        var items = await _cacheService.GetShopItemsAsync(shopId);
+        
+        if (items == null)
+        {
+            // 缓存未命中，从数据库加载
+            items = await _context.ShopItems
+                .Where(i => i.ShopId == shopId && i.IsEnabled)
+                .OrderBy(i => i.SortOrder)
+                .ToListAsync();
+            
+            // 将结果缓存
+            _cacheService.SetShopItems(shopId, items);
+        }
 
         var itemDtos = new List<ShopItemDto>();
         foreach (var item in items)

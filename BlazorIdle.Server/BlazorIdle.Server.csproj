@@ -25,4 +25,10 @@
     <ProjectReference Include="..\BlazorIdle.Shared\BlazorIdle.Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Config\Shop\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
