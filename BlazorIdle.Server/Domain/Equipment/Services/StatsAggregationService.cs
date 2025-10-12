@@ -1,3 +1,4 @@
+using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Domain.Equipment.Models;
 
 namespace BlazorIdle.Server.Domain.Equipment.Services;
@@ -11,15 +12,18 @@ public class StatsAggregationService
     private readonly EquipmentService _equipmentService;
     private readonly ArmorCalculator _armorCalculator;
     private readonly BlockCalculator _blockCalculator;
+    private readonly IGearSetRepository? _gearSetRepository;
 
     public StatsAggregationService(
         EquipmentService equipmentService,
         ArmorCalculator armorCalculator,
-        BlockCalculator blockCalculator)
+        BlockCalculator blockCalculator,
+        IGearSetRepository? gearSetRepository = null)
     {
         _equipmentService = equipmentService;
         _armorCalculator = armorCalculator;
         _blockCalculator = blockCalculator;
+        _gearSetRepository = gearSetRepository;
     }
 
     /// <summary>
@@ -140,7 +144,6 @@ public class StatsAggregationService
         }
 
         // 应用套装效果
-        // 注意：这里简化处理，实际应该从GearSet定义表读取套装效果
         foreach (var (setId, count) in setCounts)
         {
             var bonus = GetSetBonus(setId, count);
@@ -158,13 +161,40 @@ public class StatsAggregationService
     }
 
     /// <summary>
-    /// 获取套装加成（临时实现，实际应该从数据库读取）
+    /// 获取套装加成
+    /// 如果配置了GearSetRepository，则从数据库读取；否则使用默认值
     /// </summary>
     private Dictionary<StatType, double> GetSetBonus(string setId, int pieceCount)
     {
         var bonus = new Dictionary<StatType, double>();
 
-        // 简化实现：根据件数给予固定加成
+        // 如果有仓储，尝试从数据库读取套装定义
+        if (_gearSetRepository != null)
+        {
+            try
+            {
+                var gearSet = _gearSetRepository.GetByIdAsync(setId).GetAwaiter().GetResult();
+                if (gearSet != null && gearSet.Bonuses.ContainsKey(pieceCount))
+                {
+                    var modifiers = gearSet.Bonuses[pieceCount];
+                    foreach (var modifier in modifiers)
+                    {
+                        if (!bonus.ContainsKey(modifier.StatType))
+                        {
+                            bonus[modifier.StatType] = 0;
+                        }
+                        bonus[modifier.StatType] += modifier.Value;
+                    }
+                    return bonus;
+                }
+            }
+            catch
+            {
+                // 如果读取失败，使用默认值
+            }
+        }
+
+        // 默认套装加成（作为fallback）
         if (pieceCount >= 2)
         {
             bonus[StatType.AttackPower] = 50;
