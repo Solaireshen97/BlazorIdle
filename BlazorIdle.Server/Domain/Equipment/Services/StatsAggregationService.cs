@@ -34,29 +34,47 @@ public class StatsAggregationService
         // 1. 获取所有已装备的装备
         var equippedGear = await _equipmentService.GetEquippedGearAsync(characterId);
 
+        // 防御性编程：确保列表不为null
+        if (equippedGear == null || equippedGear.Count == 0)
+        {
+            return stats;
+        }
+
         // 2. 聚合基础属性
         foreach (var gear in equippedGear)
         {
-            // 2.1 聚合装备Roll的基础属性
-            foreach (var (statType, value) in gear.RolledStats)
+            // 跳过null装备
+            if (gear == null)
             {
-                if (!stats.ContainsKey(statType))
+                continue;
+            }
+
+            // 2.1 聚合装备Roll的基础属性
+            if (gear.RolledStats != null)
+            {
+                foreach (var (statType, value) in gear.RolledStats)
                 {
-                    stats[statType] = 0;
+                    if (!stats.ContainsKey(statType))
+                    {
+                        stats[statType] = 0;
+                    }
+                    stats[statType] += value;
                 }
-                stats[statType] += value;
             }
 
             // 2.2 聚合词条属性
-            foreach (var affix in gear.Affixes)
+            if (gear.Affixes != null)
             {
-                if (affix.ModifierType == ModifierType.Flat || affix.ModifierType == ModifierType.Percent)
+                foreach (var affix in gear.Affixes)
                 {
-                    if (!stats.ContainsKey(affix.StatType))
+                    if (affix.ModifierType == ModifierType.Flat || affix.ModifierType == ModifierType.Percent)
                     {
-                        stats[affix.StatType] = 0;
+                        if (!stats.ContainsKey(affix.StatType))
+                        {
+                            stats[affix.StatType] = 0;
+                        }
+                        stats[affix.StatType] += affix.RolledValue;
                     }
-                    stats[affix.StatType] += affix.RolledValue;
                 }
             }
 
@@ -77,13 +95,16 @@ public class StatsAggregationService
 
         // 3. 计算套装加成
         var setBonus = CalculateSetBonus(equippedGear);
-        foreach (var (statType, value) in setBonus)
+        if (setBonus != null)
         {
-            if (!stats.ContainsKey(statType))
+            foreach (var (statType, value) in setBonus)
             {
-                stats[statType] = 0;
+                if (!stats.ContainsKey(statType))
+                {
+                    stats[statType] = 0;
+                }
+                stats[statType] += value;
             }
-            stats[statType] += value;
         }
 
         return stats;
@@ -121,22 +142,33 @@ public class StatsAggregationService
     /// <summary>
     /// 计算套装加成
     /// </summary>
+    /// <param name="equippedGear">已装备的装备列表</param>
+    /// <returns>套装加成属性字典</returns>
     private Dictionary<StatType, double> CalculateSetBonus(List<GearInstance> equippedGear)
     {
         var setBonus = new Dictionary<StatType, double>();
+
+        // 防御性编程：验证输入
+        if (equippedGear == null || equippedGear.Count == 0)
+        {
+            return setBonus;
+        }
 
         // 统计各套装的件数
         var setCounts = new Dictionary<string, int>();
         foreach (var gear in equippedGear)
         {
-            if (!string.IsNullOrEmpty(gear.SetId))
+            // 跳过null或没有套装的装备
+            if (gear == null || string.IsNullOrEmpty(gear.SetId))
             {
-                if (!setCounts.ContainsKey(gear.SetId))
-                {
-                    setCounts[gear.SetId] = 0;
-                }
-                setCounts[gear.SetId]++;
+                continue;
             }
+
+            if (!setCounts.ContainsKey(gear.SetId))
+            {
+                setCounts[gear.SetId] = 0;
+            }
+            setCounts[gear.SetId]++;
         }
 
         // 应用套装效果
@@ -144,13 +176,16 @@ public class StatsAggregationService
         foreach (var (setId, count) in setCounts)
         {
             var bonus = GetSetBonus(setId, count);
-            foreach (var (statType, value) in bonus)
+            if (bonus != null)
             {
-                if (!setBonus.ContainsKey(statType))
+                foreach (var (statType, value) in bonus)
                 {
-                    setBonus[statType] = 0;
+                    if (!setBonus.ContainsKey(statType))
+                    {
+                        setBonus[statType] = 0;
+                    }
+                    setBonus[statType] += value;
                 }
-                setBonus[statType] += value;
             }
         }
 
