@@ -1,4 +1,5 @@
 using BlazorIdle.Server.Application.Abstractions;
+using BlazorIdle.Server.Domain.Equipment.Configuration;
 using BlazorIdle.Server.Domain.Equipment.Models;
 using BlazorIdle.Server.Domain.Equipment.ValueObjects;
 
@@ -72,16 +73,10 @@ public class GearGenerationService
     /// </summary>
     private Rarity RollRarity(Dictionary<Rarity, double> rarityWeights)
     {
+        // 使用配置中的默认权重
         if (rarityWeights == null || rarityWeights.Count == 0)
         {
-            // 默认权重
-            rarityWeights = new Dictionary<Rarity, double>
-            {
-                { Rarity.Common, 50.0 },
-                { Rarity.Rare, 30.0 },
-                { Rarity.Epic, 15.0 },
-                { Rarity.Legendary, 5.0 }
-            };
+            rarityWeights = EquipmentSystemConfig.RarityConfig.DefaultWeights;
         }
 
         var totalWeight = rarityWeights.Values.Sum();

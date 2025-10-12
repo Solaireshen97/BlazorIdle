@@ -1,3 +1,4 @@
+using BlazorIdle.Server.Domain.Equipment.Configuration;
 using BlazorIdle.Server.Domain.Equipment.Models;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -167,7 +168,7 @@ public class DisenchantService
         // 根据品级给予额外材料
         if (gear.TierLevel >= 2)
         {
-            var tierMaterialId = "essence_tier";
+            var tierMaterialId = EquipmentSystemConfig.DisenchantConfig.TierMaterial;
             var tierAmount = gear.TierLevel - 1; // T2给1个，T3给2个
             if (tierAmount > 0)
             {
@@ -186,19 +187,21 @@ public class DisenchantService
         // 根据护甲类型返回不同的基础材料
         if (gear.Definition == null)
         {
-            return "material_generic";
+            return EquipmentSystemConfig.DisenchantConfig.ArmorMaterials[ArmorType.None];
         }
 
-        return gear.Definition.ArmorType switch
+        // 武器装备
+        if (gear.Definition.WeaponType != WeaponType.None)
         {
-            ArmorType.Cloth => "material_cloth",
-            ArmorType.Leather => "material_leather",
-            ArmorType.Mail => "material_mail",
-            ArmorType.Plate => "material_plate",
-            _ => gear.Definition.WeaponType != WeaponType.None 
-                ? "material_weapon" 
-                : "material_generic"
-        };
+            return EquipmentSystemConfig.DisenchantConfig.WeaponMaterial;
+        }
+
+        // 护甲装备
+        return EquipmentSystemConfig.DisenchantConfig.ArmorMaterials.TryGetValue(
+            gear.Definition.ArmorType, 
+            out var materialId) 
+                ? materialId 
+                : EquipmentSystemConfig.DisenchantConfig.ArmorMaterials[ArmorType.None];
     }
 
     /// <summary>
@@ -217,14 +220,10 @@ public class DisenchantService
         // 基础数量根据物品等级（确保至少为1）
         var baseAmount = Math.Max(1, 1 + gear.ItemLevel / 10);
 
-        // 根据槽位调整（胸甲和双手武器给更多材料）
-        var slotMultiplier = gear.Definition?.Slot switch
-        {
-            EquipmentSlot.Chest => 1.5,
-            EquipmentSlot.TwoHand => 1.5,
-            EquipmentSlot.Legs => 1.3,
-            _ => 1.0
-        };
+        // 根据槽位调整（使用配置）
+        var slotMultiplier = gear.Definition != null 
+            ? EquipmentSystemConfig.DisenchantConfig.GetSlotMultiplier(gear.Definition.Slot)
+            : 1.0;
 
         // 确保结果至少为1
         return Math.Max(1, (int)(baseAmount * slotMultiplier));
@@ -235,14 +234,11 @@ public class DisenchantService
     /// </summary>
     private string? GetRareMaterialId(Rarity rarity)
     {
-        return rarity switch
-        {
-            Rarity.Common => null, // 普通装备不给稀有材料
-            Rarity.Rare => "essence_rare",
-            Rarity.Epic => "essence_epic",
-            Rarity.Legendary => "essence_legendary",
-            _ => null
-        };
+        return EquipmentSystemConfig.DisenchantConfig.RareMaterials.TryGetValue(
+            rarity, 
+            out var materialId) 
+                ? materialId 
+                : null;
     }
 
     /// <summary>
@@ -250,13 +246,11 @@ public class DisenchantService
     /// </summary>
     private int CalculateRareMaterialAmount(GearInstance gear)
     {
-        return gear.Rarity switch
-        {
-            Rarity.Rare => 1,
-            Rarity.Epic => 3,
-            Rarity.Legendary => 10,
-            _ => 0
-        };
+        return EquipmentSystemConfig.DisenchantConfig.RareMaterialAmounts.TryGetValue(
+            gear.Rarity, 
+            out var amount) 
+                ? amount 
+                : 0;
     }
 
     /// <summary>
