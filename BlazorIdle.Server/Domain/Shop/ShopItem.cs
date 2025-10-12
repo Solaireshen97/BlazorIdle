@@ -67,6 +67,20 @@ public class ShopItem
     public int MinLevel { get; set; } = 1;
 
     /// <summary>
+    /// 物品类别（可选，用于过滤）
+    /// 例如: "Consumable", "Equipment", "Material", "Special"
+    /// </summary>
+    [MaxLength(50)]
+    public string? ItemCategory { get; set; }
+
+    /// <summary>
+    /// 稀有度（可选，用于过滤和排序）
+    /// 例如: "Common", "Uncommon", "Rare", "Epic", "Legendary"
+    /// </summary>
+    [MaxLength(50)]
+    public string? Rarity { get; set; }
+
+    /// <summary>
     /// 是否启用
     /// </summary>
     public bool IsEnabled { get; set; } = true;

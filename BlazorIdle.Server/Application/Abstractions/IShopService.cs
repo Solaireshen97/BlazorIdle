@@ -18,6 +18,11 @@ public interface IShopService
     Task<ListShopItemsResponse> GetShopItemsAsync(string shopId, string characterId);
 
     /// <summary>
+    /// 获取指定商店的商品列表（带过滤和排序）
+    /// </summary>
+    Task<ListShopItemsResponse> GetShopItemsWithFilterAsync(string characterId, ShopItemFilterRequest filter);
+
+    /// <summary>
     /// 购买商品
     /// </summary>
     Task<PurchaseResponse> PurchaseItemAsync(string characterId, PurchaseRequest request);
