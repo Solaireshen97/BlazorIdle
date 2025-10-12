@@ -51,8 +51,51 @@
                 }
                 else
                 {
+                    <!-- 筛选和批量操作工具栏 -->
+                    <div style="margin-bottom: 16px; padding: 12px; background: #f8f9fa; border-radius: 4px;">
+                        <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+                            <!-- 品质筛选 -->
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <label style="font-size: 13px; font-weight: 500; margin: 0;">品质:</label>
+                                <select @bind="filterRarity" @bind:after="ApplyFilters" style="padding: 4px 8px; font-size: 13px; border-radius: 4px; border: 1px solid #ddd;">
+                                    <option value="">全部</option>
+                                    <option value="Common">普通</option>
+                                    <option value="Rare">稀有</option>
+                                    <option value="Epic">史诗</option>
+                                    <option value="Legendary">传说</option>
+                                </select>
+                            </div>
+
+                            <!-- 等级范围筛选 -->
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <label style="font-size: 13px; font-weight: 500; margin: 0;">等级:</label>
+                                <input type="number" @bind="filterMinLevel" @bind:after="ApplyFilters" min="1" placeholder="最低" style="width: 60px; padding: 4px 8px; font-size: 13px; border-radius: 4px; border: 1px solid #ddd;" />
+                                <span style="color: #666;">-</span>
+                                <input type="number" @bind="filterMaxLevel" @bind:after="ApplyFilters" min="1" placeholder="最高" style="width: 60px; padding: 4px 8px; font-size: 13px; border-radius: 4px; border: 1px solid #ddd;" />
+                            </div>
+
+                            <!-- 批量选择按钮 -->
+                            <div style="margin-left: auto; display: flex; gap: 6px;">
+                                <button class="btn btn-sm btn-outline-primary" @onclick="SelectAllFiltered" disabled="@IsBusy" title="选中当前筛选结果中的所有装备">
+                                    全选 (@GetFilteredInventoryItems().Count)
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="DeselectAll" disabled="@IsBusy" title="取消所有选择">
+                                    反选
+                                </button>
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(filterRarity) || filterMinLevel.HasValue || filterMaxLevel.HasValue)
+                        {
+                            <div style="margin-top: 8px; font-size: 12px; color: #666;">
+                                <span>筛选结果: @GetFilteredInventoryItems().Count / @InventoryItems.Count 件装备</span>
+                                <button class="btn btn-sm btn-link" @onclick="ClearFilters" style="padding: 0 8px; font-size: 12px;">清除筛选</button>
+                            </div>
+                        }
+                    </div>
+
                     <div class="items-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px;">
-                        @foreach (var item in InventoryItems)
+                        @foreach (var item in GetFilteredInventoryItems())
                         {
                             var isSelected = SelectedDisenchantIds.Contains(item.Id);
                             var cardClass = isSelected ? "item-card selected" : "item-card";
@@ -227,6 +270,12 @@
     private Dictionary<Guid, DisenchantPreviewResponse> DisenchantPreviews = new();
     private Dictionary<Guid, ReforgePreviewResponse> ReforgePreviews = new();
     
+    // 筛选条件
+    private string filterRarity = "";
+    private int? filterMinLevel = null;
+    private int? filterMaxLevel = null;
+    private List<InventoryItemDto> filteredItems = new();
+    
     // 确认对话框状态
     private bool showConfirmDialog = false;
     private string confirmTitle = "";
@@ -246,6 +295,63 @@
     private string GetTabClass(EnhancementTab tab)
     {
         return CurrentTab == tab ? "active" : "";
+    }
+
+    /// <summary>获取筛选后的背包装备列表</summary>
+    private List<InventoryItemDto> GetFilteredInventoryItems()
+    {
+        var items = InventoryItems.AsEnumerable();
+
+        // 品质筛选
+        if (!string.IsNullOrEmpty(filterRarity))
+        {
+            items = items.Where(i => i.Rarity == filterRarity);
+        }
+
+        // 等级范围筛选
+        if (filterMinLevel.HasValue)
+        {
+            items = items.Where(i => i.ItemLevel >= filterMinLevel.Value);
+        }
+        if (filterMaxLevel.HasValue)
+        {
+            items = items.Where(i => i.ItemLevel <= filterMaxLevel.Value);
+        }
+
+        return items.ToList();
+    }
+
+    /// <summary>应用筛选条件</summary>
+    private void ApplyFilters()
+    {
+        StateHasChanged();
+    }
+
+    /// <summary>清除所有筛选条件</summary>
+    private void ClearFilters()
+    {
+        filterRarity = "";
+        filterMinLevel = null;
+        filterMaxLevel = null;
+        StateHasChanged();
+    }
+
+    /// <summary>全选当前筛选结果中的装备</summary>
+    private void SelectAllFiltered()
+    {
+        var filtered = GetFilteredInventoryItems();
+        foreach (var item in filtered)
+        {
+            SelectedDisenchantIds.Add(item.Id);
+        }
+        StateHasChanged();
+    }
+
+    /// <summary>反选（取消所有选择）</summary>
+    private void DeselectAll()
+    {
+        SelectedDisenchantIds.Clear();
+        StateHasChanged();
     }
 
     /// <summary>获取稀有度颜色</summary>
