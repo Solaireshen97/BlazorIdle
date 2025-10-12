@@ -172,12 +172,13 @@ public class EquipmentStatsIntegration
     /// 获取装备提供的格挡率（如果装备了盾牌）
     /// </summary>
     /// <param name="characterId">角色ID</param>
+    /// <param name="characterStrength">角色力量值（用于计算格挡率加成）</param>
     /// <returns>格挡率（0-1）</returns>
-    public Task<double> GetEquipmentBlockChanceAsync(Guid characterId)
+    public async Task<double> GetEquipmentBlockChanceAsync(Guid characterId, double characterStrength = 0)
     {
-        // TODO: 实现盾牌格挡率计算
-        // 需要检查副手槽位是否装备了盾牌
-        return Task.FromResult(0.0);
+        // 使用StatsAggregationService的CalculateBlockChanceAsync方法
+        // 该方法已经实现了完整的盾牌格挡率计算逻辑
+        return await _statsAggregationService.CalculateBlockChanceAsync(characterId, characterStrength);
     }
     
     /// <summary>

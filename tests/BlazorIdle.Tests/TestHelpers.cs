@@ -27,6 +27,7 @@ public static class TestHelpers
     public class FakeStatsAggregationService : StatsAggregationService
     {
         private Dictionary<Guid, Dictionary<StatType, double>> _equipmentStats = new();
+        private Dictionary<Guid, double> _blockChances = new();
 
         public FakeStatsAggregationService() : base(null!, new ArmorCalculator(), new BlockCalculator())
         {
@@ -44,13 +45,22 @@ public static class TestHelpers
 
         public override Task<double> CalculateBlockChanceAsync(Guid characterId, double characterStrength = 0)
         {
-            // Return 0 for tests - simulates no shield equipped
+            // Return configured block chance for tests
+            if (_blockChances.TryGetValue(characterId, out var blockChance))
+            {
+                return Task.FromResult(blockChance);
+            }
             return Task.FromResult(0.0);
         }
 
         public void SetEquipmentStats(Guid characterId, Dictionary<StatType, double> stats)
         {
             _equipmentStats[characterId] = stats;
+        }
+
+        public void SetBlockChance(Guid characterId, double blockChance)
+        {
+            _blockChances[characterId] = blockChance;
         }
     }
 }
