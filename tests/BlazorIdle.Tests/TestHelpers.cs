@@ -48,6 +48,25 @@ public static class TestHelpers
             return Task.FromResult(0.0);
         }
 
+        // Phase 5: 武器类型相关方法的Fake实现
+        public override Task<WeaponType> GetMainHandWeaponTypeAsync(Guid characterId)
+        {
+            // 返回None表示没有武器
+            return Task.FromResult(WeaponType.None);
+        }
+
+        public override Task<WeaponType> GetOffHandWeaponTypeAsync(Guid characterId)
+        {
+            // 返回None表示没有副手武器
+            return Task.FromResult(WeaponType.None);
+        }
+
+        public override Task<bool> IsDualWieldingAsync(Guid characterId)
+        {
+            // 返回false表示没有双持
+            return Task.FromResult(false);
+        }
+
         public void SetEquipmentStats(Guid characterId, Dictionary<StatType, double> stats)
         {
             _equipmentStats[characterId] = stats;
