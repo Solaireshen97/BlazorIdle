@@ -21,7 +21,8 @@ public class EquipmentServiceTests : IDisposable
             .Options;
 
         _context = new GameDbContext(options);
-        _service = new EquipmentService(_context);
+        var validator = new EquipmentValidator();
+        _service = new EquipmentService(_context, validator);
     }
 
     [Fact]
@@ -29,6 +30,7 @@ public class EquipmentServiceTests : IDisposable
     {
         // Arrange
         var characterId = Guid.NewGuid();
+        await CreateTestCharacterAsync(characterId);
         var (definition, gear) = CreateTestGear(characterId, EquipmentSlot.Head);
         
         await _context.Set<GearDefinition>().AddAsync(definition);
@@ -109,6 +111,7 @@ public class EquipmentServiceTests : IDisposable
     {
         // Arrange
         var characterId = Guid.NewGuid();
+        await CreateTestCharacterAsync(characterId);
         var (mainHandDef, mainHandGear) = CreateTestGear(characterId, EquipmentSlot.MainHand);
         var (offHandDef, offHandGear) = CreateTestGear(characterId, EquipmentSlot.OffHand);
         var (twoHandDef, twoHandGear) = CreateTestGear(characterId, EquipmentSlot.TwoHand);
@@ -263,6 +266,24 @@ public class EquipmentServiceTests : IDisposable
         };
 
         return (definition, gear);
+    }
+
+    private async Task CreateTestCharacterAsync(Guid characterId, BlazorIdle.Shared.Models.Profession profession = BlazorIdle.Shared.Models.Profession.Warrior, int level = 50)
+    {
+        var character = new BlazorIdle.Server.Domain.Characters.Character
+        {
+            Id = characterId,
+            Name = "TestCharacter",
+            Profession = profession,
+            Level = level,
+            Strength = 10,
+            Agility = 10,
+            Intellect = 10,
+            Stamina = 10
+        };
+
+        await _context.Characters.AddAsync(character);
+        await _context.SaveChangesAsync();
     }
 
     public void Dispose()
