@@ -217,6 +217,37 @@ public class EquipmentStatsIntegrationTests
         Assert.True(result.SpellPower >= 50, "SpellPower should include equipment bonus");
         Assert.True(result.CritChance > 0, "CritChance should include converted crit rating");
     }
+
+    [Fact]
+    public async Task GetEquipmentBlockChanceAsync_WithoutShield_ShouldReturnZero()
+    {
+        // Arrange
+        var characterId = Guid.NewGuid();
+        var characterStrength = 25.0;
+
+        // Act
+        var result = await _service.GetEquipmentBlockChanceAsync(characterId, characterStrength);
+
+        // Assert
+        Assert.Equal(0, result);
+    }
+
+    [Fact]
+    public async Task GetEquipmentBlockChanceAsync_WithShield_ShouldReturnBlockChance()
+    {
+        // Arrange
+        var characterId = Guid.NewGuid();
+        var characterStrength = 25.0;
+        var expectedBlockChance = 0.15; // 15% block chance
+
+        _fakeStatsAggregationService.SetBlockChance(characterId, expectedBlockChance);
+
+        // Act
+        var result = await _service.GetEquipmentBlockChanceAsync(characterId, characterStrength);
+
+        // Assert
+        Assert.Equal(expectedBlockChance, result);
+    }
 }
 
 /// <summary>
@@ -225,6 +256,7 @@ public class EquipmentStatsIntegrationTests
 internal class FakeStatsAggregationService : StatsAggregationService
 {
     private readonly Dictionary<Guid, Dictionary<StatType, double>> _equipmentStatsCache = new();
+    private readonly Dictionary<Guid, double> _blockChanceCache = new();
 
     public FakeStatsAggregationService() : base(null!, new ArmorCalculator(), new BlockCalculator())
     {
@@ -233,6 +265,11 @@ internal class FakeStatsAggregationService : StatsAggregationService
     public void SetEquipmentStats(Guid characterId, Dictionary<StatType, double> stats)
     {
         _equipmentStatsCache[characterId] = stats;
+    }
+
+    public void SetBlockChance(Guid characterId, double blockChance)
+    {
+        _blockChanceCache[characterId] = blockChance;
     }
 
     public override Task<Dictionary<StatType, double>> CalculateEquipmentStatsAsync(Guid characterId)
@@ -247,7 +284,11 @@ internal class FakeStatsAggregationService : StatsAggregationService
 
     public override Task<double> CalculateBlockChanceAsync(Guid characterId, double characterStrength = 0)
     {
-        // Return 0 for tests - simulates no shield equipped
+        // Return cached block chance for tests, or 0 if not set (simulates no shield equipped)
+        if (_blockChanceCache.TryGetValue(characterId, out var blockChance))
+        {
+            return Task.FromResult(blockChance);
+        }
         return Task.FromResult(0.0);
     }
     
