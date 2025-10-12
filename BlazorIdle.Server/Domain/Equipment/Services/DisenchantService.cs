@@ -85,6 +85,21 @@ public class DisenchantService
             };
         }
 
+        // 验证批量大小限制
+        if (gearInstanceIds.Count > EquipmentSystemConfig.Limits.MaxBatchDisenchantSize)
+        {
+            return new BatchDisenchantResult
+            {
+                SuccessCount = 0,
+                FailCount = 0,
+                TotalMaterials = new Dictionary<string, int>(),
+                Errors = new List<string> 
+                { 
+                    $"批量分解数量超过限制（最大{EquipmentSystemConfig.Limits.MaxBatchDisenchantSize}个）" 
+                }
+            };
+        }
+
         var successCount = 0;
         var failCount = 0;
         var totalMaterials = new Dictionary<string, int>();
