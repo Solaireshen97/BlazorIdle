@@ -1,7 +1,7 @@
 @using BlazorIdle.Client.Services
 @using BlazorIdle.Shared.Models
 
-@* 装备面板组件 - Step 5: 装备系统UI预留 + Phase 6: 装备对比和限制提示 *@
+@* 装备面板组件 - Step 5: 装备系统UI预留 + Phase 6: 装备对比和限制提示 + Phase 7: 装备增强 *@
 <div class="equipment-panel" style="margin-top: 16px; padding: 16px; background: @BackgroundColor; border-radius: 4px; border: 1px solid @BorderColor;">
     <h6 style="margin: 0 0 12px 0; font-size: 14px; font-weight: bold;">🎒 @Title</h6>
     
@@ -122,8 +122,43 @@
                 </div>
             }
         </div>
+        
+        @* Phase 7: 装备增强操作按钮 *@
+        @if (SelectedGear != null)
+        {
+            <div style="margin-top: 16px; padding: 12px; background: #f5f5f5; border-radius: 4px; border: 1px solid #e0e0e0;">
+                <div style="font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #555;">⚙️ 装备操作</div>
+                <div style="display: flex; gap: 8px;">
+                    <button @onclick="@(() => OpenEnhancementDialog(SelectedGear!, "disenchant"))" 
+                            style="flex: 1; padding: 8px; background: #ff5722; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">
+                        ⚙️ 分解
+                    </button>
+                    <button @onclick="@(() => OpenEnhancementDialog(SelectedGear!, "reforge"))" 
+                            style="flex: 1; padding: 8px; background: #2196f3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">
+                        🔨 重铸
+                    </button>
+                    <button @onclick="ClearSelection" 
+                            style="padding: 8px 16px; background: #757575; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                        取消
+                    </button>
+                </div>
+                <div style="margin-top: 8px; font-size: 11px; color: #666;">
+                    当前选择: @SelectedGear.Icon @SelectedGear.Name
+                </div>
+            </div>
+        }
     }
 </div>
+
+@* Phase 7: 装备增强对话框 *@
+<GearEnhancementDialog 
+    IsVisible="@_showEnhancementDialog"
+    EnhancementType="@_enhancementType"
+    CharacterId="@CharacterId"
+    GearInstanceId="@_selectedGearId"
+    GearInfo="@_selectedGearInfo"
+    OnCloseCallback="@CloseEnhancementDialog"
+    OnSuccessCallback="@OnEnhancementSuccess" />
 
 @code {
     /// <summary>角色ID</summary>
@@ -164,6 +199,25 @@
     
     /// <summary>装备限制辅助服务（用于检查职业和等级限制）</summary>
     private EquipmentRestrictionHelper? _restrictionHelper = new();
+    
+    /// <summary>当前选中的装备（用于增强操作）</summary>
+    private GearInstanceDto? SelectedGear { get; set; }
+    
+    /// <summary>是否显示增强对话框</summary>
+    private bool _showEnhancementDialog = false;
+    
+    /// <summary>增强类型（disenchant或reforge）</summary>
+    private string _enhancementType = "disenchant";
+    
+    /// <summary>选中的装备ID</summary>
+    private Guid _selectedGearId = Guid.Empty;
+    
+    /// <summary>选中的装备基本信息</summary>
+    private GearEnhancementDialog.GearBasicInfo? _selectedGearInfo = null;
+    
+    /// <summary>装备增强成功后的回调</summary>
+    [Parameter]
+    public EventCallback OnEquipmentChanged { get; set; }
 
     /// <summary>渲染单个装备槽</summary>
     private RenderFragment RenderSlot(string slotType, string slotName, string defaultIcon) => builder =>
@@ -190,35 +244,49 @@
         builder.AddAttribute(1, "class", "equipment-slot");
         builder.AddAttribute(2, "style", $"position: relative; padding: 8px; background: {bgColor}; border: 2px solid {borderColor}; border-radius: 6px; text-align: center; cursor: pointer; opacity: {opacity}; min-height: 60px; display: flex; flex-direction: column; align-items: center; justify-content: center;");
         builder.AddAttribute(3, "title", hasItem ? GetItemTooltipWithComparison(slot!.Item!, slotType) : $"空 - {slotName}");
+        
+        // Phase 7: 点击装备槽选中装备（用于增强操作）
+        if (hasItem)
+        {
+            builder.AddAttribute(4, "onclick", Microsoft.AspNetCore.Components.EventCallback.Factory.Create<Microsoft.AspNetCore.Components.Web.MouseEventArgs>(this, () => SelectGear(slot!.Item!)));
+        }
 
         // 图标
-        builder.OpenElement(4, "div");
-        builder.AddAttribute(5, "style", "font-size: 24px; margin-bottom: 2px;");
-        builder.AddContent(6, icon);
+        builder.OpenElement(10, "div");
+        builder.AddAttribute(11, "style", "font-size: 24px; margin-bottom: 2px;");
+        builder.AddContent(12, icon);
         builder.CloseElement();
 
         // 名称
-        builder.OpenElement(7, "div");
-        builder.AddAttribute(8, "style", "font-size: 9px; color: #555; font-weight: bold; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;");
-        builder.AddContent(9, itemName);
+        builder.OpenElement(13, "div");
+        builder.AddAttribute(14, "style", "font-size: 9px; color: #555; font-weight: bold; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;");
+        builder.AddContent(15, itemName);
         builder.CloseElement();
 
         // 品质标签（如果有装备）
         if (hasItem)
         {
             var rarityColor = GetRarityColor(slot!.Item!.Rarity);
-            builder.OpenElement(10, "div");
-            builder.AddAttribute(11, "style", $"position: absolute; top: 2px; right: 2px; font-size: 8px; padding: 1px 4px; background: {rarityColor}; color: white; border-radius: 2px; font-weight: bold;");
-            builder.AddContent(12, GetRarityText(slot!.Item!.Rarity));
+            builder.OpenElement(16, "div");
+            builder.AddAttribute(17, "style", $"position: absolute; top: 2px; right: 2px; font-size: 8px; padding: 1px 4px; background: {rarityColor}; color: white; border-radius: 2px; font-weight: bold;");
+            builder.AddContent(18, GetRarityText(slot!.Item!.Rarity));
             builder.CloseElement();
         }
         
         // 限制状态标识（如果有装备且无法装备）
         if (hasItem && !canEquip && _restrictionHelper != null)
         {
-            builder.OpenElement(13, "div");
-            builder.AddAttribute(14, "style", "position: absolute; top: 2px; left: 2px; font-size: 12px; color: #f44336; background: rgba(255,255,255,0.8); border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-weight: bold;");
-            builder.AddContent(15, _restrictionHelper.GetRestrictionIcon(false));
+            builder.OpenElement(19, "div");
+            builder.AddAttribute(20, "style", "position: absolute; top: 2px; left: 2px; font-size: 12px; color: #f44336; background: rgba(255,255,255,0.8); border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-weight: bold;");
+            builder.AddContent(21, _restrictionHelper.GetRestrictionIcon(false));
+            builder.CloseElement();
+        }
+        
+        // Phase 7: 选中状态边框
+        if (hasItem && SelectedGear != null && SelectedGear.Id == slot!.Item!.Id)
+        {
+            builder.OpenElement(22, "div");
+            builder.AddAttribute(23, "style", "position: absolute; inset: -2px; border: 3px solid #2196f3; border-radius: 6px; pointer-events: none; animation: pulse 1.5s infinite;");
             builder.CloseElement();
         }
 
@@ -446,4 +514,72 @@
         
         return tooltip;
     }
+    
+    /// <summary>
+    /// Phase 7: 选中装备（用于增强操作）
+    /// </summary>
+    private void SelectGear(GearInstanceDto gear)
+    {
+        SelectedGear = gear;
+        StateHasChanged();
+    }
+    
+    /// <summary>
+    /// Phase 7: 清除选择
+    /// </summary>
+    private void ClearSelection()
+    {
+        SelectedGear = null;
+        StateHasChanged();
+    }
+    
+    /// <summary>
+    /// Phase 7: 打开装备增强对话框
+    /// </summary>
+    private void OpenEnhancementDialog(GearInstanceDto gear, string type)
+    {
+        _enhancementType = type;
+        _selectedGearId = gear.Id;
+        _selectedGearInfo = new GearEnhancementDialog.GearBasicInfo
+        {
+            Name = gear.Name,
+            Icon = gear.Icon ?? "⚔️",
+            Rarity = GetRarityText(gear.Rarity),
+            ItemLevel = gear.ItemLevel
+        };
+        _showEnhancementDialog = true;
+    }
+    
+    /// <summary>
+    /// Phase 7: 关闭装备增强对话框
+    /// </summary>
+    private void CloseEnhancementDialog()
+    {
+        _showEnhancementDialog = false;
+        ClearSelection();
+    }
+    
+    /// <summary>
+    /// Phase 7: 装备增强成功后的处理
+    /// </summary>
+    private async Task OnEnhancementSuccess()
+    {
+        // 通知父组件刷新装备数据
+        await OnEquipmentChanged.InvokeAsync();
+        
+        // 延迟关闭对话框，让用户看到成功消息
+        await Task.Delay(1500);
+        CloseEnhancementDialog();
+    }
 }
+
+<style>
+    @@keyframes pulse {
+        0%, 100% {
+            opacity: 1;
+        }
+        50% {
+            opacity: 0.5;
+        }
+    }
+</style>
