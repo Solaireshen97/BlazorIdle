@@ -30,4 +30,12 @@
     <ProjectReference Include="..\..\BlazorIdle\BlazorIdle.csproj" />
   </ItemGroup>
 
+  <!-- 复制商店配置文件到测试输出目录 -->
+  <ItemGroup>
+    <None Include="..\..\BlazorIdle.Server\Config\Shop\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Config\Shop\%(Filename)%(Extension)</Link>
+    </None>
+  </ItemGroup>
+
 </Project>
