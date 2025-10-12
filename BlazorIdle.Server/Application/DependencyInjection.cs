@@ -2,7 +2,9 @@
 using BlazorIdle.Server.Application.Activities;
 using BlazorIdle.Server.Application.Battles;
 using BlazorIdle.Server.Application.Economy;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace BlazorIdle.Server.Application;
 
@@ -48,15 +50,27 @@ public static class ApplicationDI
         //  - 使用 Scoped：与请求生命周期绑定
         services.AddScoped<ActivityPlanService>();
 
-        // ShopService:
-        //  - 商店服务，负责商店和商品查询、购买等功能
-        //  - 使用 Scoped：与请求生命周期绑定
-        services.AddScoped<IShopService, Application.Shop.ShopService>();
-
         // PurchaseValidator:
         //  - 购买验证器，负责验证购买请求的合法性
         //  - 使用 Scoped：与请求生命周期绑定
         services.AddScoped<IPurchaseValidator, Application.Shop.PurchaseValidator>();
+
+        // ShopService:
+        //  - 商店服务核心实现
+        //  - 使用 Scoped：与请求生命周期绑定
+        services.AddScoped<Application.Shop.ShopService>();
+
+        // CachedShopService:
+        //  - 商店服务缓存装饰器，提供缓存功能
+        //  - 使用装饰器模式，依赖于内部的 ShopService
+        //  - 使用 Scoped：与请求生命周期绑定
+        services.AddScoped<IShopService>(provider =>
+        {
+            var innerService = provider.GetRequiredService<Application.Shop.ShopService>();
+            var cache = provider.GetRequiredService<IMemoryCache>();
+            var settings = provider.GetRequiredService<IOptions<Application.Shop.ShopSettings>>();
+            return new Application.Shop.CachedShopService(innerService, cache, settings);
+        });
 
         // 配置 Shop Settings
         services.AddOptions<Application.Shop.ShopSettings>()

@@ -72,6 +72,9 @@ builder.Services
     .AddInfrastructure(builder.Configuration)   // ע�������ʩ��DbContext / �ִ����ڲ��ѵ��� AddRepositories��
     .AddApplication();                          // ע��Ӧ�ò�����������Command/Query Handler �ȣ�
 
+// 4.5 �����ڴ滺�������
+builder.Services.AddMemoryCache();
+
 // 5. ע�����߼�⺧̨����
 builder.Services.AddHostedService<OfflineDetectionService>();
 
