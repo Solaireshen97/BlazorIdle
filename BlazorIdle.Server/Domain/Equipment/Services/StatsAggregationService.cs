@@ -254,6 +254,65 @@ public class StatsAggregationService
         
         return WeaponType.None;
     }
+    
+    /// <summary>
+    /// 检查是否正在双持武器
+    /// </summary>
+    /// <param name="characterId">角色ID</param>
+    /// <returns>true表示双持，false表示未双持</returns>
+    public virtual async Task<bool> IsDualWieldingAsync(Guid characterId)
+    {
+        var equippedGear = await _equipmentService.GetEquippedGearAsync(characterId);
+        
+        // 检查是否有双手武器（双手武器不能双持）
+        var hasTwoHandWeapon = equippedGear.Any(g => 
+            g.SlotType == EquipmentSlot.TwoHand && 
+            g.Definition?.WeaponType != null && 
+            g.Definition.WeaponType != WeaponType.None);
+        
+        if (hasTwoHandWeapon)
+        {
+            return false;
+        }
+        
+        // 检查主手和副手是否都装备了可以双持的武器
+        var mainHand = equippedGear.FirstOrDefault(g => g.SlotType == EquipmentSlot.MainHand);
+        var offHand = equippedGear.FirstOrDefault(g => g.SlotType == EquipmentSlot.OffHand);
+        
+        if (mainHand?.Definition?.WeaponType == null || offHand?.Definition?.WeaponType == null)
+        {
+            return false;
+        }
+        
+        // 副手是盾牌不算双持
+        if (offHand.Definition.WeaponType == WeaponType.Shield)
+        {
+            return false;
+        }
+        
+        // 检查两个武器是否都是可以双持的类型
+        return AttackSpeedCalculator.CanDualWield(mainHand.Definition.WeaponType) &&
+               AttackSpeedCalculator.CanDualWield(offHand.Definition.WeaponType);
+    }
+    
+    /// <summary>
+    /// 计算双持伤害系数
+    /// </summary>
+    /// <param name="characterId">角色ID</param>
+    /// <returns>伤害系数，双持时约0.85（副手惩罚），否则1.0</returns>
+    public virtual async Task<double> GetDualWieldDamageMultiplierAsync(Guid characterId)
+    {
+        bool isDualWielding = await IsDualWieldingAsync(characterId);
+        
+        if (!isDualWielding)
+        {
+            return 1.0;
+        }
+        
+        // 双持时，副手有命中惩罚，但整体伤害略有提升
+        // 这里简化处理：双持时总伤害为单手的85%，但攻击速度更快
+        return 0.85;
+    }
 }
 
 /// <summary>

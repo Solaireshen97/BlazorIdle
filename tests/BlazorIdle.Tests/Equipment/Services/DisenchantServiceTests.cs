@@ -129,7 +129,7 @@ public class DisenchantServiceTests : IDisposable
         // 稀有品质以上应该产出稀有材料
         if (rarity != Rarity.Common)
         {
-            Assert.True(result.Materials.Any(m => m.Key.Contains("essence")));
+            Assert.Contains(result.Materials, m => m.Key.Contains("essence"));
         }
     }
 

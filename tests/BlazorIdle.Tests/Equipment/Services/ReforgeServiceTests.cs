@@ -107,7 +107,7 @@ public class ReforgeServiceTests : IDisposable
     [Theory]
     [InlineData(1, 2, 1.25)] // T1->T2: 0.8->1.0, ratio = 1.25
     [InlineData(2, 3, 1.2)]  // T2->T3: 1.0->1.2, ratio = 1.2
-    public async Task ReforgeAsync_ShouldApplyCorrectMultiplier(int fromTier, int toTier, double expectedRatio)
+    public async Task ReforgeAsync_ShouldApplyCorrectMultiplier(int fromTier, int _, double expectedRatio)
     {
         // Arrange
         var characterId = Guid.NewGuid();
