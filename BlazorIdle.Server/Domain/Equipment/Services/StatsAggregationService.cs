@@ -26,9 +26,16 @@ public class StatsAggregationService
     /// 计算角色装备总属性
     /// </summary>
     /// <param name="characterId">角色ID</param>
-    /// <returns>属性字典（属性类型 -> 数值）</returns>
+    /// <returns>属性字典（属性类型 -> 数值），如果没有装备则返回空字典</returns>
+    /// <exception cref="ArgumentException">当角色ID无效时抛出</exception>
     public virtual async Task<Dictionary<StatType, double>> CalculateEquipmentStatsAsync(Guid characterId)
     {
+        // 参数验证
+        if (characterId == Guid.Empty)
+        {
+            throw new ArgumentException("角色ID不能为空", nameof(characterId));
+        }
+        
         var stats = new Dictionary<StatType, double>();
 
         // 1. 获取所有已装备的装备
