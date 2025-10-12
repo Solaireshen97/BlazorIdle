@@ -469,8 +469,13 @@ else
 @if (lastCreated is not null)
 {
     <div class="panel" style="margin-top: 18px;">
-        <h4>5. 异步 Step 战斗（调试）</h4>
+        <h4 @onclick="() => showStepBattle = !showStepBattle" style="cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px;">
+            <span style="transition: transform 0.2s; display: inline-block; transform: rotate(@(showStepBattle ? "0deg" : "-90deg"));">▼</span>
+            5. 异步 Step 战斗（调试）
+        </h4>
 
+        @if (showStepBattle)
+        {
         <div class="form-row">
             <div>
                 <label>模式</label>
@@ -821,14 +826,20 @@ else
                 }
             </div>
         }
+        }
     </div>
 }
 
 @if (lastCreated is not null)
 {
     <div class="panel" style="margin-top: 18px;">
-        <h4>6. 批量模拟器</h4>
+        <h4 @onclick="() => showSimulator = !showSimulator" style="cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px;">
+            <span style="transition: transform 0.2s; display: inline-block; transform: rotate(@(showSimulator ? "0deg" : "-90deg"));">▼</span>
+            6. 批量模拟器
+        </h4>
 
+        @if (showSimulator)
+        {
         <div class="row" style="gap:12px; align-items:end;">
             <div>
                 <label>模式</label>
@@ -906,6 +917,7 @@ else
                 </div>
             </div>
         }
+        }
     </div>
 }
 }
@@ -927,6 +939,10 @@ else
     private ConfirmDialog.DialogType confirmDialogType = ConfirmDialog.DialogType.Danger;
     private string confirmButtonText = "确认";
     private Func<Task>? pendingConfirmAction;
+    
+    // ====== 折叠面板状态 ======
+    private bool showStepBattle = false;     // Step战斗默认折叠
+    private bool showSimulator = false;       // 模拟器默认折叠
 
     // ====== 离线战斗 ======
     private OfflineCheckResult? offlineCheckResult;
