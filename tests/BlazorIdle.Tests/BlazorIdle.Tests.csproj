@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\BlazorIdle.Server\BlazorIdle.Server.csproj" />
+    <ProjectReference Include="..\..\BlazorIdle\BlazorIdle.csproj" />
   </ItemGroup>
 
 </Project>
