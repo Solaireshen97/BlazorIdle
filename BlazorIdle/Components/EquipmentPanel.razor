@@ -81,7 +81,7 @@
                 </div>
                 <div style="display: flex; justify-content: space-between;">
                     <span>🔰 格挡率:</span>
-                    <span style="font-weight: bold; color: #0277bd;">@GetStatPercent("BlockChance")</span>
+                    <span style="font-weight: bold; color: #0277bd;">@GetStatPercentDisplay("BlockChance")</span>
                 </div>
                 
                 @* 速度与暴击 *@
@@ -93,6 +93,15 @@
                     <span>💥 暴击:</span>
                     <span style="font-weight: bold; color: #c2185b;">@GetStatPercent("CritChance")</span>
                 </div>
+                
+                @* 攻击速度（如果有武器） *@
+                @if (!string.IsNullOrEmpty(WeaponInfo) && GetAttackSpeed() > 0)
+                {
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>⏱️ 攻击速度:</span>
+                        <span style="font-weight: bold; color: #ff6f00;">@GetAttackSpeedDisplay()</span>
+                    </div>
+                }
                 
                 @* 其他属性 *@
                 <div style="display: flex; justify-content: space-between;">
@@ -299,10 +308,22 @@
             tooltip += $"护甲类型: {GetArmorTypeName(item.ArmorType)}\n";
         }
         
-        // 显示武器类型（如果有）
+        // 显示武器类型和攻击速度（如果有）
         if (!string.IsNullOrEmpty(item.WeaponType) && item.WeaponType != "None")
         {
             tooltip += $"武器类型: {GetWeaponTypeName(item.WeaponType)}\n";
+            
+            // 计算该武器的攻击速度
+            if (_dpsCalculator != null)
+            {
+                var testStats = new Dictionary<string, double>(TotalStats);
+                var dpsResult = _dpsCalculator.CalculateDps(testStats, item.WeaponType);
+                if (dpsResult.AttackInterval > 0)
+                {
+                    var attackSpeed = 1.0 / dpsResult.AttackInterval;
+                    tooltip += $"攻击速度: {attackSpeed:F2}/秒 ({dpsResult.AttackInterval:F2}秒间隔)\n";
+                }
+            }
         }
         
         // 检查职业和等级限制（如果有限制辅助服务）
@@ -318,8 +339,8 @@
         
         if (item.Stats.Count > 0)
         {
-            tooltip += "\n属性:\n";
-            foreach (var stat in item.Stats)
+            tooltip += "\n━━━━━━━━━━━━━━━━\n装备属性:\n";
+            foreach (var stat in item.Stats.OrderByDescending(s => Math.Abs(s.Value)))
             {
                 var displayValue = IsPercentageStat(stat.Key) 
                     ? $"+{stat.Value * 100:F1}%" 
@@ -330,10 +351,25 @@
         
         if (item.Affixes.Count > 0)
         {
-            tooltip += "\n词条:\n";
+            tooltip += "\n━━━━━━━━━━━━━━━━\n特殊词条:\n";
             foreach (var affix in item.Affixes)
             {
-                tooltip += $"  {affix.DisplayText}\n";
+                tooltip += $"  • {affix.DisplayText}\n";
+            }
+        }
+        
+        // 如果是武器，显示预估单件DPS
+        if (!string.IsNullOrEmpty(item.WeaponType) && item.WeaponType != "None" && _dpsCalculator != null)
+        {
+            var testStats = new Dictionary<string, double>(TotalStats);
+            foreach (var (key, value) in item.Stats)
+            {
+                testStats[key] = testStats.GetValueOrDefault(key, 0) + value;
+            }
+            var dpsResult = _dpsCalculator.CalculateDps(testStats, item.WeaponType);
+            if (dpsResult.TotalDps > 0)
+            {
+                tooltip += $"\n━━━━━━━━━━━━━━━━\n⚔️ 装备此武器DPS: {_dpsCalculator.FormatDps(dpsResult.TotalDps)}\n";
             }
         }
         
@@ -492,5 +528,65 @@
         
         var dps = GetEstimatedDps();
         return _dpsCalculator.FormatDps(dps);
+    }
+    
+    /// <summary>
+    /// 获取攻击速度（每秒攻击次数）
+    /// </summary>
+    private double GetAttackSpeed()
+    {
+        if (_dpsCalculator == null || TotalStats == null || TotalStats.Count == 0)
+        {
+            return 0;
+        }
+        
+        var dpsResult = _dpsCalculator.CalculateDps(TotalStats, WeaponInfo);
+        if (dpsResult.AttackInterval > 0)
+        {
+            return 1.0 / dpsResult.AttackInterval;
+        }
+        
+        return 0;
+    }
+    
+    /// <summary>
+    /// 获取攻击速度显示
+    /// </summary>
+    private string GetAttackSpeedDisplay()
+    {
+        var attackSpeed = GetAttackSpeed();
+        if (attackSpeed > 0)
+        {
+            return $"{attackSpeed:F2}/秒";
+        }
+        return "0/秒";
+    }
+    
+    /// <summary>
+    /// 获取百分比属性值显示（增强版，包含额外信息）
+    /// </summary>
+    private string GetStatPercentDisplay(string statId)
+    {
+        if (TotalStats.TryGetValue(statId, out var value))
+        {
+            if (value <= 0)
+            {
+                return "0%";
+            }
+            
+            var percentText = $"+{value * 100:F1}%";
+            
+            // 如果是格挡率，添加减伤说明
+            if (statId == "BlockChance" && value > 0)
+            {
+                // 格挡减伤30%
+                var blockReduction = 30.0;
+                var effectiveReduction = value * blockReduction;
+                percentText += $" (减伤{effectiveReduction:F1}%)";
+            }
+            
+            return percentText;
+        }
+        return "0%";
     }
 }
