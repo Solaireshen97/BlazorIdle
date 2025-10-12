@@ -201,10 +201,50 @@ public class EquipmentStatsIntegration
         return attackSpeedCalculator.GetBaseAttackSpeed(weaponType);
     }
 
+    /// <summary>
+    /// 获取武器信息用于战斗伤害计算（Phase 5）
+    /// </summary>
+    /// <param name="characterId">角色ID</param>
+    /// <returns>包含主手、副手和双持状态的武器信息</returns>
+    public async Task<WeaponInfo> GetWeaponInfoAsync(Guid characterId)
+    {
+        var mainHandType = await _statsAggregationService.GetMainHandWeaponTypeAsync(characterId);
+        var offHandType = await _statsAggregationService.GetOffHandWeaponTypeAsync(characterId);
+        var isDualWielding = await _statsAggregationService.IsDualWieldingAsync(characterId);
+        
+        return new WeaponInfo
+        {
+            MainHandWeaponType = mainHandType,
+            OffHandWeaponType = offHandType,
+            IsDualWielding = isDualWielding
+        };
+    }
+
     private static double Clamp01(double value)
     {
         if (value < 0) return 0;
         if (value > 1) return 1;
         return value;
     }
+}
+
+/// <summary>
+/// 武器信息（用于战斗伤害计算）
+/// </summary>
+public class WeaponInfo
+{
+    /// <summary>
+    /// 主手武器类型
+    /// </summary>
+    public WeaponType MainHandWeaponType { get; init; } = WeaponType.None;
+    
+    /// <summary>
+    /// 副手武器类型
+    /// </summary>
+    public WeaponType OffHandWeaponType { get; init; } = WeaponType.None;
+    
+    /// <summary>
+    /// 是否双持
+    /// </summary>
+    public bool IsDualWielding { get; init; }
 }
