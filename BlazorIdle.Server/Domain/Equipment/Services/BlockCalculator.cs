@@ -80,4 +80,30 @@ public class BlockCalculator
     {
         return MAX_BLOCK_CHANCE;
     }
+    
+    /// <summary>
+    /// 格式化格挡率为百分比字符串（供UI显示）
+    /// </summary>
+    /// <param name="blockChance">格挡率（0-1）</param>
+    /// <returns>格式化的百分比字符串，例如"25.5%"</returns>
+    public static string FormatBlockChancePercentage(double blockChance)
+    {
+        return $"{blockChance * 100:F1}%";
+    }
+    
+    /// <summary>
+    /// 获取格挡信息摘要（供UI显示）
+    /// </summary>
+    /// <param name="blockChance">当前格挡率</param>
+    /// <param name="shieldItemLevel">盾牌物品等级</param>
+    /// <param name="characterStrength">角色力量值</param>
+    /// <returns>格挡信息描述</returns>
+    public static string GetBlockSummary(double blockChance, int shieldItemLevel, double characterStrength)
+    {
+        var percentage = FormatBlockChancePercentage(blockChance);
+        var maxPercentage = FormatBlockChancePercentage(MAX_BLOCK_CHANCE);
+        var reductionPercentage = FormatBlockChancePercentage(BLOCK_DAMAGE_REDUCTION);
+        
+        return $"格挡率: {percentage} (最大{maxPercentage}) | 格挡减伤: {reductionPercentage} | 盾牌等级: {shieldItemLevel} | 力量: {characterStrength:F0}";
+    }
 }
