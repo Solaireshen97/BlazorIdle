@@ -249,6 +249,12 @@ public class StatsAggregationService
     {
         var equippedGear = await _equipmentService.GetEquippedGearAsync(characterId);
         
+        // 空值检查：如果没有装备返回None
+        if (equippedGear == null || equippedGear.Count == 0)
+        {
+            return WeaponType.None;
+        }
+        
         // 先检查是否装备双手武器
         var twoHandWeapon = equippedGear.FirstOrDefault(g => 
             g.SlotType == EquipmentSlot.TwoHand && 
@@ -280,6 +286,12 @@ public class StatsAggregationService
     public virtual async Task<WeaponType> GetOffHandWeaponTypeAsync(Guid characterId)
     {
         var equippedGear = await _equipmentService.GetEquippedGearAsync(characterId);
+        
+        // 空值检查：如果没有装备返回None
+        if (equippedGear == null || equippedGear.Count == 0)
+        {
+            return WeaponType.None;
+        }
         
         // 检查是否装备双手武器（如果是，副手为空）
         var twoHandWeapon = equippedGear.FirstOrDefault(g => 
