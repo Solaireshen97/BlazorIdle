@@ -36,7 +36,7 @@ public class EquipmentStatsIntegrationTests
         {
             { StatType.AttackPower, 100 },
             { StatType.CritRating, 200 },
-            { StatType.Haste, 0.05 },
+            { StatType.HastePercent, 0.05 },  // 使用HastePercent表示百分比
             { StatType.Armor, 500 }
         };
 
@@ -121,7 +121,7 @@ public class EquipmentStatsIntegrationTests
         // 直接提供急速百分比
         var equipmentStats = new Dictionary<StatType, double>
         {
-            { StatType.Haste, 0.10 }
+            { StatType.HastePercent, 0.10 }  // 使用HastePercent表示百分比
         };
 
         _fakeStatsAggregationService.SetEquipmentStats(characterId, equipmentStats);
@@ -132,6 +132,30 @@ public class EquipmentStatsIntegrationTests
         // Assert
         Assert.True(result.HastePercent >= 0.10, 
             $"HastePercent should be at least 0.10, but was {result.HastePercent}");
+    }
+
+    [Fact]
+    public async Task BuildStatsWithEquipmentAsync_ShouldConvertHasteRatingToPercent()
+    {
+        // Arrange
+        var characterId = Guid.NewGuid();
+        var profession = Profession.Warrior;
+        var primaryAttrs = new PrimaryAttributes { Strength = 20, Agility = 10, Intellect = 5, Stamina = 15 };
+
+        // 400 急速评级 = 0.10 急速百分比 (400 / 4000)
+        var equipmentStats = new Dictionary<StatType, double>
+        {
+            { StatType.Haste, 400 }  // Haste rating, not percent
+        };
+
+        _fakeStatsAggregationService.SetEquipmentStats(characterId, equipmentStats);
+
+        // Act
+        var result = await _service.BuildStatsWithEquipmentAsync(characterId, profession, primaryAttrs);
+
+        // Assert
+        Assert.True(result.HastePercent >= 0.10, 
+            $"HastePercent should be at least 0.10 from 400 rating, but was {result.HastePercent}");
     }
 
     [Fact]
