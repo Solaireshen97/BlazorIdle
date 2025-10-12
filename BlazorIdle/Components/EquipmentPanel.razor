@@ -151,6 +151,9 @@
     
     /// <summary>武器信息显示</summary>
     [Parameter] public string WeaponInfo { get; set; } = "";
+    
+    /// <summary>装备对比服务（可选，用于显示对比信息）</summary>
+    private EquipmentComparisonService? _comparisonService = new();
 
     /// <summary>渲染单个装备槽</summary>
     private RenderFragment RenderSlot(string slotType, string slotName, string defaultIcon) => builder =>
@@ -166,7 +169,7 @@
         builder.OpenElement(0, "div");
         builder.AddAttribute(1, "class", "equipment-slot");
         builder.AddAttribute(2, "style", $"position: relative; padding: 8px; background: {bgColor}; border: 2px solid {borderColor}; border-radius: 6px; text-align: center; cursor: pointer; opacity: {opacity}; min-height: 60px; display: flex; flex-direction: column; align-items: center; justify-content: center;");
-        builder.AddAttribute(3, "title", hasItem ? GetItemTooltip(slot!.Item!) : $"空 - {slotName}");
+        builder.AddAttribute(3, "title", hasItem ? GetItemTooltipWithComparison(slot!.Item!, slotType) : $"空 - {slotName}");
 
         // 图标
         builder.OpenElement(4, "div");
@@ -349,5 +352,58 @@
             "CritChance" or "HastePercent" or "BlockChance" => true,
             _ => false
         };
+    }
+    
+    /// <summary>
+    /// 获取装备对比提示信息（增强版，显示与当前装备的差异）
+    /// </summary>
+    /// <param name="item">装备实例</param>
+    /// <param name="slotType">槽位类型，用于查找当前装备</param>
+    /// <returns>带对比信息的Tooltip</returns>
+    private string GetItemTooltipWithComparison(GearInstanceDto item, string slotType)
+    {
+        var tooltip = GetItemTooltip(item);
+        
+        // 如果没有对比服务，返回基础tooltip
+        if (_comparisonService == null)
+        {
+            return tooltip;
+        }
+        
+        // 查找当前槽位的装备
+        var currentSlot = Slots.FirstOrDefault(s => s.SlotType == slotType);
+        var currentItem = currentSlot?.Item;
+        
+        // 如果当前槽位没有装备，或者就是同一件装备，不显示对比
+        if (currentItem == null || currentItem.Id == item.Id)
+        {
+            return tooltip;
+        }
+        
+        // 进行对比
+        var comparison = _comparisonService.Compare(currentItem, item);
+        
+        // 添加对比信息
+        tooltip += "\n\n━━━━━━━━━━━━━━━━\n";
+        tooltip += $"📊 与当前装备对比:\n";
+        tooltip += $"评分: {(comparison.QualityScoreDifference >= 0 ? "+" : "")}{comparison.QualityScoreDifference}\n";
+        tooltip += $"物品等级: {(comparison.ItemLevelDifference >= 0 ? "+" : "")}{comparison.ItemLevelDifference}\n";
+        
+        if (comparison.StatDifferences.Count > 0)
+        {
+            tooltip += "\n属性变化:\n";
+            foreach (var (statId, difference) in comparison.StatDifferences.OrderByDescending(x => Math.Abs(x.Value)))
+            {
+                var arrow = difference > 0 ? "↑" : "↓";
+                var color = difference > 0 ? "绿" : "红";
+                var displayValue = _comparisonService.GetDifferenceDisplayText(statId, difference, false);
+                var statName = _comparisonService.GetStatDisplayName(statId);
+                tooltip += $"  {arrow} {statName}: {displayValue}\n";
+            }
+        }
+        
+        tooltip += $"\n总体评估: {(comparison.IsUpgrade ? "✓ 升级" : "✗ 降级")}";
+        
+        return tooltip;
     }
 }
