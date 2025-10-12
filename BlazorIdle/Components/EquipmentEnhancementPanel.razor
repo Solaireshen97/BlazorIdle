@@ -301,6 +301,7 @@
         }
         catch (Exception ex)
         {
+            ToastNotification?.ShowError($"加载分解预览失败: {ex.Message}", "错误");
             Console.WriteLine($"加载分解预览失败: {ex.Message}");
         }
     }
@@ -389,6 +390,7 @@
         }
         catch (Exception ex)
         {
+            ToastNotification?.ShowError($"加载重铸预览失败: {ex.Message}", "错误");
             Console.WriteLine($"加载重铸预览失败: {ex.Message}");
         }
         finally
