@@ -78,10 +78,25 @@ public class ReforgeService
     /// <summary>
     /// 重新计算属性（应用新的品级系数）
     /// </summary>
+    /// <param name="gear">装备实例</param>
+    /// <param name="oldTier">旧品级</param>
+    /// <param name="newTier">新品级</param>
     private void RecalculateStatsWithNewTier(GearInstance gear, int oldTier, int newTier)
     {
+        // 防御性编程：验证输入
+        if (gear == null || gear.RolledStats == null)
+        {
+            return;
+        }
+
         var oldMultiplier = GetTierMultiplier(oldTier);
         var newMultiplier = GetTierMultiplier(newTier);
+
+        // 防止除以零
+        if (oldMultiplier <= 0)
+        {
+            return;
+        }
 
         // 计算倍率变化
         var ratio = newMultiplier / oldMultiplier;
@@ -90,7 +105,8 @@ public class ReforgeService
         var updatedStats = new Dictionary<StatType, double>();
         foreach (var (statType, value) in gear.RolledStats)
         {
-            updatedStats[statType] = value * ratio;
+            // 确保数值不为负
+            updatedStats[statType] = Math.Max(0, value * ratio);
         }
         gear.RolledStats = updatedStats;
     }
@@ -112,13 +128,21 @@ public class ReforgeService
     /// <summary>
     /// 计算装备评分
     /// </summary>
+    /// <param name="gear">装备实例</param>
+    /// <returns>装备评分（整数值，至少为0）</returns>
     private int CalculateQualityScore(GearInstance gear)
     {
-        // 基础属性分数
-        var statScore = gear.RolledStats.Values.Sum() * 0.1;
+        // 防御性编程：验证输入
+        if (gear == null)
+        {
+            return 0;
+        }
 
-        // 词条分数
-        var affixScore = gear.Affixes.Sum(a => a.RolledValue * 0.2);
+        // 基础属性分数（确保不为null）
+        var statScore = (gear.RolledStats?.Values.Sum() ?? 0) * 0.1;
+
+        // 词条分数（确保不为null）
+        var affixScore = (gear.Affixes?.Sum(a => a.RolledValue * 0.2) ?? 0);
 
         // 稀有度加成
         var rarityMultiplier = gear.Rarity switch
@@ -140,7 +164,8 @@ public class ReforgeService
         };
 
         var totalScore = (statScore + affixScore) * rarityMultiplier * tierMultiplier;
-        return (int)Math.Round(totalScore);
+        // 确保结果不为负
+        return Math.Max(0, (int)Math.Round(totalScore));
     }
 
     /// <summary>
@@ -151,6 +176,12 @@ public class ReforgeService
     private Dictionary<string, int> CalculateReforgeCost(GearInstance gear)
     {
         var cost = new Dictionary<string, int>();
+
+        // 防御性编程：验证输入
+        if (gear == null)
+        {
+            return cost;
+        }
 
         // 基础成本根据当前品级和稀有度
         var baseCost = (gear.TierLevel + 1) * 10; // T1->T2需要20，T2->T3需要30
@@ -165,8 +196,8 @@ public class ReforgeService
             _ => 1.0
         };
 
-        // 需要的材料
-        cost["material_essence"] = (int)(baseCost * rarityMultiplier);
+        // 需要的材料（确保至少为1）
+        cost["material_essence"] = Math.Max(1, (int)(baseCost * rarityMultiplier));
 
         // 根据稀有度需要对应的稀有材料
         var rareMaterial = gear.Rarity switch
@@ -179,11 +210,13 @@ public class ReforgeService
 
         if (rareMaterial != null)
         {
-            cost[rareMaterial] = gear.TierLevel + 1; // T1->T2需要2个，T2->T3需要3个
+            var rareMaterialCount = gear.TierLevel + 1; // T1->T2需要2个，T2->T3需要3个
+            cost[rareMaterial] = Math.Max(1, rareMaterialCount);
         }
 
-        // 金币成本
-        cost["gold"] = gear.ItemLevel * 100 * gear.TierLevel;
+        // 金币成本（确保至少为100）
+        var goldCost = gear.ItemLevel * 100 * Math.Max(1, gear.TierLevel);
+        cost["gold"] = Math.Max(100, goldCost);
 
         return cost;
     }
