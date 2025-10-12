@@ -12,11 +12,16 @@ public class EquipmentService
 {
     private readonly GameDbContext _context;
     private readonly EquipmentValidator _validator;
+    private readonly EquipmentStatsCacheService? _cacheService;
 
-    public EquipmentService(GameDbContext context, EquipmentValidator validator)
+    public EquipmentService(
+        GameDbContext context, 
+        EquipmentValidator validator,
+        EquipmentStatsCacheService? cacheService = null)
     {
         _context = context;
         _validator = validator;
+        _cacheService = cacheService;
     }
 
     /// <summary>
@@ -102,6 +107,9 @@ public class EquipmentService
 
         await _context.SaveChangesAsync();
 
+        // 装备成功后，使该角色的装备属性缓存失效
+        _cacheService?.Invalidate(characterId);
+
         return EquipmentResult.Success($"成功装备 {gear.Definition?.Name ?? "装备"}");
     }
 
@@ -128,6 +136,9 @@ public class EquipmentService
         gear.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
+
+        // 卸下装备后，使该角色的装备属性缓存失效
+        _cacheService?.Invalidate(characterId);
 
         return EquipmentResult.Success("成功卸下装备");
     }

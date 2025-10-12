@@ -76,6 +76,10 @@ public static class DependencyInjection
         services.AddSingleton<AttackSpeedCalculator>();     // 无状态，线程安全，可为单例
         services.AddSingleton<WeaponDamageCalculator>();    // 武器伤害计算（Phase 5）
         services.AddScoped<EquipmentValidator>();           // 验证服务，使用Scoped
+        
+        // 装备属性缓存服务（性能优化）
+        services.AddMemoryCache();                          // 添加内存缓存支持
+        services.AddSingleton<EquipmentStatsCacheService>(); // 缓存服务，单例
 
         return services;
     }

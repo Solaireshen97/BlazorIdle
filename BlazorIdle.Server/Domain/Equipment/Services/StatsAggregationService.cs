@@ -11,23 +11,44 @@ public class StatsAggregationService
     private readonly EquipmentService _equipmentService;
     private readonly ArmorCalculator _armorCalculator;
     private readonly BlockCalculator _blockCalculator;
+    private readonly EquipmentStatsCacheService? _cacheService;
 
     public StatsAggregationService(
         EquipmentService equipmentService,
         ArmorCalculator armorCalculator,
-        BlockCalculator blockCalculator)
+        BlockCalculator blockCalculator,
+        EquipmentStatsCacheService? cacheService = null)
     {
         _equipmentService = equipmentService;
         _armorCalculator = armorCalculator;
         _blockCalculator = blockCalculator;
+        _cacheService = cacheService;
     }
 
     /// <summary>
-    /// 计算角色装备总属性
+    /// 计算角色装备总属性（使用缓存）
     /// </summary>
     /// <param name="characterId">角色ID</param>
     /// <returns>属性字典（属性类型 -> 数值）</returns>
     public virtual async Task<Dictionary<StatType, double>> CalculateEquipmentStatsAsync(Guid characterId)
+    {
+        // 如果有缓存服务，使用缓存
+        if (_cacheService != null)
+        {
+            return await _cacheService.GetOrCalculateAsync(
+                characterId,
+                async () => await CalculateEquipmentStatsInternalAsync(characterId)
+            );
+        }
+
+        // 无缓存服务，直接计算
+        return await CalculateEquipmentStatsInternalAsync(characterId);
+    }
+
+    /// <summary>
+    /// 内部方法：实际计算装备属性（不使用缓存）
+    /// </summary>
+    private async Task<Dictionary<StatType, double>> CalculateEquipmentStatsInternalAsync(Guid characterId)
     {
         var stats = new Dictionary<StatType, double>();
 
