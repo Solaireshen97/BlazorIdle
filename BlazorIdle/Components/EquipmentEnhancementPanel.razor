@@ -27,6 +27,29 @@
     }
     else
     {
+        <!-- 材料库存显示 -->
+        @if (Materials.Count > 0)
+        {
+            <div style="margin-bottom: 16px; padding: 12px; background: #f8f9fa; border-radius: 4px; border-left: 4px solid #28a745;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span style="font-weight: 600; font-size: 14px;">💎 材料库存</span>
+                    <button class="btn btn-sm btn-link" @onclick="RefreshMaterials" disabled="@IsBusy" style="padding: 0 8px; font-size: 12px;">
+                        🔄 刷新
+                    </button>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px;">
+                    @foreach (var material in Materials)
+                    {
+                        <div style="display: flex; align-items: center; gap: 6px; font-size: 13px;">
+                            <span style="color: #28a745;">●</span>
+                            <span style="font-weight: 500;">@GetMaterialDisplayName(material.Key):</span>
+                            <span style="color: #007bff; font-weight: 600;">@material.Value</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
         <!-- 标签页 -->
         <div class="tabs" style="margin-bottom: 16px; border-bottom: 2px solid #ddd;">
             <button class="@GetTabClass(EnhancementTab.Disenchant)" @onclick="() => SelectTab(EnhancementTab.Disenchant)">
@@ -276,6 +299,9 @@
     private int? filterMaxLevel = null;
     private List<InventoryItemDto> filteredItems = new();
     
+    // 材料库存
+    private Dictionary<string, int> Materials = new();
+    
     // 确认对话框状态
     private bool showConfirmDialog = false;
     private string confirmTitle = "";
@@ -352,6 +378,52 @@
     {
         SelectedDisenchantIds.Clear();
         StateHasChanged();
+    }
+
+    /// <summary>刷新材料库存</summary>
+    private async Task RefreshMaterials()
+    {
+        try
+        {
+            var inventory = await Api.GetInventoryAsync(CharacterId);
+            if (inventory?.Items != null)
+            {
+                // 筛选出材料类型的物品（ItemId以material_或essence_开头）
+                Materials = inventory.Items
+                    .Where(item => item.ItemId.StartsWith("material_") || item.ItemId.StartsWith("essence_"))
+                    .ToDictionary(item => item.ItemId, item => item.Quantity);
+            }
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            ToastNotification?.ShowError($"刷新材料失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>获取材料显示名称</summary>
+    private string GetMaterialDisplayName(string materialId)
+    {
+        return materialId switch
+        {
+            "material_cloth" => "布料",
+            "material_leather" => "皮革",
+            "material_mail" => "锁甲片",
+            "material_plate" => "板甲片",
+            "material_weapon" => "武器碎片",
+            "material_essence" => "精华",
+            "essence_tier" => "品级精华",
+            _ => materialId
+        };
+    }
+
+    /// <summary>初始化时加载材料</summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        if (CharacterId != Guid.Empty && Materials.Count == 0)
+        {
+            await RefreshMaterials();
+        }
     }
 
     /// <summary>获取稀有度颜色</summary>
@@ -461,6 +533,9 @@
                     );
                 }
                 
+                // 刷新材料库存
+                await RefreshMaterials();
+                
                 // 通知父组件刷新
                 if (OnItemsChanged.HasDelegate)
                 {
@@ -543,6 +618,9 @@
                     $"成功将装备重铸至 T{newTier}",
                     "重铸成功"
                 );
+                
+                // 刷新材料库存
+                await RefreshMaterials();
                 
                 // 通知父组件刷新
                 if (OnItemsChanged.HasDelegate)
