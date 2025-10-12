@@ -245,6 +245,50 @@ public class GearGenerationServiceTests
         Assert.Equal("warrior_set", gear.SetId);
     }
 
+    [Fact]
+    public async Task GenerateAsync_WithNullDefinition_ShouldThrowArgumentNullException()
+    {
+        // Arrange
+        GearDefinition? nullDefinition = null;
+        var characterLevel = 10;
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ArgumentNullException>(() => 
+            _service.GenerateAsync(nullDefinition!, characterLevel));
+        
+        Assert.Equal("definition", exception.ParamName);
+        Assert.Contains("装备定义不能为空", exception.Message);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_WithInvalidCharacterLevel_ShouldThrowArgumentOutOfRangeException()
+    {
+        // Arrange
+        var definition = CreateTestGearDefinition();
+        var invalidLevel = 0;
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => 
+            _service.GenerateAsync(definition, invalidLevel));
+        
+        Assert.Equal("characterLevel", exception.ParamName);
+        Assert.Contains("角色等级必须大于0", exception.Message);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_WithNegativeCharacterLevel_ShouldThrowArgumentOutOfRangeException()
+    {
+        // Arrange
+        var definition = CreateTestGearDefinition();
+        var invalidLevel = -5;
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => 
+            _service.GenerateAsync(definition, invalidLevel));
+        
+        Assert.Equal("characterLevel", exception.ParamName);
+    }
+
     private GearDefinition CreateTestGearDefinition()
     {
         return new GearDefinition
