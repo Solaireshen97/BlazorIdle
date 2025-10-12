@@ -58,6 +58,12 @@ public static class ApplicationDI
         //  - 使用 Scoped：与请求生命周期绑定
         services.AddScoped<IPurchaseValidator, Application.Shop.PurchaseValidator>();
 
+        // 配置 Shop Settings
+        services.AddOptions<Application.Shop.ShopSettings>()
+            .BindConfiguration(Application.Shop.ShopSettings.SectionName)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         return services;
     }
 }

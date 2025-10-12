@@ -4,6 +4,7 @@ using BlazorIdle.Server.Domain.Shop.ValueObjects;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using BlazorIdle.Shared.Models.Shop;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using System.Text.Json;
 
 namespace BlazorIdle.Server.Application.Shop;
@@ -15,11 +16,13 @@ public class ShopService : IShopService
 {
     private readonly GameDbContext _context;
     private readonly IPurchaseValidator _validator;
+    private readonly ShopSettings _settings;
 
-    public ShopService(GameDbContext context, IPurchaseValidator validator)
+    public ShopService(GameDbContext context, IPurchaseValidator validator, IOptions<ShopSettings> settings)
     {
         _context = context;
         _validator = validator;
+        _settings = settings.Value;
     }
 
     public async Task<ListShopsResponse> ListShopsAsync(string characterId)
@@ -252,6 +255,16 @@ public class ShopService : IShopService
             return new PurchaseHistoryResponse();
         }
 
+        // 使用配置的默认值和最大值
+        if (pageSize <= 0)
+        {
+            pageSize = _settings.DefaultPageSize;
+        }
+        else if (pageSize > _settings.MaxPageSize)
+        {
+            pageSize = _settings.MaxPageSize;
+        }
+
         var skip = (page - 1) * pageSize;
 
         var totalCount = await _context.PurchaseRecords
@@ -329,11 +342,11 @@ public class ShopService : IShopService
         }
 
         // 检查是否需要重置
-        if (limit.Type == LimitType.Daily && counter.ShouldReset(86400))
+        if (limit.Type == LimitType.Daily && counter.ShouldReset(_settings.DailyResetPeriodSeconds))
         {
             return 0;
         }
-        if (limit.Type == LimitType.Weekly && counter.ShouldReset(604800))
+        if (limit.Type == LimitType.Weekly && counter.ShouldReset(_settings.WeeklyResetPeriodSeconds))
         {
             return 0;
         }
@@ -375,11 +388,11 @@ public class ShopService : IShopService
         var shouldReset = false;
         if (limit.Type == LimitType.Daily)
         {
-            shouldReset = counter.ShouldReset(86400);
+            shouldReset = counter.ShouldReset(_settings.DailyResetPeriodSeconds);
         }
         else if (limit.Type == LimitType.Weekly)
         {
-            shouldReset = counter.ShouldReset(604800);
+            shouldReset = counter.ShouldReset(_settings.WeeklyResetPeriodSeconds);
         }
         else if (limit.Type == LimitType.CustomPeriod && limit.ResetPeriodSeconds.HasValue)
         {

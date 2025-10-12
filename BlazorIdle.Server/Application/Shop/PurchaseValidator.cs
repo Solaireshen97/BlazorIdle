@@ -4,6 +4,7 @@ using BlazorIdle.Server.Domain.Shop;
 using BlazorIdle.Server.Domain.Shop.ValueObjects;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace BlazorIdle.Server.Application.Shop;
 
@@ -13,10 +14,12 @@ namespace BlazorIdle.Server.Application.Shop;
 public class PurchaseValidator : IPurchaseValidator
 {
     private readonly GameDbContext _context;
+    private readonly ShopSettings _settings;
 
-    public PurchaseValidator(GameDbContext context)
+    public PurchaseValidator(GameDbContext context, IOptions<ShopSettings> settings)
     {
         _context = context;
+        _settings = settings.Value;
     }
 
     public async Task<(bool isValid, string? errorMessage)> ValidatePurchaseAsync(
@@ -72,7 +75,7 @@ public class PurchaseValidator : IPurchaseValidator
 
         // 7. 验证购买限制
         var purchaseLimit = shopItem.GetPurchaseLimit();
-        if (!purchaseLimit.IsUnlimited())
+        if (_settings.EnablePurchaseLimit && !purchaseLimit.IsUnlimited())
         {
             var currentCount = await GetCurrentPurchaseCountAsync(character.Id, shopItem.Id, purchaseLimit);
             if (currentCount + quantity > purchaseLimit.MaxPurchases)
@@ -99,11 +102,11 @@ public class PurchaseValidator : IPurchaseValidator
         }
 
         // 检查是否需要重置
-        if (limit.Type == LimitType.Daily && counter.ShouldReset(86400))
+        if (limit.Type == LimitType.Daily && counter.ShouldReset(_settings.DailyResetPeriodSeconds))
         {
             return 0;
         }
-        if (limit.Type == LimitType.Weekly && counter.ShouldReset(604800))
+        if (limit.Type == LimitType.Weekly && counter.ShouldReset(_settings.WeeklyResetPeriodSeconds))
         {
             return 0;
         }

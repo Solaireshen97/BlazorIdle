@@ -6,6 +6,7 @@ using BlazorIdle.Server.Infrastructure.Persistence;
 using BlazorIdle.Shared.Models;
 using BlazorIdle.Shared.Models.Shop;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using System.Text.Json;
 using Xunit;
 
@@ -29,8 +30,21 @@ public class ShopServiceTests : IDisposable
             .Options;
 
         _context = new GameDbContext(options);
-        _validator = new PurchaseValidator(_context);
-        _shopService = new ShopService(_context, _validator);
+        
+        // 创建测试配置
+        var shopSettings = new ShopSettings
+        {
+            DailyResetPeriodSeconds = 86400,
+            WeeklyResetPeriodSeconds = 604800,
+            DefaultPageSize = 20,
+            MaxPageSize = 100,
+            EnablePurchaseLimit = true,
+            EnableCache = false // 测试中禁用缓存
+        };
+        var settingsOptions = Options.Create(shopSettings);
+        
+        _validator = new PurchaseValidator(_context, settingsOptions);
+        _shopService = new ShopService(_context, _validator, settingsOptions);
 
         // 设置测试数据
         _testCharacterId = Guid.NewGuid();
