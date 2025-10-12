@@ -36,7 +36,7 @@ public class EquipmentStatsIntegrationTests
         {
             { StatType.AttackPower, 100 },
             { StatType.CritRating, 200 },
-            { StatType.Haste, 0.05 },
+            { StatType.HastePercent, 0.05 },  // 使用HastePercent而不是Haste
             { StatType.Armor, 500 }
         };
 
@@ -121,7 +121,7 @@ public class EquipmentStatsIntegrationTests
         // 直接提供急速百分比
         var equipmentStats = new Dictionary<StatType, double>
         {
-            { StatType.Haste, 0.10 }
+            { StatType.HastePercent, 0.10 }  // 使用HastePercent而不是Haste
         };
 
         _fakeStatsAggregationService.SetEquipmentStats(characterId, equipmentStats);
