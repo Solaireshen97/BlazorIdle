@@ -1,5 +1,6 @@
 using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Domain.Shop;
+using BlazorIdle.Server.Domain.Shop.Configuration;
 using BlazorIdle.Server.Domain.Shop.ValueObjects;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using BlazorIdle.Shared.Models.Shop;
@@ -354,11 +355,11 @@ public class ShopService : IShopService
         }
 
         // 检查是否需要重置
-        if (limit.Type == LimitType.Daily && counter.ShouldReset(86400))
+        if (limit.Type == LimitType.Daily && counter.ShouldReset(ShopSystemConfig.PurchaseLimitConfig.DailyResetSeconds))
         {
             return 0;
         }
-        if (limit.Type == LimitType.Weekly && counter.ShouldReset(604800))
+        if (limit.Type == LimitType.Weekly && counter.ShouldReset(ShopSystemConfig.PurchaseLimitConfig.WeeklyResetSeconds))
         {
             return 0;
         }
@@ -400,11 +401,11 @@ public class ShopService : IShopService
         var shouldReset = false;
         if (limit.Type == LimitType.Daily)
         {
-            shouldReset = counter.ShouldReset(86400);
+            shouldReset = counter.ShouldReset(ShopSystemConfig.PurchaseLimitConfig.DailyResetSeconds);
         }
         else if (limit.Type == LimitType.Weekly)
         {
-            shouldReset = counter.ShouldReset(604800);
+            shouldReset = counter.ShouldReset(ShopSystemConfig.PurchaseLimitConfig.WeeklyResetSeconds);
         }
         else if (limit.Type == LimitType.CustomPeriod && limit.ResetPeriodSeconds.HasValue)
         {

@@ -1,4 +1,5 @@
 using BlazorIdle.Server.Application.Abstractions;
+using BlazorIdle.Server.Domain.Shop.Configuration;
 using BlazorIdle.Shared.Models.Shop;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -94,7 +95,7 @@ public class ShopController : ControllerBase
     public async Task<ActionResult<PurchaseHistoryResponse>> GetPurchaseHistory(
         [FromQuery] string? characterId = null,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20)
+        [FromQuery] int pageSize = ShopSystemConfig.QueryConfig.DefaultPageSize)
     {
         var charId = characterId ?? GetCharacterIdFromClaims();
         if (string.IsNullOrEmpty(charId))
@@ -102,9 +103,9 @@ public class ShopController : ControllerBase
             return BadRequest(new { message = "角色 ID 不能为空" });
         }
 
-        if (pageSize > 100)
+        if (pageSize > ShopSystemConfig.QueryConfig.MaxPageSize)
         {
-            pageSize = 100;
+            pageSize = ShopSystemConfig.QueryConfig.MaxPageSize;
         }
 
         var response = await _shopService.GetPurchaseHistoryAsync(charId, page, pageSize);
