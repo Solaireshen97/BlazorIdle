@@ -36,7 +36,7 @@ public class EquipmentStatsIntegrationTests
         {
             { StatType.AttackPower, 100 },
             { StatType.CritRating, 200 },
-            { StatType.Haste, 0.05 },
+            { StatType.Haste, 200 },  // 200 rating = 0.05 (5%) haste after conversion (200/4000)
             { StatType.Armor, 500 }
         };
 
@@ -51,10 +51,10 @@ public class EquipmentStatsIntegrationTests
         // 装备提供的攻击强度应该被加到基础上
         Assert.True(result.AttackPower >= 100, "AttackPower should include equipment bonus");
         
-        // 暴击评级应该转换为暴击率
+        // 暴击评级应该转换为暴击率 (200/4000 = 0.05)
         Assert.True(result.CritChance > 0, "CritChance should include converted crit rating");
         
-        // 急速应该被应用
+        // 急速评级应该转换为急速百分比 (200/4000 = 0.05)
         Assert.True(result.HastePercent >= 0.05, "HastePercent should include equipment haste");
     }
 
@@ -118,10 +118,10 @@ public class EquipmentStatsIntegrationTests
         var profession = Profession.Warrior;
         var primaryAttrs = new PrimaryAttributes { Strength = 20, Agility = 10, Intellect = 5, Stamina = 15 };
 
-        // 直接提供急速百分比
+        // 直接提供急速百分比（使用HastePercent类型）
         var equipmentStats = new Dictionary<StatType, double>
         {
-            { StatType.Haste, 0.10 }
+            { StatType.HastePercent, 0.10 }  // 直接是10%急速
         };
 
         _fakeStatsAggregationService.SetEquipmentStats(characterId, equipmentStats);
