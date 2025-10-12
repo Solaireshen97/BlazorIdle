@@ -1,0 +1,531 @@
+@using BlazorIdle.Client.Services
+@using BlazorIdle.Shared.Models
+@inject ApiClient Api
+
+@* Phase 7: 装备增强对话框 - 分解和重铸功能 *@
+@if (IsVisible)
+{
+    <div class="enhancement-dialog-overlay" @onclick="OnOverlayClick">
+        <div class="enhancement-dialog" @onclick:stopPropagation="true">
+            @* 对话框头部 *@
+            <div class="dialog-header">
+                <h3 style="margin: 0; font-size: 16px; font-weight: bold;">
+                    @(EnhancementType == "disenchant" ? "⚙️ 装备分解" : "🔨 装备重铸")
+                </h3>
+                <button class="close-button" @onclick="OnClose" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #666;">×</button>
+            </div>
+
+            @* 对话框主体 *@
+            <div class="dialog-body" style="padding: 20px; max-height: 60vh; overflow-y: auto;">
+                @if (IsLoading)
+                {
+                    <div style="text-align: center; padding: 40px; color: #999;">
+                        <div style="font-size: 32px; margin-bottom: 12px;">⏳</div>
+                        <em>加载中...</em>
+                    </div>
+                }
+                else if (!string.IsNullOrEmpty(ErrorMessage))
+                {
+                    <div style="padding: 16px; background: #ffebee; border: 1px solid #ef5350; border-radius: 4px; color: #c62828;">
+                        <div style="font-weight: bold; margin-bottom: 8px;">⚠️ 错误</div>
+                        @ErrorMessage
+                    </div>
+                    <div style="margin-top: 16px; text-align: right;">
+                        <button class="btn-secondary" @onclick="OnClose">关闭</button>
+                    </div>
+                }
+                else if (!string.IsNullOrEmpty(SuccessMessage))
+                {
+                    <div style="padding: 16px; background: #e8f5e9; border: 1px solid #66bb6a; border-radius: 4px; color: #2e7d32;">
+                        <div style="font-weight: bold; margin-bottom: 8px;">✅ 成功</div>
+                        @SuccessMessage
+                    </div>
+                    <div style="margin-top: 16px; text-align: right;">
+                        <button class="btn-primary" @onclick="OnClose">确定</button>
+                    </div>
+                }
+                else if (EnhancementType == "disenchant")
+                {
+                    @* 分解预览界面 *@
+                    <div class="disenchant-preview">
+                        @if (GearInfo != null)
+                        {
+                            <div class="gear-info" style="padding: 16px; background: #f5f5f5; border-radius: 4px; margin-bottom: 20px;">
+                                <div style="font-weight: bold; font-size: 14px; margin-bottom: 8px; color: #555;">
+                                    @GearInfo.Icon @GearInfo.Name
+                                </div>
+                                <div style="font-size: 12px; color: #777;">
+                                    品质: @GearInfo.Rarity | 物品等级: @GearInfo.ItemLevel
+                                </div>
+                            </div>
+                        }
+
+                        @if (DisenchantPreview != null && DisenchantPreview.Materials.Any())
+                        {
+                            <div class="materials-section">
+                                <h4 style="font-size: 14px; font-weight: bold; margin-bottom: 12px; color: #555;">📦 分解产出</h4>
+                                <div class="materials-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+                                    @foreach (var material in DisenchantPreview.Materials)
+                                    {
+                                        <div class="material-item" style="padding: 12px; background: #fff; border: 1px solid #e0e0e0; border-radius: 4px;">
+                                            <div style="font-size: 12px; color: #777; margin-bottom: 4px;">@GetMaterialDisplayName(material.Key)</div>
+                                            <div style="font-size: 16px; font-weight: bold; color: #1976d2;">×@material.Value</div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="warning-section" style="margin-top: 20px; padding: 12px; background: #fff3e0; border: 1px solid #ff9800; border-radius: 4px; color: #e65100;">
+                                <strong>⚠️ 警告:</strong> 分解后装备将永久消失，无法恢复！
+                            </div>
+
+                            <div class="action-buttons" style="margin-top: 20px; display: flex; gap: 12px; justify-content: flex-end;">
+                                <button class="btn-secondary" @onclick="OnClose">取消</button>
+                                <button class="btn-danger" @onclick="OnConfirmDisenchant" disabled="@IsProcessing">
+                                    @(IsProcessing ? "处理中..." : "确认分解")
+                                </button>
+                            </div>
+                        }
+                        else
+                        {
+                            <div style="text-align: center; padding: 20px; color: #999;">
+                                无法预览分解产出
+                            </div>
+                        }
+                    </div>
+                }
+                else if (EnhancementType == "reforge")
+                {
+                    @* 重铸预览界面 *@
+                    <div class="reforge-preview">
+                        @if (GearInfo != null)
+                        {
+                            <div class="gear-info" style="padding: 16px; background: #f5f5f5; border-radius: 4px; margin-bottom: 20px;">
+                                <div style="font-weight: bold; font-size: 14px; margin-bottom: 8px; color: #555;">
+                                    @GearInfo.Icon @GearInfo.Name
+                                </div>
+                                <div style="font-size: 12px; color: #777;">
+                                    品质: @GearInfo.Rarity | 物品等级: @GearInfo.ItemLevel
+                                </div>
+                            </div>
+                        }
+
+                        @if (ReforgePreview != null)
+                        {
+                            @if (!ReforgePreview.CanReforge)
+                            {
+                                <div style="padding: 16px; background: #ffebee; border: 1px solid #ef5350; border-radius: 4px; color: #c62828; margin-bottom: 16px;">
+                                    <strong>无法重铸:</strong> @ReforgePreview.Message
+                                </div>
+                                <div style="text-align: right;">
+                                    <button class="btn-secondary" @onclick="OnClose">关闭</button>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="tier-info" style="margin-bottom: 20px;">
+                                    <h4 style="font-size: 14px; font-weight: bold; margin-bottom: 12px; color: #555;">🔨 品级提升</h4>
+                                    <div style="display: flex; align-items: center; gap: 16px; font-size: 18px; font-weight: bold;">
+                                        <span style="color: #1976d2;">T@ReforgePreview.CurrentTier</span>
+                                        <span style="color: #999;">→</span>
+                                        <span style="color: #2e7d32;">T@ReforgePreview.NextTier</span>
+                                    </div>
+                                </div>
+
+                                <div class="cost-section" style="margin-bottom: 20px;">
+                                    <h4 style="font-size: 14px; font-weight: bold; margin-bottom: 12px; color: #555;">💰 重铸成本</h4>
+                                    <div class="cost-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+                                        @foreach (var cost in ReforgePreview.Cost)
+                                        {
+                                            <div class="cost-item" style="padding: 12px; background: #fff; border: 1px solid #e0e0e0; border-radius: 4px;">
+                                                <div style="font-size: 12px; color: #777; margin-bottom: 4px;">@GetMaterialDisplayName(cost.Key)</div>
+                                                <div style="font-size: 16px; font-weight: bold; color: #d32f2f;">-@cost.Value</div>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+
+                                <div class="stats-comparison" style="margin-bottom: 20px;">
+                                    <h4 style="font-size: 14px; font-weight: bold; margin-bottom: 12px; color: #555;">📊 属性对比</h4>
+                                    <div style="display: grid; gap: 8px;">
+                                        @foreach (var stat in ReforgePreview.CurrentStats)
+                                        {
+                                            var nextValue = ReforgePreview.NextStats.GetValueOrDefault(stat.Key, stat.Value);
+                                            var diff = nextValue - stat.Value;
+                                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: #f5f5f5; border-radius: 4px; font-size: 12px;">
+                                                <span style="color: #555;">@GetStatDisplayName(stat.Key)</span>
+                                                <span style="color: #1976d2; font-weight: bold;">@stat.Value.ToString("F1")</span>
+                                                <span style="color: #999;">→</span>
+                                                <span style="color: #2e7d32; font-weight: bold;">@nextValue.ToString("F1")</span>
+                                                <span style="color: #2e7d32; font-weight: bold;">(+@diff.ToString("F1"))</span>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+
+                                <div class="info-section" style="margin-bottom: 20px; padding: 12px; background: #e3f2fd; border: 1px solid #2196f3; border-radius: 4px; color: #0d47a1; font-size: 12px;">
+                                    <strong>ℹ️ 提示:</strong> 重铸会提升装备品级，增强所有属性，但会消耗材料。
+                                </div>
+
+                                <div class="action-buttons" style="display: flex; gap: 12px; justify-content: flex-end;">
+                                    <button class="btn-secondary" @onclick="OnClose">取消</button>
+                                    <button class="btn-primary" @onclick="OnConfirmReforge" disabled="@IsProcessing">
+                                        @(IsProcessing ? "处理中..." : "确认重铸")
+                                    </button>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div style="text-align: center; padding: 20px; color: #999;">
+                                无法预览重铸信息
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .enhancement-dialog-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        animation: fadeIn 0.2s ease-out;
+    }
+
+    .enhancement-dialog {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+        width: 90%;
+        max-width: 600px;
+        max-height: 90vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        animation: slideUp 0.3s ease-out;
+    }
+
+    .dialog-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        border-bottom: 1px solid #e0e0e0;
+        background: #f5f5f5;
+    }
+
+    .close-button:hover {
+        color: #000 !important;
+    }
+
+    .btn-primary {
+        padding: 10px 20px;
+        background: #1976d2;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+        background: #1565c0;
+    }
+
+    .btn-primary:disabled {
+        background: #bdbdbd;
+        cursor: not-allowed;
+    }
+
+    .btn-secondary {
+        padding: 10px 20px;
+        background: #757575;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .btn-secondary:hover {
+        background: #616161;
+    }
+
+    .btn-danger {
+        padding: 10px 20px;
+        background: #d32f2f;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .btn-danger:hover:not(:disabled) {
+        background: #c62828;
+    }
+
+    .btn-danger:disabled {
+        background: #bdbdbd;
+        cursor: not-allowed;
+    }
+
+    @@keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    @@keyframes slideUp {
+        from {
+            transform: translateY(50px);
+            opacity: 0;
+        }
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+</style>
+
+@code {
+    /// <summary>
+    /// 是否显示对话框
+    /// </summary>
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    /// <summary>
+    /// 增强类型: "disenchant" 或 "reforge"
+    /// </summary>
+    [Parameter]
+    public string EnhancementType { get; set; } = "disenchant";
+
+    /// <summary>
+    /// 角色ID
+    /// </summary>
+    [Parameter]
+    public Guid CharacterId { get; set; }
+
+    /// <summary>
+    /// 装备实例ID
+    /// </summary>
+    [Parameter]
+    public Guid GearInstanceId { get; set; }
+
+    /// <summary>
+    /// 装备基本信息（可选）
+    /// </summary>
+    [Parameter]
+    public GearBasicInfo? GearInfo { get; set; }
+
+    /// <summary>
+    /// 关闭回调
+    /// </summary>
+    [Parameter]
+    public EventCallback OnCloseCallback { get; set; }
+
+    /// <summary>
+    /// 成功回调
+    /// </summary>
+    [Parameter]
+    public EventCallback OnSuccessCallback { get; set; }
+
+    private bool IsLoading { get; set; }
+    private bool IsProcessing { get; set; }
+    private string? ErrorMessage { get; set; }
+    private string? SuccessMessage { get; set; }
+    private DisenchantPreviewResponse? DisenchantPreview { get; set; }
+    private ReforgePreviewResponse? ReforgePreview { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsVisible && GearInstanceId != Guid.Empty)
+        {
+            await LoadPreviewAsync();
+        }
+    }
+
+    /// <summary>
+    /// 加载预览信息
+    /// </summary>
+    private async Task LoadPreviewAsync()
+    {
+        IsLoading = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+
+        try
+        {
+            if (EnhancementType == "disenchant")
+            {
+                DisenchantPreview = await Api.PreviewDisenchantAsync(GearInstanceId);
+            }
+            else if (EnhancementType == "reforge")
+            {
+                ReforgePreview = await Api.PreviewReforgeAsync(GearInstanceId);
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"加载预览失败: {ex.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// 确认分解
+    /// </summary>
+    private async Task OnConfirmDisenchant()
+    {
+        IsProcessing = true;
+        ErrorMessage = null;
+
+        try
+        {
+            var result = await Api.DisenchantItemAsync(CharacterId, GearInstanceId);
+            
+            if (result?.Success == true)
+            {
+                SuccessMessage = $"分解成功！获得: {FormatMaterials(result.Materials)}";
+                await Task.Delay(100);
+                await OnSuccessCallback.InvokeAsync();
+            }
+            else
+            {
+                ErrorMessage = result?.Message ?? "分解失败";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"分解失败: {ex.Message}";
+        }
+        finally
+        {
+            IsProcessing = false;
+        }
+    }
+
+    /// <summary>
+    /// 确认重铸
+    /// </summary>
+    private async Task OnConfirmReforge()
+    {
+        IsProcessing = true;
+        ErrorMessage = null;
+
+        try
+        {
+            var result = await Api.ReforgeItemAsync(CharacterId, GearInstanceId);
+            
+            if (result?.Success == true)
+            {
+                SuccessMessage = $"重铸成功！装备品级已提升";
+                await Task.Delay(100);
+                await OnSuccessCallback.InvokeAsync();
+            }
+            else
+            {
+                ErrorMessage = result?.Message ?? "重铸失败";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"重铸失败: {ex.Message}";
+        }
+        finally
+        {
+            IsProcessing = false;
+        }
+    }
+
+    /// <summary>
+    /// 关闭对话框
+    /// </summary>
+    private async Task OnClose()
+    {
+        await OnCloseCallback.InvokeAsync();
+    }
+
+    /// <summary>
+    /// 点击遮罩层关闭
+    /// </summary>
+    private async Task OnOverlayClick()
+    {
+        if (!IsProcessing)
+        {
+            await OnClose();
+        }
+    }
+
+    /// <summary>
+    /// 获取材料显示名称
+    /// </summary>
+    private string GetMaterialDisplayName(string materialId)
+    {
+        return materialId switch
+        {
+            "dust" => "✨ 奥术之尘",
+            "essence" => "💎 魔法精华",
+            "crystal" => "🔮 奥术水晶",
+            "shard" => "💠 灵魂碎片",
+            _ => materialId
+        };
+    }
+
+    /// <summary>
+    /// 获取属性显示名称
+    /// </summary>
+    private string GetStatDisplayName(string statId)
+    {
+        return statId switch
+        {
+            "AttackPower" => "⚔️ 攻击力",
+            "SpellPower" => "🔮 法术强度",
+            "Armor" => "🛡️ 护甲",
+            "Strength" => "💪 力量",
+            "Agility" => "🏃 敏捷",
+            "Intelligence" => "🧠 智力",
+            "Stamina" => "❤️ 耐力",
+            "CritChance" => "💥 暴击率",
+            "HastePercent" => "⚡ 急速",
+            "BlockChance" => "🔰 格挡率",
+            _ => statId
+        };
+    }
+
+    /// <summary>
+    /// 格式化材料列表
+    /// </summary>
+    private string FormatMaterials(Dictionary<string, int> materials)
+    {
+        return string.Join(", ", materials.Select(m => $"{GetMaterialDisplayName(m.Key)} ×{m.Value}"));
+    }
+
+    /// <summary>
+    /// 装备基本信息
+    /// </summary>
+    public class GearBasicInfo
+    {
+        public string Name { get; set; } = "";
+        public string Icon { get; set; } = "⚔️";
+        public string Rarity { get; set; } = "";
+        public int ItemLevel { get; set; }
+    }
+}

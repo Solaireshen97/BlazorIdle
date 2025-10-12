@@ -194,11 +194,53 @@ public class ApiClient
         return _http.GetFromJsonAsync<InventoryResponse>($"/api/inventory/{characterId}", ct);
     }
 
-    // ===== 装备系统（Step 5: 装备系统UI预留） =====
+    // ===== 装备系统（Step 5: 装备系统UI预留 + Phase 7: 装备增强） =====
     public Task<EquipmentResponse?> GetEquipmentAsync(Guid characterId, CancellationToken ct = default)
     {
         SetAuthHeader();
         return _http.GetFromJsonAsync<EquipmentResponse>($"/api/equipment/{characterId}", ct);
+    }
+
+    /// <summary>
+    /// 预览装备分解产出
+    /// </summary>
+    public Task<DisenchantPreviewResponse?> PreviewDisenchantAsync(Guid gearInstanceId, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        return _http.GetFromJsonAsync<DisenchantPreviewResponse>($"/api/equipment/disenchant-preview/{gearInstanceId}", ct);
+    }
+
+    /// <summary>
+    /// 分解装备
+    /// </summary>
+    public async Task<DisenchantResponse?> DisenchantItemAsync(Guid characterId, Guid gearInstanceId, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        var response = await _http.PostAsJsonAsync($"/api/equipment/{characterId}/disenchant", 
+            new { GearInstanceId = gearInstanceId }, ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<DisenchantResponse>(cancellationToken: ct);
+    }
+
+    /// <summary>
+    /// 预览重铸成本
+    /// </summary>
+    public Task<ReforgePreviewResponse?> PreviewReforgeAsync(Guid gearInstanceId, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        return _http.GetFromJsonAsync<ReforgePreviewResponse>($"/api/equipment/reforge-preview/{gearInstanceId}", ct);
+    }
+
+    /// <summary>
+    /// 重铸装备（提升品级）
+    /// </summary>
+    public async Task<ReforgeResponse?> ReforgeItemAsync(Guid characterId, Guid gearInstanceId, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        var response = await _http.PostAsJsonAsync($"/api/equipment/{characterId}/reforge", 
+            new { GearInstanceId = gearInstanceId }, ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ReforgeResponse>(cancellationToken: ct);
     }
 
     // ===== 活动计划 =====
