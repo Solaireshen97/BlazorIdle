@@ -114,12 +114,24 @@
                 </div>
             </div>
             
-            @* 武器信息 *@
+            @* 武器信息与DPS *@
             @if (!string.IsNullOrEmpty(WeaponInfo))
             {
                 <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e0e0e0; font-size: 11px; color: #666;">
                     🗡️ @WeaponInfo
                 </div>
+            }
+            
+            @* DPS显示（如果装备武器）*@
+            @{
+                var dpsValue = CalculateCurrentDPS();
+                if (dpsValue > 0)
+                {
+                    <div style="margin-top: 4px; font-size: 11px;">
+                        <span style="color: #666;">⚔️ 理论DPS:</span>
+                        <span style="font-weight: bold; color: #d32f2f;">@_dpsCalculator.FormatDPS(dpsValue)</span>
+                    </div>
+                }
             }
         </div>
     }
@@ -164,6 +176,9 @@
     
     /// <summary>装备限制辅助服务（用于检查职业和等级限制）</summary>
     private EquipmentRestrictionHelper? _restrictionHelper = new();
+    
+    /// <summary>DPS计算服务</summary>
+    private DPSCalculatorService _dpsCalculator = new();
 
     /// <summary>渲染单个装备槽</summary>
     private RenderFragment RenderSlot(string slotType, string slotName, string defaultIcon) => builder =>
@@ -420,14 +435,25 @@
             return tooltip;
         }
         
-        // 进行对比
-        var comparison = _comparisonService.Compare(currentItem, item);
+        // 进行对比（传入总属性用于DPS计算）
+        var comparison = _comparisonService.Compare(currentItem, item, TotalStats);
         
         // 添加对比信息
         tooltip += "\n\n━━━━━━━━━━━━━━━━\n";
         tooltip += $"📊 与当前装备对比:\n";
         tooltip += $"评分: {(comparison.QualityScoreDifference >= 0 ? "+" : "")}{comparison.QualityScoreDifference}\n";
         tooltip += $"物品等级: {(comparison.ItemLevelDifference >= 0 ? "+" : "")}{comparison.ItemLevelDifference}\n";
+        
+        // 显示DPS差异（如果是武器）
+        if (comparison.DPSDifference.HasValue && Math.Abs(comparison.DPSDifference.Value) > 0.1)
+        {
+            var dpsArrow = comparison.DPSDifference.Value > 0 ? "↑" : "↓";
+            var dpsSign = comparison.DPSDifference.Value > 0 ? "+" : "";
+            tooltip += $"\n⚔️ DPS变化:\n";
+            tooltip += $"  当前: {_dpsCalculator.FormatDPS(comparison.CurrentDPS ?? 0)}\n";
+            tooltip += $"  新装备: {_dpsCalculator.FormatDPS(comparison.NewDPS ?? 0)}\n";
+            tooltip += $"  {dpsArrow} 差异: {dpsSign}{_dpsCalculator.FormatDPS(comparison.DPSDifference.Value)}\n";
+        }
         
         if (comparison.StatDifferences.Count > 0)
         {
@@ -445,5 +471,25 @@
         tooltip += $"\n总体评估: {(comparison.IsUpgrade ? "✓ 升级" : "✗ 降级")}";
         
         return tooltip;
+    }
+    
+    /// <summary>
+    /// 计算当前装备的DPS
+    /// </summary>
+    private double CalculateCurrentDPS()
+    {
+        // 查找主手和副手武器
+        var mainHandSlot = Slots.FirstOrDefault(s => s.SlotType == "mainhand");
+        var offHandSlot = Slots.FirstOrDefault(s => s.SlotType == "offhand");
+        
+        var mainHandWeapon = mainHandSlot?.Item?.WeaponType;
+        var offHandWeapon = offHandSlot?.Item?.WeaponType;
+        
+        if (string.IsNullOrEmpty(mainHandWeapon) || mainHandWeapon == "None")
+        {
+            return 0;
+        }
+        
+        return _dpsCalculator.CalculateDPSFromStats(TotalStats, mainHandWeapon, offHandWeapon);
     }
 }

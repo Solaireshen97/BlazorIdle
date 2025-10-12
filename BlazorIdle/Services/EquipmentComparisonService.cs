@@ -8,6 +8,13 @@ namespace BlazorIdle.Client.Services;
 /// </summary>
 public class EquipmentComparisonService
 {
+    private readonly DPSCalculatorService _dpsCalculator;
+
+    public EquipmentComparisonService()
+    {
+        _dpsCalculator = new DPSCalculatorService();
+    }
+
     /// <summary>
     /// 对比结果
     /// </summary>
@@ -27,6 +34,15 @@ public class EquipmentComparisonService
         
         /// <summary>总体评估分数（正数表示新装备更好）</summary>
         public double OverallScore { get; set; }
+        
+        /// <summary>当前装备DPS（仅武器对比时有效）</summary>
+        public double? CurrentDPS { get; set; }
+        
+        /// <summary>新装备DPS（仅武器对比时有效）</summary>
+        public double? NewDPS { get; set; }
+        
+        /// <summary>DPS差值（新 - 当前，仅武器对比时有效）</summary>
+        public double? DPSDifference { get; set; }
     }
 
     /// <summary>
@@ -34,8 +50,12 @@ public class EquipmentComparisonService
     /// </summary>
     /// <param name="currentGear">当前装备（可为null）</param>
     /// <param name="newGear">新装备</param>
+    /// <param name="totalStats">角色总属性（用于DPS计算，可选）</param>
     /// <returns>对比结果</returns>
-    public ComparisonResult Compare(GearInstanceDto? currentGear, GearInstanceDto newGear)
+    public ComparisonResult Compare(
+        GearInstanceDto? currentGear, 
+        GearInstanceDto newGear,
+        Dictionary<string, double>? totalStats = null)
     {
         var result = new ComparisonResult();
         
@@ -46,6 +66,17 @@ public class EquipmentComparisonService
             result.QualityScoreDifference = newGear.QualityScore;
             result.ItemLevelDifference = newGear.ItemLevel;
             result.IsUpgrade = true;
+            
+            // 计算新装备的DPS（如果是武器）
+            if (!string.IsNullOrEmpty(newGear.WeaponType) && 
+                newGear.WeaponType != "None" && 
+                totalStats != null)
+            {
+                result.NewDPS = CalculateWeaponDPS(newGear, totalStats);
+                result.CurrentDPS = 0;
+                result.DPSDifference = result.NewDPS;
+            }
+            
             result.OverallScore = CalculateOverallScore(result);
             return result;
         }
@@ -69,11 +100,55 @@ public class EquipmentComparisonService
             }
         }
         
+        // 如果是武器对比，计算DPS差异
+        if (IsWeapon(currentGear) && IsWeapon(newGear) && totalStats != null)
+        {
+            result.CurrentDPS = CalculateWeaponDPS(currentGear, totalStats);
+            result.NewDPS = CalculateWeaponDPS(newGear, totalStats);
+            result.DPSDifference = result.NewDPS - result.CurrentDPS;
+        }
+        
         // 计算总体分数并判断是否为升级
         result.OverallScore = CalculateOverallScore(result);
         result.IsUpgrade = result.OverallScore > 0;
         
         return result;
+    }
+    
+    /// <summary>
+    /// 计算武器DPS
+    /// </summary>
+    private double CalculateWeaponDPS(GearInstanceDto weapon, Dictionary<string, double> totalStats)
+    {
+        if (string.IsNullOrEmpty(weapon.WeaponType) || weapon.WeaponType == "None")
+        {
+            return 0;
+        }
+        
+        // 从总属性中获取攻击强度、急速、暴击
+        double attackPower = totalStats.GetValueOrDefault("AttackPower", 0);
+        double hastePercent = totalStats.GetValueOrDefault("HastePercent", 0);
+        double critChance = totalStats.GetValueOrDefault("CritChance", 0);
+        
+        // 加上武器自身提供的攻击强度
+        attackPower += weapon.Stats.GetValueOrDefault("AttackPower", 0);
+        
+        return _dpsCalculator.CalculateDPS(
+            attackPower, 
+            weapon.WeaponType, 
+            null, // 单件武器对比不考虑副手
+            hastePercent, 
+            critChance);
+    }
+    
+    /// <summary>
+    /// 判断装备是否为武器
+    /// </summary>
+    private bool IsWeapon(GearInstanceDto gear)
+    {
+        return !string.IsNullOrEmpty(gear.WeaponType) && 
+               gear.WeaponType != "None" && 
+               gear.WeaponType != "Shield";
     }
     
     /// <summary>
