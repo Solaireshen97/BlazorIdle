@@ -1187,6 +1187,7 @@ else
     string equipmentError = "";
     List<EquipmentSlotDto> equipmentSlots = new();
     Dictionary<string, double> equipmentStats = new();
+    List<EquipmentEnhancementPanel.InventoryItemDto> inventoryGearItems = new();
 
     bool CanStartBattle => !isBusy && lastCreated is not null && !battleInProgress;
 
@@ -1238,11 +1239,36 @@ else
         equipmentError = "";
         try
         {
+            // 加载已装备的装备
             var response = await Api.GetEquipmentAsync(lastCreated.Id);
             if (response != null)
             {
                 equipmentSlots = response.Slots;
                 equipmentStats = response.TotalStats;
+            }
+
+            // 加载背包中的装备（未装备）
+            try
+            {
+                var inventoryResponse = await Api.GetInventoryGearAsync(lastCreated.Id);
+                if (inventoryResponse?.Items != null)
+                {
+                    inventoryGearItems = inventoryResponse.Items
+                        .Select(item => new EquipmentEnhancementPanel.InventoryItemDto
+                        {
+                            Id = item.Id,
+                            Name = item.Name,
+                            Icon = item.Icon,
+                            Rarity = item.Rarity,
+                            ItemLevel = item.ItemLevel
+                        })
+                        .ToList();
+                }
+            }
+            catch
+            {
+                // 如果加载背包装备失败，只清空列表，不影响主装备加载
+                inventoryGearItems = new();
             }
         }
         catch (Exception ex)
@@ -1269,9 +1295,8 @@ else
     /// </summary>
     List<EquipmentEnhancementPanel.InventoryItemDto> GetInventoryItemsForEnhancement()
     {
-        // 由于装备增强系统主要针对已装备的物品，背包中的装备较少使用
-        // 这里返回空列表，如需支持背包装备分解，需要实现背包装备查询API
-        return new List<EquipmentEnhancementPanel.InventoryItemDto>();
+        // 返回已加载的背包装备列表
+        return inventoryGearItems;
     }
 
     /// <summary>

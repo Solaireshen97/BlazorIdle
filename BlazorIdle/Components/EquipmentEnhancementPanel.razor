@@ -27,6 +27,29 @@
     }
     else
     {
+        <!-- 材料库存显示 -->
+        @if (Materials.Count > 0)
+        {
+            <div style="margin-bottom: 16px; padding: 12px; background: #f8f9fa; border-radius: 4px; border-left: 4px solid #28a745;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span style="font-weight: 600; font-size: 14px;">💎 材料库存</span>
+                    <button class="btn btn-sm btn-link" @onclick="RefreshMaterials" disabled="@IsBusy" style="padding: 0 8px; font-size: 12px;">
+                        🔄 刷新
+                    </button>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px;">
+                    @foreach (var material in Materials)
+                    {
+                        <div style="display: flex; align-items: center; gap: 6px; font-size: 13px;">
+                            <span style="color: #28a745;">●</span>
+                            <span style="font-weight: 500;">@GetMaterialDisplayName(material.Key):</span>
+                            <span style="color: #007bff; font-weight: 600;">@material.Value</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
         <!-- 标签页 -->
         <div class="tabs" style="margin-bottom: 16px; border-bottom: 2px solid #ddd;">
             <button class="@GetTabClass(EnhancementTab.Disenchant)" @onclick="() => SelectTab(EnhancementTab.Disenchant)">
@@ -51,8 +74,51 @@
                 }
                 else
                 {
+                    <!-- 筛选和批量操作工具栏 -->
+                    <div style="margin-bottom: 16px; padding: 12px; background: #f8f9fa; border-radius: 4px;">
+                        <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+                            <!-- 品质筛选 -->
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <label style="font-size: 13px; font-weight: 500; margin: 0;">品质:</label>
+                                <select @bind="filterRarity" @bind:after="ApplyFilters" style="padding: 4px 8px; font-size: 13px; border-radius: 4px; border: 1px solid #ddd;">
+                                    <option value="">全部</option>
+                                    <option value="Common">普通</option>
+                                    <option value="Rare">稀有</option>
+                                    <option value="Epic">史诗</option>
+                                    <option value="Legendary">传说</option>
+                                </select>
+                            </div>
+
+                            <!-- 等级范围筛选 -->
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <label style="font-size: 13px; font-weight: 500; margin: 0;">等级:</label>
+                                <input type="number" @bind="filterMinLevel" @bind:after="ApplyFilters" min="1" placeholder="最低" style="width: 60px; padding: 4px 8px; font-size: 13px; border-radius: 4px; border: 1px solid #ddd;" />
+                                <span style="color: #666;">-</span>
+                                <input type="number" @bind="filterMaxLevel" @bind:after="ApplyFilters" min="1" placeholder="最高" style="width: 60px; padding: 4px 8px; font-size: 13px; border-radius: 4px; border: 1px solid #ddd;" />
+                            </div>
+
+                            <!-- 批量选择按钮 -->
+                            <div style="margin-left: auto; display: flex; gap: 6px;">
+                                <button class="btn btn-sm btn-outline-primary" @onclick="SelectAllFiltered" disabled="@IsBusy" title="选中当前筛选结果中的所有装备">
+                                    全选 (@GetFilteredInventoryItems().Count)
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="DeselectAll" disabled="@IsBusy" title="取消所有选择">
+                                    反选
+                                </button>
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(filterRarity) || filterMinLevel.HasValue || filterMaxLevel.HasValue)
+                        {
+                            <div style="margin-top: 8px; font-size: 12px; color: #666;">
+                                <span>筛选结果: @GetFilteredInventoryItems().Count / @InventoryItems.Count 件装备</span>
+                                <button class="btn btn-sm btn-link" @onclick="ClearFilters" style="padding: 0 8px; font-size: 12px;">清除筛选</button>
+                            </div>
+                        }
+                    </div>
+
                     <div class="items-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px;">
-                        @foreach (var item in InventoryItems)
+                        @foreach (var item in GetFilteredInventoryItems())
                         {
                             var isSelected = SelectedDisenchantIds.Contains(item.Id);
                             var cardClass = isSelected ? "item-card selected" : "item-card";
@@ -227,6 +293,15 @@
     private Dictionary<Guid, DisenchantPreviewResponse> DisenchantPreviews = new();
     private Dictionary<Guid, ReforgePreviewResponse> ReforgePreviews = new();
     
+    // 筛选条件
+    private string filterRarity = "";
+    private int? filterMinLevel = null;
+    private int? filterMaxLevel = null;
+    private List<InventoryItemDto> filteredItems = new();
+    
+    // 材料库存
+    private Dictionary<string, int> Materials = new();
+    
     // 确认对话框状态
     private bool showConfirmDialog = false;
     private string confirmTitle = "";
@@ -246,6 +321,109 @@
     private string GetTabClass(EnhancementTab tab)
     {
         return CurrentTab == tab ? "active" : "";
+    }
+
+    /// <summary>获取筛选后的背包装备列表</summary>
+    private List<InventoryItemDto> GetFilteredInventoryItems()
+    {
+        var items = InventoryItems.AsEnumerable();
+
+        // 品质筛选
+        if (!string.IsNullOrEmpty(filterRarity))
+        {
+            items = items.Where(i => i.Rarity == filterRarity);
+        }
+
+        // 等级范围筛选
+        if (filterMinLevel.HasValue)
+        {
+            items = items.Where(i => i.ItemLevel >= filterMinLevel.Value);
+        }
+        if (filterMaxLevel.HasValue)
+        {
+            items = items.Where(i => i.ItemLevel <= filterMaxLevel.Value);
+        }
+
+        return items.ToList();
+    }
+
+    /// <summary>应用筛选条件</summary>
+    private void ApplyFilters()
+    {
+        StateHasChanged();
+    }
+
+    /// <summary>清除所有筛选条件</summary>
+    private void ClearFilters()
+    {
+        filterRarity = "";
+        filterMinLevel = null;
+        filterMaxLevel = null;
+        StateHasChanged();
+    }
+
+    /// <summary>全选当前筛选结果中的装备</summary>
+    private void SelectAllFiltered()
+    {
+        var filtered = GetFilteredInventoryItems();
+        foreach (var item in filtered)
+        {
+            SelectedDisenchantIds.Add(item.Id);
+        }
+        StateHasChanged();
+    }
+
+    /// <summary>反选（取消所有选择）</summary>
+    private void DeselectAll()
+    {
+        SelectedDisenchantIds.Clear();
+        StateHasChanged();
+    }
+
+    /// <summary>刷新材料库存</summary>
+    private async Task RefreshMaterials()
+    {
+        try
+        {
+            var inventory = await Api.GetInventoryAsync(CharacterId);
+            if (inventory?.Items != null)
+            {
+                // 筛选出材料类型的物品（ItemId以material_或essence_开头）
+                Materials = inventory.Items
+                    .Where(item => item.ItemId.StartsWith("material_") || item.ItemId.StartsWith("essence_"))
+                    .ToDictionary(item => item.ItemId, item => item.Quantity);
+            }
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            ToastNotification?.ShowError($"刷新材料失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>获取材料显示名称</summary>
+    private string GetMaterialDisplayName(string materialId)
+    {
+        return materialId switch
+        {
+            "material_cloth" => "布料",
+            "material_leather" => "皮革",
+            "material_mail" => "锁甲片",
+            "material_plate" => "板甲片",
+            "material_weapon" => "武器碎片",
+            "material_essence" => "精华",
+            "essence_tier" => "品级精华",
+            _ => materialId
+        };
+    }
+
+    /// <summary>初始化时加载材料</summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        if (CharacterId != Guid.Empty && Materials.Count == 0)
+        {
+            await RefreshMaterials();
+        }
     }
 
     /// <summary>获取稀有度颜色</summary>
@@ -355,6 +533,9 @@
                     );
                 }
                 
+                // 刷新材料库存
+                await RefreshMaterials();
+                
                 // 通知父组件刷新
                 if (OnItemsChanged.HasDelegate)
                 {
@@ -437,6 +618,9 @@
                     $"成功将装备重铸至 T{newTier}",
                     "重铸成功"
                 );
+                
+                // 刷新材料库存
+                await RefreshMaterials();
                 
                 // 通知父组件刷新
                 if (OnItemsChanged.HasDelegate)

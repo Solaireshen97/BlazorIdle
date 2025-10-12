@@ -294,6 +294,46 @@ public class EquipmentController : ControllerBase
     }
 
     /// <summary>
+    /// 获取角色背包中的装备（未装备的装备实例）
+    /// </summary>
+    /// <param name="characterId">角色ID</param>
+    /// <returns>背包装备列表</returns>
+    [HttpGet("{characterId:guid}/inventory")]
+    public async Task<ActionResult<object>> GetInventoryGear(Guid characterId)
+    {
+        // 查询属于该角色但未装备的装备实例
+        var inventoryGear = await _context.GearInstances
+            .Include(g => g.Definition)
+            .Where(g => g.CharacterId == characterId && g.SlotType == null)
+            .OrderByDescending(g => g.Rarity)
+            .ThenByDescending(g => g.ItemLevel)
+            .ThenByDescending(g => g.QualityScore)
+            .Select(g => new
+            {
+                Id = g.Id,
+                DefinitionId = g.DefinitionId,
+                Name = g.Definition != null ? g.Definition.Name : "未知装备",
+                Icon = g.Definition != null ? g.Definition.Icon : "?",
+                Rarity = g.Rarity.ToString(),
+                TierLevel = g.TierLevel,
+                ItemLevel = g.ItemLevel,
+                QualityScore = g.QualityScore,
+                ArmorType = g.Definition != null ? g.Definition.ArmorType.ToString() : null,
+                WeaponType = g.Definition != null ? g.Definition.WeaponType.ToString() : null,
+                SetId = g.SetId,
+                CreatedAt = g.CreatedAt
+            })
+            .ToListAsync();
+
+        return Ok(new
+        {
+            characterId,
+            count = inventoryGear.Count,
+            items = inventoryGear
+        });
+    }
+
+    /// <summary>
     /// 重铸装备（提升品级）
     /// </summary>
     /// <param name="characterId">角色ID</param>
