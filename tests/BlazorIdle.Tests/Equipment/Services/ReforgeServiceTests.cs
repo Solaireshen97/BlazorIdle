@@ -123,6 +123,11 @@ public class ReforgeServiceTests : IDisposable
 
         // Assert
         Assert.True(result.IsSuccess);
+        
+        // 验证品级正确提升
+        Assert.Equal(toTier, result.ReforgedGear!.TierLevel);
+        
+        // 验证属性倍率正确
         var newValue = result.ReforgedGear!.RolledStats[StatType.Armor];
         var actualRatio = newValue / originalValue;
 
