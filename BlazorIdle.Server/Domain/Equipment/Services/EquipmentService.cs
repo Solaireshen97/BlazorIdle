@@ -11,10 +11,12 @@ namespace BlazorIdle.Server.Domain.Equipment.Services;
 public class EquipmentService
 {
     private readonly GameDbContext _context;
+    private readonly EquipmentValidator _validator;
 
-    public EquipmentService(GameDbContext context)
+    public EquipmentService(GameDbContext context, EquipmentValidator validator)
     {
         _context = context;
+        _validator = validator;
     }
 
     /// <summary>
@@ -54,7 +56,29 @@ public class EquipmentService
             return EquipmentResult.Failure("无法确定装备槽位");
         }
 
-        // 5. 处理双手武器特殊逻辑
+        // 5. 获取角色信息并验证职业和等级限制
+        var character = await _context.Characters.FindAsync(characterId);
+        if (character == null)
+        {
+            return EquipmentResult.Failure("角色不存在");
+        }
+
+        if (gear.Definition != null)
+        {
+            var validation = _validator.ValidateEquip(
+                gear.Definition,
+                character.Profession,
+                character.Level,
+                slot.Value
+            );
+
+            if (!validation.IsSuccess)
+            {
+                return EquipmentResult.Failure(validation.ErrorMessage ?? "装备验证失败");
+            }
+        }
+
+        // 6. 处理双手武器特殊逻辑
         if (slot == EquipmentSlot.TwoHand)
         {
             // 卸下主手和副手
@@ -67,10 +91,10 @@ public class EquipmentService
             await UnequipSlotAsync(characterId, EquipmentSlot.TwoHand);
         }
 
-        // 6. 卸下该槽位现有装备
+        // 7. 卸下该槽位现有装备
         await UnequipSlotAsync(characterId, slot.Value);
 
-        // 7. 装备新物品
+        // 8. 装备新物品
         gear.CharacterId = characterId;
         gear.SlotType = slot;
         gear.IsEquipped = true;
