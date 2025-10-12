@@ -3,6 +3,16 @@
 @using BlazorIdle.Services
 @inject ApiClient Api
 
+<!-- 确认对话框 -->
+<ConfirmDialog 
+    Show="@showConfirmDialog"
+    Title="@confirmTitle"
+    Message="@confirmMessage"
+    WarningText="@confirmWarning"
+    Type="@confirmType"
+    OnConfirm="@OnConfirmAction"
+    OnCancel="@OnCancelAction" />
+
 <div class="panel" style="margin-top: 16px;">
     <h4>⚒️ 装备增强</h4>
     
@@ -201,6 +211,9 @@
     [Parameter]
     public EventCallback OnItemsChanged { get; set; }
 
+    [Parameter]
+    public ToastNotification? ToastNotification { get; set; }
+
     /// <summary>标签页枚举</summary>
     private enum EnhancementTab
     {
@@ -213,6 +226,14 @@
     private HashSet<Guid> SelectedDisenchantIds = new();
     private Dictionary<Guid, DisenchantPreviewResponse> DisenchantPreviews = new();
     private Dictionary<Guid, ReforgePreviewResponse> ReforgePreviews = new();
+    
+    // 确认对话框状态
+    private bool showConfirmDialog = false;
+    private string confirmTitle = "";
+    private string confirmMessage = "";
+    private string confirmWarning = "";
+    private ConfirmDialog.DialogType confirmType = ConfirmDialog.DialogType.Warning;
+    private Func<Task>? pendingAction = null;
 
     /// <summary>选择标签页</summary>
     private void SelectTab(EnhancementTab tab)
@@ -280,12 +301,27 @@
         }
         catch (Exception ex)
         {
+            ToastNotification?.ShowError($"加载分解预览失败: {ex.Message}", "错误");
             Console.WriteLine($"加载分解预览失败: {ex.Message}");
         }
     }
 
-    /// <summary>分解选中的装备</summary>
-    private async Task DisenchantSelected()
+    /// <summary>分解选中的装备（带确认）</summary>
+    private void DisenchantSelected()
+    {
+        if (SelectedDisenchantIds.Count == 0) return;
+
+        var itemCount = SelectedDisenchantIds.Count;
+        confirmTitle = "确认分解";
+        confirmMessage = $"确定要分解选中的 {itemCount} 件装备吗？";
+        confirmWarning = "分解后的装备将无法恢复，但会获得材料。";
+        confirmType = ConfirmDialog.DialogType.Warning;
+        pendingAction = PerformDisenchant;
+        showConfirmDialog = true;
+    }
+
+    /// <summary>执行分解操作</summary>
+    private async Task PerformDisenchant()
     {
         if (SelectedDisenchantIds.Count == 0) return;
 
@@ -297,8 +333,27 @@
             if (result != null)
             {
                 // 清除选择
+                var processedCount = result.SuccessCount;
                 SelectedDisenchantIds.Clear();
                 DisenchantPreviews.Clear();
+                
+                // 显示Toast通知
+                if (result.SuccessCount > 0)
+                {
+                    var materialsSummary = string.Join(", ", result.TotalMaterials.Select(m => $"{m.Key} x{m.Value}"));
+                    ToastNotification?.ShowSuccess(
+                        $"成功分解 {result.SuccessCount} 件装备，获得: {materialsSummary}",
+                        "分解成功"
+                    );
+                }
+                
+                if (result.FailCount > 0)
+                {
+                    ToastNotification?.ShowWarning(
+                        $"{result.FailCount} 件装备分解失败",
+                        "部分失败"
+                    );
+                }
                 
                 // 通知父组件刷新
                 if (OnItemsChanged.HasDelegate)
@@ -306,12 +361,12 @@
                     await OnItemsChanged.InvokeAsync();
                 }
                 
-                // 这里可以显示Toast通知
                 StateHasChanged();
             }
         }
         catch (Exception ex)
         {
+            ToastNotification?.ShowError($"分解装备失败: {ex.Message}", "错误");
             Console.WriteLine($"分解装备失败: {ex.Message}");
         }
         finally
@@ -335,6 +390,7 @@
         }
         catch (Exception ex)
         {
+            ToastNotification?.ShowError($"加载重铸预览失败: {ex.Message}", "错误");
             Console.WriteLine($"加载重铸预览失败: {ex.Message}");
         }
         finally
@@ -343,8 +399,27 @@
         }
     }
 
-    /// <summary>重铸装备</summary>
-    private async Task ReforgeItem(Guid itemId)
+    /// <summary>重铸装备（带确认）</summary>
+    private void ReforgeItem(Guid itemId)
+    {
+        if (!ReforgePreviews.TryGetValue(itemId, out var preview) || !preview.CanReforge)
+            return;
+
+        var item = EquippedItems.FirstOrDefault(i => i.Id == itemId);
+        if (item == null) return;
+
+        var costSummary = string.Join(", ", preview.Cost.Select(c => $"{c.Key} x{c.Value}"));
+        
+        confirmTitle = "确认重铸";
+        confirmMessage = $"确定要重铸 {item.Name} 吗？\n\n品级: T{preview.CurrentTier} → T{preview.NextTier}\n成本: {costSummary}";
+        confirmWarning = "重铸将消耗材料，请确保有足够的材料。";
+        confirmType = ConfirmDialog.DialogType.Primary;
+        pendingAction = () => PerformReforge(itemId);
+        showConfirmDialog = true;
+    }
+
+    /// <summary>执行重铸操作</summary>
+    private async Task PerformReforge(Guid itemId)
     {
         try
         {
@@ -356,24 +431,53 @@
                 // 清除预览缓存
                 ReforgePreviews.Remove(itemId);
                 
+                // 显示Toast通知
+                var newTier = result.Gear?.TierLevel ?? 0;
+                ToastNotification?.ShowSuccess(
+                    $"成功将装备重铸至 T{newTier}",
+                    "重铸成功"
+                );
+                
                 // 通知父组件刷新
                 if (OnItemsChanged.HasDelegate)
                 {
                     await OnItemsChanged.InvokeAsync();
                 }
                 
-                // 这里可以显示Toast通知
                 StateHasChanged();
+            }
+            else if (result != null)
+            {
+                ToastNotification?.ShowError(result.Message ?? "重铸失败", "错误");
             }
         }
         catch (Exception ex)
         {
+            ToastNotification?.ShowError($"重铸装备失败: {ex.Message}", "错误");
             Console.WriteLine($"重铸装备失败: {ex.Message}");
         }
         finally
         {
             IsBusy = false;
         }
+    }
+
+    /// <summary>确认对话框确认回调</summary>
+    private async Task OnConfirmAction()
+    {
+        showConfirmDialog = false;
+        if (pendingAction != null)
+        {
+            await pendingAction();
+            pendingAction = null;
+        }
+    }
+
+    /// <summary>确认对话框取消回调</summary>
+    private void OnCancelAction()
+    {
+        showConfirmDialog = false;
+        pendingAction = null;
     }
 
     /// <summary>简化的背包物品DTO</summary>
