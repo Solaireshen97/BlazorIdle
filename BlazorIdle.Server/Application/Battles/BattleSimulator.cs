@@ -47,6 +47,8 @@ public class BattleSimulator
         public double? ContinuousRespawnDelaySeconds { get; init; }
         public double? DungeonWaveDelaySeconds { get; init; }
         public double? DungeonRunDelaySeconds { get; init; }
+        /// <summary>Phase 5: 可选的攻击间隔覆盖（用于武器类型影响攻击速度）</summary>
+        public double? AttackIntervalSeconds { get; init; }
         public IProfessionModule? Module { get; init; }
         public Encounter? Encounter { get; init; }
         public EncounterGroup? EncounterGroup { get; init; }
@@ -61,12 +63,14 @@ public class BattleSimulator
         var rng = config.Rng ?? new RngContext(config.Seed);
         var seedIndexStart = rng.Index;
 
+        var module = config.Module ?? ProfessionRegistry.Resolve(config.Profession);
         var battle = new Battle
         {
             Id = config.BattleId,
             CharacterId = config.CharacterId,
-            AttackIntervalSeconds = (config.Module ?? ProfessionRegistry.Resolve(config.Profession)).BaseAttackInterval,
-            SpecialIntervalSeconds = (config.Module ?? ProfessionRegistry.Resolve(config.Profession)).BaseSpecialInterval,
+            // Phase 5: 使用配置中的攻击间隔（如果提供），否则使用职业基础间隔
+            AttackIntervalSeconds = config.AttackIntervalSeconds ?? module.BaseAttackInterval,
+            SpecialIntervalSeconds = module.BaseSpecialInterval,
             StartedAt = 0
         };
 

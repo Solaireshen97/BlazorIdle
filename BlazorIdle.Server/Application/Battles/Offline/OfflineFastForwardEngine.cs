@@ -182,6 +182,10 @@ public class OfflineFastForwardEngine
         );
         // 使用装备集成服务构建完整属性
         var stats = _equipmentStats.BuildStatsWithEquipmentAsync(character.Id, profession, attrs).GetAwaiter().GetResult();
+        
+        // Phase 5: 计算基于装备武器的攻击间隔
+        var professionModule = ProfessionRegistry.Resolve(profession);
+        var attackInterval = _equipmentStats.CalculateWeaponAttackIntervalAsync(character.Id, professionModule.BaseAttackInterval).GetAwaiter().GetResult();
 
         // 根据活动类型构建配置
         BattleSimulator.BattleConfig config;
@@ -206,7 +210,8 @@ public class OfflineFastForwardEngine
                 EnemyDef = enemyDef,
                 EnemyCount = payload.EnemyCount,
                 Mode = "continuous",
-                ContinuousRespawnDelaySeconds = payload.RespawnDelay
+                ContinuousRespawnDelaySeconds = payload.RespawnDelay,
+                AttackIntervalSeconds = attackInterval  // Phase 5: 应用武器攻击速度
             };
 
             economyContext = new EconomyContext
@@ -243,7 +248,8 @@ public class OfflineFastForwardEngine
                 Mode = payload.Loop ? "dungeonloop" : "dungeonsingle",
                 DungeonId = dungeonId,
                 DungeonWaveDelaySeconds = payload.WaveDelay,
-                DungeonRunDelaySeconds = payload.RunDelay
+                DungeonRunDelaySeconds = payload.RunDelay,
+                AttackIntervalSeconds = attackInterval  // Phase 5: 应用武器攻击速度
             };
 
             // Phase 6: 应用强化掉落倍率
