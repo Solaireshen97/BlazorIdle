@@ -8,7 +8,7 @@ namespace BlazorIdle.Server.Domain.Combat.Professions;
 public class WarriorProfession : IProfessionModule
 {
     public string Id => "warrior";
-    public double BaseAttackInterval => 1.5;
+    public double BaseAttackInterval => 2.5;
     public double BaseSpecialInterval => 5.0;
 
     public virtual void RegisterBuffDefinitions(BattleContext context)
@@ -25,7 +25,7 @@ public class WarriorProfession : IProfessionModule
 
         context.Resources.Ensure(
             id: "rage",
-            max: 100,
+            max: 5,
             initial: 0,
             policy: Resources.OverflowPolicy.Convert,
             convertUnit: 20,
@@ -36,7 +36,7 @@ public class WarriorProfession : IProfessionModule
     public virtual void OnAttackTick(BattleContext context, AttackTickEvent evt)
     {
         var rage = context.Resources.Get("rage");
-        var result = rage.Add(10);
+        var result = rage.Add(1);
         if (result.AppliedDelta != 0)
             context.SegmentCollector.OnResourceChange("rage", result.AppliedDelta);
         if (result.ConversionCount > 0)
@@ -56,10 +56,10 @@ public class WarriorProfession : IProfessionModule
             id: "heroic_strike",
             name: "Heroic Strike",
             costResourceId: "rage",
-            costAmount: 10,
-            cooldownSeconds: 3.0,
+            costAmount: 3,
+            cooldownSeconds: 10,
             priority: 10,
-            baseDamage: 50,
+            baseDamage: 20,
             critChance: 0.15,
             critMultiplier: 2.2
         ));
