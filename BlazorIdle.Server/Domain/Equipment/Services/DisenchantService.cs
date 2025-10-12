@@ -72,6 +72,18 @@ public class DisenchantService
     /// <returns>批量分解结果</returns>
     public async Task<BatchDisenchantResult> DisenchantBatchAsync(Guid characterId, List<Guid> gearInstanceIds)
     {
+        // 参数验证
+        if (gearInstanceIds == null || gearInstanceIds.Count == 0)
+        {
+            return new BatchDisenchantResult
+            {
+                SuccessCount = 0,
+                FailCount = 0,
+                TotalMaterials = new Dictionary<string, int>(),
+                Errors = new List<string> { "装备列表为空" }
+            };
+        }
+
         var successCount = 0;
         var failCount = 0;
         var totalMaterials = new Dictionary<string, int>();
@@ -79,24 +91,33 @@ public class DisenchantService
 
         foreach (var gearId in gearInstanceIds)
         {
-            var result = await DisenchantAsync(characterId, gearId);
-            if (result.IsSuccess)
+            try
             {
-                successCount++;
-                // 合并材料
-                foreach (var (materialId, amount) in result.Materials)
+                var result = await DisenchantAsync(characterId, gearId);
+                if (result.IsSuccess)
                 {
-                    if (!totalMaterials.ContainsKey(materialId))
+                    successCount++;
+                    // 合并材料
+                    foreach (var (materialId, amount) in result.Materials)
                     {
-                        totalMaterials[materialId] = 0;
+                        if (!totalMaterials.ContainsKey(materialId))
+                        {
+                            totalMaterials[materialId] = 0;
+                        }
+                        totalMaterials[materialId] += amount;
                     }
-                    totalMaterials[materialId] += amount;
+                }
+                else
+                {
+                    failCount++;
+                    errors.Add($"{gearId}: {result.Message}");
                 }
             }
-            else
+            catch (Exception ex)
             {
+                // 增强错误处理：记录异常信息
                 failCount++;
-                errors.Add($"{gearId}: {result.Message}");
+                errors.Add($"{gearId}: 分解时发生异常 - {ex.Message}");
             }
         }
 
@@ -116,26 +137,42 @@ public class DisenchantService
     /// <returns>材料字典（材料ID -> 数量）</returns>
     private Dictionary<string, int> CalculateDisenchantMaterials(GearInstance gear)
     {
+        // 防御性编程：验证输入参数
+        if (gear == null)
+        {
+            return new Dictionary<string, int>();
+        }
+
         var materials = new Dictionary<string, int>();
 
         // 基础材料（根据装备槽位和物品等级）
         var baseMaterialId = GetBaseMaterialId(gear);
         var baseMaterialAmount = CalculateBaseMaterialAmount(gear);
-        materials[baseMaterialId] = baseMaterialAmount;
+        if (baseMaterialAmount > 0)
+        {
+            materials[baseMaterialId] = baseMaterialAmount;
+        }
 
         // 根据稀有度给予额外材料
         var rareMaterialId = GetRareMaterialId(gear.Rarity);
         if (rareMaterialId != null)
         {
             var rareMaterialAmount = CalculateRareMaterialAmount(gear);
-            materials[rareMaterialId] = rareMaterialAmount;
+            if (rareMaterialAmount > 0)
+            {
+                materials[rareMaterialId] = rareMaterialAmount;
+            }
         }
 
         // 根据品级给予额外材料
         if (gear.TierLevel >= 2)
         {
             var tierMaterialId = "essence_tier";
-            materials[tierMaterialId] = gear.TierLevel - 1; // T2给1个，T3给2个
+            var tierAmount = gear.TierLevel - 1; // T2给1个，T3给2个
+            if (tierAmount > 0)
+            {
+                materials[tierMaterialId] = tierAmount;
+            }
         }
 
         return materials;
@@ -167,10 +204,18 @@ public class DisenchantService
     /// <summary>
     /// 计算基础材料数量
     /// </summary>
+    /// <param name="gear">装备实例</param>
+    /// <returns>基础材料数量（至少为1）</returns>
     private int CalculateBaseMaterialAmount(GearInstance gear)
     {
-        // 基础数量根据物品等级
-        var baseAmount = 1 + gear.ItemLevel / 10;
+        // 防御性编程：确保至少返回1个材料
+        if (gear == null)
+        {
+            return 1;
+        }
+
+        // 基础数量根据物品等级（确保至少为1）
+        var baseAmount = Math.Max(1, 1 + gear.ItemLevel / 10);
 
         // 根据槽位调整（胸甲和双手武器给更多材料）
         var slotMultiplier = gear.Definition?.Slot switch
@@ -181,7 +226,8 @@ public class DisenchantService
             _ => 1.0
         };
 
-        return (int)(baseAmount * slotMultiplier);
+        // 确保结果至少为1
+        return Math.Max(1, (int)(baseAmount * slotMultiplier));
     }
 
     /// <summary>

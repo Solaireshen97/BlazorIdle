@@ -103,8 +103,14 @@ public class GearGenerationService
     /// <summary>
     /// 计算物品等级
     /// </summary>
+    /// <param name="characterLevel">角色等级</param>
+    /// <param name="rarity">稀有度</param>
+    /// <returns>物品等级（至少为1）</returns>
     private int CalculateItemLevel(int characterLevel, Rarity rarity)
     {
+        // 确保角色等级至少为1
+        characterLevel = Math.Max(1, characterLevel);
+
         var rarityBonus = rarity switch
         {
             Rarity.Common => 0,
@@ -114,7 +120,8 @@ public class GearGenerationService
             _ => 0
         };
 
-        return characterLevel + rarityBonus;
+        // 确保物品等级至少为1
+        return Math.Max(1, characterLevel + rarityBonus);
     }
 
     /// <summary>
@@ -211,14 +218,24 @@ public class GearGenerationService
     /// <summary>
     /// Roll词条数值
     /// </summary>
+    /// <param name="affixDef">词条定义</param>
+    /// <param name="itemLevel">物品等级</param>
+    /// <returns>词条实例</returns>
     private AffixInstance RollAffixValue(Affix affixDef, int itemLevel)
     {
+        // 防御性编程：确保最小值不大于最大值
+        var minValue = Math.Min(affixDef.ValueMin, affixDef.ValueMax);
+        var maxValue = Math.Max(affixDef.ValueMin, affixDef.ValueMax);
+
         // Roll词条数值（在范围内随机）
-        var rolledValue = affixDef.ValueMin + _random.NextDouble() * (affixDef.ValueMax - affixDef.ValueMin);
+        var rolledValue = minValue + _random.NextDouble() * (maxValue - minValue);
         
         // 可选：根据物品等级调整词条数值
         // var levelMultiplier = 1.0 + (itemLevel - 1) * 0.02; // 每级提升2%
         // rolledValue *= levelMultiplier;
+
+        // 确保数值不为负
+        rolledValue = Math.Max(0, rolledValue);
 
         return new AffixInstance(
             affixDef.Id, 
@@ -230,17 +247,22 @@ public class GearGenerationService
     /// <summary>
     /// 计算装备评分
     /// </summary>
+    /// <param name="rolledStats">Roll的基础属性</param>
+    /// <param name="affixes">词条列表</param>
+    /// <param name="rarity">稀有度</param>
+    /// <param name="tierLevel">品级</param>
+    /// <returns>装备评分（至少为0）</returns>
     private int CalculateQualityScore(
         Dictionary<StatType, double> rolledStats,
         List<AffixInstance> affixes,
         Rarity rarity,
         int tierLevel)
     {
-        // 基础属性分数
-        var statScore = rolledStats.Values.Sum() * 0.1;
+        // 防御性编程：处理null情况
+        var statScore = (rolledStats?.Values.Sum() ?? 0) * 0.1;
         
-        // 词条分数
-        var affixScore = affixes.Sum(a => a.RolledValue * 0.2);
+        // 词条分数（确保不为null）
+        var affixScore = (affixes?.Sum(a => a.RolledValue * 0.2) ?? 0);
         
         // 稀有度加成
         var rarityMultiplier = rarity switch
@@ -262,6 +284,7 @@ public class GearGenerationService
         };
 
         var totalScore = (statScore + affixScore) * rarityMultiplier * tierMultiplier;
-        return (int)Math.Round(totalScore);
+        // 确保结果不为负
+        return Math.Max(0, (int)Math.Round(totalScore));
     }
 }
