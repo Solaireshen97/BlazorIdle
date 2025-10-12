@@ -48,6 +48,16 @@ public static class ApplicationDI
         //  - 使用 Scoped：与请求生命周期绑定
         services.AddScoped<ActivityPlanService>();
 
+        // ShopService:
+        //  - 商店服务，负责商店和商品查询、购买等功能
+        //  - 使用 Scoped：与请求生命周期绑定
+        services.AddScoped<IShopService, Application.Shop.ShopService>();
+
+        // PurchaseValidator:
+        //  - 购买验证器，负责验证购买请求的合法性
+        //  - 使用 Scoped：与请求生命周期绑定
+        services.AddScoped<IPurchaseValidator, Application.Shop.PurchaseValidator>();
+
         return services;
     }
 }
