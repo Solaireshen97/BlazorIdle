@@ -233,6 +233,31 @@ public sealed class AffixDto
     public string DisplayText { get; set; } = "";     // 例如: "+5% 暴击率"
 }
 
+/// <summary>背包装备响应（未装备的装备实例）</summary>
+public sealed class InventoryGearResponse
+{
+    public Guid CharacterId { get; set; }
+    public int Count { get; set; }
+    public List<InventoryGearItemDto> Items { get; set; } = new();
+}
+
+/// <summary>背包装备物品</summary>
+public sealed class InventoryGearItemDto
+{
+    public Guid Id { get; set; }
+    public string DefinitionId { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Icon { get; set; } = "⚔️";
+    public string Rarity { get; set; } = "Common";
+    public int TierLevel { get; set; }
+    public int ItemLevel { get; set; }
+    public int QualityScore { get; set; }
+    public string? ArmorType { get; set; }
+    public string? WeaponType { get; set; }
+    public string? SetId { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
 // ===== Phase 7: 装备增强系统 =====
 
 /// <summary>装备分解预览响应</summary>

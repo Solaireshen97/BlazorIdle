@@ -201,6 +201,13 @@ public class ApiClient
         return _http.GetFromJsonAsync<EquipmentResponse>($"/api/equipment/{characterId}", ct);
     }
 
+    /// <summary>获取背包中的装备（未装备的装备实例）</summary>
+    public Task<InventoryGearResponse?> GetInventoryGearAsync(Guid characterId, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        return _http.GetFromJsonAsync<InventoryGearResponse>($"/api/equipment/{characterId}/inventory", ct);
+    }
+
     // ===== 装备增强系统（Phase 7: 装备分解与重铸） =====
     
     /// <summary>预览装备分解产出</summary>
