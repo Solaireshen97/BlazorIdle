@@ -1,0 +1,218 @@
+@* Toast 通知组件 - 用于显示非侵入式通知 *@
+<div class="toast-container" style="position: fixed; top: 70px; right: 20px; z-index: 9999; pointer-events: none;">
+    @foreach (var toast in _toasts)
+    {
+        <div class="toast @GetToastClass(toast.Type) @(toast.IsVisible ? "show" : "")" 
+             style="@GetToastStyle(toast)" 
+             @key="toast.Id">
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; border-radius: 4px; margin-bottom: 8px; min-width: 300px; max-width: 400px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); pointer-events: auto; animation: slideIn 0.3s ease-out;">
+                <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
+                    <span style="font-size: 20px;">@GetToastIcon(toast.Type)</span>
+                    <div style="flex: 1;">
+                        @if (!string.IsNullOrEmpty(toast.Title))
+                        {
+                            <div style="font-weight: bold; font-size: 13px; margin-bottom: 2px;">@toast.Title</div>
+                        }
+                        <div style="font-size: 12px;">@toast.Message</div>
+                    </div>
+                </div>
+                <button @onclick="() => DismissToast(toast.Id)" 
+                        style="background: none; border: none; font-size: 18px; cursor: pointer; opacity: 0.6; padding: 0 4px; color: inherit;"
+                        title="关闭">×</button>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    @@keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    @@keyframes slideOut {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+    }
+
+    .toast {
+        transition: all 0.3s ease-out;
+    }
+
+    .toast.show {
+        animation: slideIn 0.3s ease-out;
+    }
+</style>
+
+@code {
+    /// <summary>Toast消息列表</summary>
+    private List<ToastMessage> _toasts = new();
+
+    /// <summary>Toast消息模型</summary>
+    private class ToastMessage
+    {
+        public Guid Id { get; set; } = Guid.NewGuid();
+        public string Title { get; set; } = "";
+        public string Message { get; set; } = "";
+        public ToastType Type { get; set; } = ToastType.Info;
+        public bool IsVisible { get; set; } = false;
+        public int DurationMs { get; set; } = 3000;
+    }
+
+    /// <summary>Toast类型</summary>
+    public enum ToastType
+    {
+        Success,
+        Error,
+        Warning,
+        Info
+    }
+
+    /// <summary>显示成功消息</summary>
+    public void ShowSuccess(string message, string title = "成功", int durationMs = 3000)
+    {
+        Show(title, message, ToastType.Success, durationMs);
+    }
+
+    /// <summary>显示错误消息</summary>
+    public void ShowError(string message, string title = "错误", int durationMs = 5000)
+    {
+        Show(title, message, ToastType.Error, durationMs);
+    }
+
+    /// <summary>显示警告消息</summary>
+    public void ShowWarning(string message, string title = "警告", int durationMs = 4000)
+    {
+        Show(title, message, ToastType.Warning, durationMs);
+    }
+
+    /// <summary>显示信息消息</summary>
+    public void ShowInfo(string message, string title = "", int durationMs = 3000)
+    {
+        Show(title, message, ToastType.Info, durationMs);
+    }
+
+    /// <summary>显示Toast消息</summary>
+    private void Show(string title, string message, ToastType type, int durationMs)
+    {
+        var toast = new ToastMessage
+        {
+            Title = title,
+            Message = message,
+            Type = type,
+            DurationMs = durationMs,
+            IsVisible = false
+        };
+
+        _toasts.Add(toast);
+        StateHasChanged();
+
+        // 延迟显示以触发动画
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(50);
+            await InvokeAsync(() =>
+            {
+                toast.IsVisible = true;
+                StateHasChanged();
+            });
+
+            // 自动消失
+            await Task.Delay(durationMs);
+            await InvokeAsync(() => DismissToast(toast.Id));
+        });
+    }
+
+    /// <summary>关闭Toast</summary>
+    private void DismissToast(Guid id)
+    {
+        var toast = _toasts.FirstOrDefault(t => t.Id == id);
+        if (toast != null)
+        {
+            toast.IsVisible = false;
+            StateHasChanged();
+
+            // 等待动画完成后移除
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(300);
+                await InvokeAsync(() =>
+                {
+                    _toasts.Remove(toast);
+                    StateHasChanged();
+                });
+            });
+        }
+    }
+
+    /// <summary>获取Toast样式类</summary>
+    private string GetToastClass(ToastType type)
+    {
+        return type switch
+        {
+            ToastType.Success => "toast-success",
+            ToastType.Error => "toast-error",
+            ToastType.Warning => "toast-warning",
+            ToastType.Info => "toast-info",
+            _ => "toast-info"
+        };
+    }
+
+    /// <summary>获取Toast样式</summary>
+    private string GetToastStyle(ToastMessage toast)
+    {
+        var bgColor = toast.Type switch
+        {
+            ToastType.Success => "#e8f5e9",
+            ToastType.Error => "#ffebee",
+            ToastType.Warning => "#fff8e1",
+            ToastType.Info => "#e3f2fd",
+            _ => "#f5f5f5"
+        };
+
+        var borderColor = toast.Type switch
+        {
+            ToastType.Success => "#4caf50",
+            ToastType.Error => "#f44336",
+            ToastType.Warning => "#ff9800",
+            ToastType.Info => "#2196f3",
+            _ => "#9e9e9e"
+        };
+
+        var textColor = toast.Type switch
+        {
+            ToastType.Success => "#2e7d32",
+            ToastType.Error => "#c62828",
+            ToastType.Warning => "#e65100",
+            ToastType.Info => "#1565c0",
+            _ => "#424242"
+        };
+
+        return $"background: {bgColor}; border-left: 4px solid {borderColor}; color: {textColor};";
+    }
+
+    /// <summary>获取Toast图标</summary>
+    private string GetToastIcon(ToastType type)
+    {
+        return type switch
+        {
+            ToastType.Success => "✓",
+            ToastType.Error => "✗",
+            ToastType.Warning => "⚠",
+            ToastType.Info => "ℹ",
+            _ => "•"
+        };
+    }
+}
