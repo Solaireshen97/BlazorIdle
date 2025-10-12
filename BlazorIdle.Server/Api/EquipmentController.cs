@@ -72,11 +72,28 @@ public class EquipmentController : ControllerBase
                 Item = gear != null ? new
                 {
                     Id = gear.Id,
+                    DefinitionId = gear.DefinitionId,
                     Name = gear.Definition?.Name ?? "未知装备",
                     Icon = gear.Definition?.Icon ?? "?",
                     Rarity = gear.Rarity.ToString(),
+                    Tier = (int)gear.Rarity, // Tier mapping to rarity for now
                     ItemLevel = gear.ItemLevel,
-                    QualityScore = gear.QualityScore
+                    QualityScore = gear.QualityScore,
+                    ArmorType = gear.Definition?.ArmorType.ToString(),
+                    WeaponType = gear.Definition?.WeaponType.ToString(),
+                    Affixes = gear.Affixes.Select(a => new
+                    {
+                        Id = a.AffixId,
+                        Name = a.AffixId, // Using ID as name for now
+                        StatId = a.StatType.ToString(),
+                        Value = a.RolledValue,
+                        DisplayText = $"+{a.RolledValue:F0} {a.StatType}"
+                    }).ToList(),
+                    SetId = gear.SetId,
+                    Stats = gear.RolledStats.ToDictionary(
+                        kvp => kvp.Key.ToString(),
+                        kvp => kvp.Value
+                    )
                 } : null,
                 IsLocked = false
             };

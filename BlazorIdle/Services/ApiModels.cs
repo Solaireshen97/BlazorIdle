@@ -217,6 +217,10 @@ public sealed class GearInstanceDto
     public List<AffixDto> Affixes { get; set; } = new();
     public string? SetId { get; set; }                // 套装ID
     public Dictionary<string, double> Stats { get; set; } = new();
+    
+    // Phase 4-5: 护甲和武器类型
+    public string? ArmorType { get; set; }            // None, Cloth, Leather, Mail, Plate
+    public string? WeaponType { get; set; }           // Sword, Axe, Bow, Shield, etc.
 }
 
 /// <summary>装备词条</summary>
