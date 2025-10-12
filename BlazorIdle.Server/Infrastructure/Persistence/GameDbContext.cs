@@ -2,6 +2,7 @@ using BlazorIdle.Server.Domain.Activities;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Equipment.Models;
 using BlazorIdle.Server.Domain.Records;
+using BlazorIdle.Server.Domain.Shop;
 using Microsoft.EntityFrameworkCore;
 
 namespace BlazorIdle.Server.Infrastructure.Persistence;
@@ -38,6 +39,12 @@ public class GameDbContext : DbContext
     public DbSet<Affix> Affixes => Set<Affix>();
     public DbSet<GearSet> GearSets => Set<GearSet>();
 
+    // === 商店系统 ===
+    public DbSet<ShopDefinition> ShopDefinitions => Set<ShopDefinition>();
+    public DbSet<ShopItem> ShopItems => Set<ShopItem>();
+    public DbSet<PurchaseRecord> PurchaseRecords => Set<PurchaseRecord>();
+    public DbSet<PurchaseCounter> PurchaseCounters => Set<PurchaseCounter>();
+
     /// <summary>
     /// ģ�͹������ӣ����� Fluent ���á�
     /// ��ǰ�� ApplyConfigurationsFromAssembly �Զ�ɨ��ʵ�� IEntityTypeConfiguration<> �������ࡣ
@@ -53,6 +60,9 @@ public class GameDbContext : DbContext
         
         // 添加装备系统种子数据
         modelBuilder.SeedEquipmentData();
+
+        // 添加商店系统种子数据
+        modelBuilder.SeedShops();
 
         base.OnModelCreating(modelBuilder);
     }
