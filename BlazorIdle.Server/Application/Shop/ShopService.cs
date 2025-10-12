@@ -81,6 +81,13 @@ public class ShopService : IShopService
             .OrderBy(i => i.SortOrder)
             .ToListAsync();
 
+        // 优化：批量加载所有商品的购买计数器，避免 N+1 查询
+        var itemIds = items.Select(i => i.Id).ToList();
+        var counterIds = itemIds.Select(itemId => PurchaseCounter.GenerateId(charGuid, itemId)).ToList();
+        var counters = await _context.PurchaseCounters
+            .Where(c => counterIds.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id);
+
         var itemDtos = new List<ShopItemDto>();
         foreach (var item in items)
         {
@@ -90,7 +97,11 @@ public class ShopService : IShopService
             var currentCount = 0;
             if (!limit.IsUnlimited())
             {
-                currentCount = await GetCurrentPurchaseCountAsync(charGuid, item.Id, limit);
+                var counterId = PurchaseCounter.GenerateId(charGuid, item.Id);
+                if (counters.TryGetValue(counterId, out var counter))
+                {
+                    currentCount = GetPurchaseCountWithReset(counter, limit);
+                }
             }
 
             var canPurchase = character.Level >= item.MinLevel;
@@ -341,6 +352,14 @@ public class ShopService : IShopService
             return 0;
         }
 
+        return GetPurchaseCountWithReset(counter, limit);
+    }
+
+    /// <summary>
+    /// 根据重置规则获取购买次数
+    /// </summary>
+    private int GetPurchaseCountWithReset(PurchaseCounter counter, PurchaseLimit limit)
+    {
         // 检查是否需要重置
         if (limit.Type == LimitType.Daily && counter.ShouldReset(_settings.DailyResetPeriodSeconds))
         {
