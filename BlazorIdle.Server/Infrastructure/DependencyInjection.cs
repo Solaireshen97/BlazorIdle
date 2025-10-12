@@ -11,6 +11,7 @@ using BlazorIdle.Server.Infrastructure.Startup;
 using BlazorIdle.Server.Application.Battles;
 using BlazorIdle.Server.Application.Activities;
 using BlazorIdle.Server.Domain.Equipment.Services;
+using BlazorIdle.Server.Infrastructure.Configuration;
 
 namespace BlazorIdle.Server.Infrastructure;
 
@@ -76,6 +77,10 @@ public static class DependencyInjection
         services.AddSingleton<AttackSpeedCalculator>();     // 无状态，线程安全，可为单例
         services.AddSingleton<WeaponDamageCalculator>();    // 武器伤害计算（Phase 5）
         services.AddScoped<EquipmentValidator>();           // 验证服务，使用Scoped
+        
+        // 商店系统配置
+        services.Configure<ShopOptions>(configuration.GetSection("Shop"));
+        services.AddSingleton<IShopConfigurationLoader, ShopConfigurationLoader>();
 
         return services;
     }

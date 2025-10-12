@@ -1,0 +1,187 @@
+{
+  "items": [
+    {
+      "id": "general_shop_health_potion",
+      "shopId": "general_shop",
+      "itemDefinitionId": "health_potion_small",
+      "itemName": "小型生命药水",
+      "itemIcon": "🧪",
+      "price": {
+        "currencyType": "Gold",
+        "amount": 50
+      },
+      "purchaseLimit": {
+        "type": "Unlimited"
+      },
+      "stockQuantity": -1,
+      "minLevel": 1,
+      "isEnabled": true,
+      "sortOrder": 1
+    },
+    {
+      "id": "general_shop_mana_potion",
+      "shopId": "general_shop",
+      "itemDefinitionId": "mana_potion_small",
+      "itemName": "小型魔法药水",
+      "itemIcon": "💙",
+      "price": {
+        "currencyType": "Gold",
+        "amount": 50
+      },
+      "purchaseLimit": {
+        "type": "Unlimited"
+      },
+      "stockQuantity": -1,
+      "minLevel": 1,
+      "isEnabled": true,
+      "sortOrder": 2
+    },
+    {
+      "id": "general_shop_bread",
+      "shopId": "general_shop",
+      "itemDefinitionId": "bread",
+      "itemName": "面包",
+      "itemIcon": "🍞",
+      "price": {
+        "currencyType": "Gold",
+        "amount": 10
+      },
+      "purchaseLimit": {
+        "type": "Unlimited"
+      },
+      "stockQuantity": -1,
+      "minLevel": 1,
+      "isEnabled": true,
+      "sortOrder": 3
+    },
+    {
+      "id": "weapon_shop_iron_sword",
+      "shopId": "weapon_shop",
+      "itemDefinitionId": "iron_sword",
+      "itemName": "铁剑",
+      "itemIcon": "⚔️",
+      "price": {
+        "currencyType": "Gold",
+        "amount": 500
+      },
+      "purchaseLimit": {
+        "type": "Unlimited"
+      },
+      "stockQuantity": -1,
+      "minLevel": 1,
+      "isEnabled": true,
+      "sortOrder": 1
+    },
+    {
+      "id": "weapon_shop_steel_sword",
+      "shopId": "weapon_shop",
+      "itemDefinitionId": "steel_sword",
+      "itemName": "钢剑",
+      "itemIcon": "⚔️",
+      "price": {
+        "currencyType": "Gold",
+        "amount": 1500
+      },
+      "purchaseLimit": {
+        "type": "Unlimited"
+      },
+      "stockQuantity": -1,
+      "minLevel": 5,
+      "isEnabled": true,
+      "sortOrder": 2
+    },
+    {
+      "id": "weapon_shop_wooden_shield",
+      "shopId": "weapon_shop",
+      "itemDefinitionId": "wooden_shield",
+      "itemName": "木盾",
+      "itemIcon": "🛡️",
+      "price": {
+        "currencyType": "Gold",
+        "amount": 300
+      },
+      "purchaseLimit": {
+        "type": "Unlimited"
+      },
+      "stockQuantity": -1,
+      "minLevel": 1,
+      "isEnabled": true,
+      "sortOrder": 3
+    },
+    {
+      "id": "alchemist_shop_greater_health",
+      "shopId": "alchemist_shop",
+      "itemDefinitionId": "health_potion_greater",
+      "itemName": "高级生命药水",
+      "itemIcon": "🧪",
+      "price": {
+        "currencyType": "Gold",
+        "amount": 200
+      },
+      "purchaseLimit": {
+        "type": "Daily",
+        "maxPurchases": 5
+      },
+      "stockQuantity": -1,
+      "minLevel": 10,
+      "isEnabled": true,
+      "sortOrder": 1
+    },
+    {
+      "id": "alchemist_shop_elixir",
+      "shopId": "alchemist_shop",
+      "itemDefinitionId": "elixir_of_strength",
+      "itemName": "力量药剂",
+      "itemIcon": "💪",
+      "price": {
+        "currencyType": "Gold",
+        "amount": 500
+      },
+      "purchaseLimit": {
+        "type": "Weekly",
+        "maxPurchases": 3
+      },
+      "stockQuantity": -1,
+      "minLevel": 15,
+      "isEnabled": true,
+      "sortOrder": 2
+    },
+    {
+      "id": "alchemist_shop_rare_ingredient",
+      "shopId": "alchemist_shop",
+      "itemDefinitionId": "dragon_scale",
+      "itemName": "龙鳞",
+      "itemIcon": "🐉",
+      "price": {
+        "currencyType": "Gold",
+        "amount": 5000
+      },
+      "purchaseLimit": {
+        "type": "PerCharacter",
+        "maxPurchases": 1
+      },
+      "stockQuantity": -1,
+      "minLevel": 20,
+      "isEnabled": true,
+      "sortOrder": 3
+    },
+    {
+      "id": "alchemist_shop_scroll",
+      "shopId": "alchemist_shop",
+      "itemDefinitionId": "teleport_scroll",
+      "itemName": "传送卷轴",
+      "itemIcon": "📜",
+      "price": {
+        "currencyType": "Gold",
+        "amount": 1000
+      },
+      "purchaseLimit": {
+        "type": "Unlimited"
+      },
+      "stockQuantity": -1,
+      "minLevel": 10,
+      "isEnabled": true,
+      "sortOrder": 4
+    }
+  ]
+}

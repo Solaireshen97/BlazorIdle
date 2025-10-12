@@ -1,0 +1,34 @@
+{
+  "shops": [
+    {
+      "id": "general_shop",
+      "name": "杂货铺",
+      "type": "General",
+      "icon": "🏪",
+      "description": "出售各类日常消耗品和基础装备",
+      "unlockCondition": null,
+      "isEnabled": true,
+      "sortOrder": 1
+    },
+    {
+      "id": "weapon_shop",
+      "name": "武器店",
+      "type": "General",
+      "icon": "⚔️",
+      "description": "专业的武器装备商店",
+      "unlockCondition": null,
+      "isEnabled": true,
+      "sortOrder": 2
+    },
+    {
+      "id": "alchemist_shop",
+      "name": "炼金术士",
+      "type": "Special",
+      "icon": "🧪",
+      "description": "出售高级药剂和特殊物品",
+      "unlockCondition": "level>=10",
+      "isEnabled": true,
+      "sortOrder": 3
+    }
+  ]
+}
