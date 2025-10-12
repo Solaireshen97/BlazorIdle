@@ -37,6 +37,12 @@ public class GameDbContext : DbContext
     public DbSet<GearInstance> GearInstances => Set<GearInstance>();
     public DbSet<Affix> Affixes => Set<Affix>();
     public DbSet<GearSet> GearSets => Set<GearSet>();
+    
+    // === 商店系统 ===
+    public DbSet<Domain.Shop.ShopDefinition> ShopDefinitions => Set<Domain.Shop.ShopDefinition>();
+    public DbSet<Domain.Shop.ShopItem> ShopItems => Set<Domain.Shop.ShopItem>();
+    public DbSet<Domain.Shop.PurchaseRecord> PurchaseRecords => Set<Domain.Shop.PurchaseRecord>();
+    public DbSet<Domain.Shop.PurchaseCounter> PurchaseCounters => Set<Domain.Shop.PurchaseCounter>();
 
     /// <summary>
     /// ģ�͹������ӣ����� Fluent ���á�
@@ -53,6 +59,9 @@ public class GameDbContext : DbContext
         
         // 添加装备系统种子数据
         modelBuilder.SeedEquipmentData();
+        
+        // 添加商店系统种子数据
+        modelBuilder.SeedShopData();
 
         base.OnModelCreating(modelBuilder);
     }
