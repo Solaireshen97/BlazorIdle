@@ -5,16 +5,30 @@
 <div class="equipment-panel" style="margin-top: 16px; padding: 16px; background: @BackgroundColor; border-radius: 4px; border: 1px solid @BorderColor;">
     <h6 style="margin: 0 0 12px 0; font-size: 14px; font-weight: bold;">🎒 @Title</h6>
     
+    @* 状态消息 *@
+    @if (!string.IsNullOrEmpty(SuccessMessage))
+    {
+        <div style="padding: 10px; margin-bottom: 12px; background: #e8f5e9; border: 1px solid #66bb6a; border-radius: 4px; color: #2e7d32; font-size: 12px; animation: slide-down 0.3s ease-out;">
+            ✓ @SuccessMessage
+        </div>
+    }
+    @if (!string.IsNullOrEmpty(InfoMessage))
+    {
+        <div style="padding: 10px; margin-bottom: 12px; background: #e3f2fd; border: 1px solid #42a5f5; border-radius: 4px; color: #1565c0; font-size: 12px; animation: slide-down 0.3s ease-out;">
+            ℹ️ @InfoMessage
+        </div>
+    }
+    @if (!string.IsNullOrEmpty(ErrorMessage))
+    {
+        <div style="padding: 10px; margin-bottom: 12px; background: #ffebee; border: 1px solid #ef5350; border-radius: 4px; color: #c62828; font-size: 12px; animation: shake 0.5s ease-out;">
+            ⚠️ @ErrorMessage
+        </div>
+    }
+    
     @if (IsLoading)
     {
         <div style="text-align: center; padding: 20px; color: #999;">
             <em>加载中...</em>
-        </div>
-    }
-    else if (!string.IsNullOrEmpty(ErrorMessage))
-    {
-        <div style="padding: 12px; background: #ffebee; border: 1px solid #ef5350; border-radius: 4px; color: #c62828;">
-            ⚠️ @ErrorMessage
         </div>
     }
     else
@@ -163,6 +177,12 @@
     
     /// <summary>错误消息</summary>
     [Parameter] public string ErrorMessage { get; set; } = "";
+    
+    /// <summary>成功消息</summary>
+    [Parameter] public string SuccessMessage { get; set; } = "";
+    
+    /// <summary>信息消息</summary>
+    [Parameter] public string InfoMessage { get; set; } = "";
     
     /// <summary>装备槽列表</summary>
     [Parameter] public List<EquipmentSlotDto> Slots { get; set; } = new();
