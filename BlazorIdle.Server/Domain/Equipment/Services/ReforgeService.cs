@@ -1,3 +1,4 @@
+using BlazorIdle.Server.Domain.Equipment.Configuration;
 using BlazorIdle.Server.Domain.Equipment.Models;
 using BlazorIdle.Server.Domain.Equipment.ValueObjects;
 using BlazorIdle.Server.Infrastructure.Persistence;
@@ -43,7 +44,7 @@ public class ReforgeService
         }
 
         // 3. 验证品级是否可提升
-        if (gear.TierLevel >= 3)
+        if (gear.TierLevel >= EquipmentSystemConfig.TierConfig.MaxTier)
         {
             return ReforgeResult.Failure("装备已达到最高品级");
         }
@@ -116,13 +117,7 @@ public class ReforgeService
     /// </summary>
     private double GetTierMultiplier(int tierLevel)
     {
-        return tierLevel switch
-        {
-            1 => 0.8,
-            2 => 1.0,
-            3 => 1.2,
-            _ => 1.0
-        };
+        return EquipmentSystemConfig.TierConfig.GetMultiplier(tierLevel);
     }
 
     /// <summary>
@@ -145,23 +140,14 @@ public class ReforgeService
         var affixScore = (gear.Affixes?.Sum(a => a.RolledValue * 0.2) ?? 0);
 
         // 稀有度加成
-        var rarityMultiplier = gear.Rarity switch
-        {
-            Rarity.Common => 1.0,
-            Rarity.Rare => 1.5,
-            Rarity.Epic => 2.0,
-            Rarity.Legendary => 3.0,
-            _ => 1.0
-        };
+        var rarityMultiplier = EquipmentSystemConfig.QualityScoreConfig.RarityScoreMultipliers.TryGetValue(
+            gear.Rarity, 
+            out var rMult) 
+                ? rMult 
+                : 1.0;
 
         // 品级加成
-        var tierMultiplier = gear.TierLevel switch
-        {
-            1 => 0.8,
-            2 => 1.0,
-            3 => 1.2,
-            _ => 1.0
-        };
+        var tierMultiplier = EquipmentSystemConfig.TierConfig.GetMultiplier(gear.TierLevel);
 
         var totalScore = (statScore + affixScore) * rarityMultiplier * tierMultiplier;
         // 确保结果不为负
@@ -187,36 +173,37 @@ public class ReforgeService
         var baseCost = (gear.TierLevel + 1) * 10; // T1->T2需要20，T2->T3需要30
 
         // 稀有度倍率
-        var rarityMultiplier = gear.Rarity switch
-        {
-            Rarity.Common => 1.0,
-            Rarity.Rare => 2.0,
-            Rarity.Epic => 4.0,
-            Rarity.Legendary => 8.0,
-            _ => 1.0
-        };
+        var rarityMultiplier = EquipmentSystemConfig.ReforgeConfig.RarityCostMultipliers.TryGetValue(
+            gear.Rarity, 
+            out var rMult) 
+                ? rMult 
+                : 1.0;
 
-        // 需要的材料（确保至少为1）
-        cost["material_essence"] = Math.Max(1, (int)(baseCost * rarityMultiplier));
+        // 需要的材料（确保至少为最小值）
+        cost[EquipmentSystemConfig.ReforgeConfig.EssenceMaterial] = Math.Max(
+            EquipmentSystemConfig.ReforgeConfig.MinMaterialAmount, 
+            (int)(baseCost * rarityMultiplier));
 
         // 根据稀有度需要对应的稀有材料
-        var rareMaterial = gear.Rarity switch
-        {
-            Rarity.Rare => "essence_rare",
-            Rarity.Epic => "essence_epic",
-            Rarity.Legendary => "essence_legendary",
-            _ => null
-        };
+        var rareMaterial = EquipmentSystemConfig.DisenchantConfig.RareMaterials.TryGetValue(
+            gear.Rarity, 
+            out var rm) 
+                ? rm 
+                : null;
 
         if (rareMaterial != null)
         {
             var rareMaterialCount = gear.TierLevel + 1; // T1->T2需要2个，T2->T3需要3个
-            cost[rareMaterial] = Math.Max(1, rareMaterialCount);
+            cost[rareMaterial] = Math.Max(
+                EquipmentSystemConfig.ReforgeConfig.MinMaterialAmount, 
+                rareMaterialCount);
         }
 
-        // 金币成本（确保至少为100）
+        // 金币成本（确保至少为最小值）
         var goldCost = gear.ItemLevel * 100 * Math.Max(1, gear.TierLevel);
-        cost["gold"] = Math.Max(100, goldCost);
+        cost[EquipmentSystemConfig.ReforgeConfig.Gold] = Math.Max(
+            EquipmentSystemConfig.ReforgeConfig.MinGoldCost, 
+            goldCost);
 
         return cost;
     }
@@ -241,7 +228,7 @@ public class ReforgeService
             };
         }
 
-        if (gear.TierLevel >= 3)
+        if (gear.TierLevel >= EquipmentSystemConfig.TierConfig.MaxTier)
         {
             return new ReforgeCostPreview
             {
