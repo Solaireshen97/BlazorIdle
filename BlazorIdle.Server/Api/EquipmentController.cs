@@ -101,6 +101,20 @@ public class EquipmentController : ControllerBase
 
         // 获取总属性
         var stats = await _statsAggregationService.CalculateEquipmentStatsAsync(characterId);
+        
+        // 获取武器信息（Phase 5）
+        var mainHandType = await _statsAggregationService.GetMainHandWeaponTypeAsync(characterId);
+        var offHandType = await _statsAggregationService.GetOffHandWeaponTypeAsync(characterId);
+        var isDualWielding = await _statsAggregationService.IsDualWieldingAsync(characterId);
+        var blockChance = await _statsAggregationService.CalculateBlockChanceAsync(characterId);
+        
+        var weaponInfo = GetWeaponDisplayInfo(mainHandType, offHandType, isDualWielding);
+        
+        // 添加格挡率到统计（如果装备盾牌）
+        if (blockChance > 0)
+        {
+            stats[StatType.BlockChance] = blockChance;
+        }
 
         var response = new
         {
@@ -110,10 +124,31 @@ public class EquipmentController : ControllerBase
             totalStats = stats.ToDictionary(
                 kvp => kvp.Key.ToString(),
                 kvp => kvp.Value
-            )
+            ),
+            weaponInfo
         };
 
         return Ok(response);
+    }
+    
+    /// <summary>
+    /// 获取武器显示信息
+    /// </summary>
+    private static string GetWeaponDisplayInfo(WeaponType mainHand, WeaponType offHand, bool isDualWielding)
+    {
+        if (isDualWielding)
+        {
+            return $"双持: {AttackSpeedCalculator.GetWeaponTypeName(mainHand)} + {AttackSpeedCalculator.GetWeaponTypeName(offHand)}";
+        }
+        else if (mainHand != WeaponType.None)
+        {
+            if (AttackSpeedCalculator.IsTwoHandedWeapon(mainHand))
+            {
+                return $"双手武器: {AttackSpeedCalculator.GetWeaponTypeName(mainHand)}";
+            }
+            return $"单手武器: {AttackSpeedCalculator.GetWeaponTypeName(mainHand)}";
+        }
+        return "空手";
     }
 
     /// <summary>
