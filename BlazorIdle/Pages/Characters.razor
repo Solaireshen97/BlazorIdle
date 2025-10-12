@@ -15,6 +15,17 @@
 <!-- Toast 通知组件 -->
 <ToastNotification @ref="toastNotification" />
 
+<!-- 确认对话框组件 -->
+<ConfirmDialog 
+    Show="@showConfirmDialog"
+    Title="@confirmDialogTitle"
+    Message="@confirmDialogMessage"
+    WarningText="@confirmDialogWarning"
+    Type="@confirmDialogType"
+    ConfirmButtonText="@confirmButtonText"
+    OnConfirm="@OnConfirmDialogConfirm"
+    OnCancel="@OnConfirmDialogCancel" />
+
 @if (!isAuthenticated)
 {
     <p>正在检查登录状态...</p>
@@ -78,7 +89,7 @@ else
     @if (lastCreated is not null)
     {
         <p>已创建: @lastCreated.Name (@lastCreated.Id)</p>
-        <button class="btn btn-sm" @onclick="ResetBattleState" disabled="@isBusy">重置战斗状态</button>
+        <button class="btn btn-sm" @onclick="ResetBattleStateWithConfirm" disabled="@isBusy">重置战斗状态</button>
     }
 </div>
 
@@ -333,7 +344,7 @@ else
                                 <td>
                                     @if (plan.State == 1) // Running
                                     {
-                                        <button class="btn btn-sm btn-warning" @onclick="() => StopPlanAsync(plan.Id)" disabled="@isBusy">停止</button>
+                                        <button class="btn btn-sm btn-warning" @onclick="() => StopPlanWithConfirm(plan.Id)" disabled="@isBusy">停止</button>
                                         @if (plan.BattleId.HasValue)
                                         {
                                             <button class="btn btn-sm btn-info" @onclick="() => ViewPlanBattleAsync(plan.BattleId.Value)" disabled="@isBusy">查看战斗</button>
@@ -341,16 +352,16 @@ else
                                     }
                                     else if (plan.State == 0) // Pending
                                     {
-                                        <button class="btn btn-sm btn-danger" @onclick="() => CancelPlanAsync(plan.Id)" disabled="@isBusy">取消</button>
+                                        <button class="btn btn-sm btn-danger" @onclick="() => CancelPlanWithConfirm(plan.Id)" disabled="@isBusy">取消</button>
                                     }
                                     else if (plan.State == 4) // Paused
                                     {
                                         <button class="btn btn-sm btn-success" @onclick="() => ResumePlanAsync(plan.Id)" disabled="@isBusy">恢复</button>
-                                        <button class="btn btn-sm btn-danger" @onclick="() => CancelPlanAsync(plan.Id)" disabled="@isBusy">取消</button>
+                                        <button class="btn btn-sm btn-danger" @onclick="() => CancelPlanWithConfirm(plan.Id)" disabled="@isBusy">取消</button>
                                     }
                                     else if (plan.State == 2 || plan.State == 3) // Completed or Cancelled
                                     {
-                                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => DeletePlanAsync(plan.Id)" disabled="@isBusy">删除</button>
+                                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => DeletePlanWithConfirm(plan.Id)" disabled="@isBusy">删除</button>
                                     }
                                 </td>
                             </tr>
@@ -907,6 +918,15 @@ else
     private UserCharacterDto? selectedCharacter;
     private string userMessage = "";
     private ToastNotification? toastNotification;
+    
+    // ====== 确认对话框 ======
+    private bool showConfirmDialog = false;
+    private string confirmDialogTitle = "";
+    private string confirmDialogMessage = "";
+    private string confirmDialogWarning = "";
+    private ConfirmDialog.DialogType confirmDialogType = ConfirmDialog.DialogType.Danger;
+    private string confirmButtonText = "确认";
+    private Func<Task>? pendingConfirmAction;
 
     // ====== 离线战斗 ======
     private OfflineCheckResult? offlineCheckResult;
@@ -1233,6 +1253,45 @@ else
         }
     }
 
+    /// <summary>
+    /// 显示确认对话框
+    /// </summary>
+    private void ShowConfirmDialog(string title, string message, Func<Task> action, string warning = "", ConfirmDialog.DialogType type = ConfirmDialog.DialogType.Danger, string confirmText = "确认")
+    {
+        confirmDialogTitle = title;
+        confirmDialogMessage = message;
+        confirmDialogWarning = warning;
+        confirmDialogType = type;
+        confirmButtonText = confirmText;
+        pendingConfirmAction = action;
+        showConfirmDialog = true;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// 确认对话框 - 确认回调
+    /// </summary>
+    private async Task OnConfirmDialogConfirm()
+    {
+        showConfirmDialog = false;
+        if (pendingConfirmAction != null)
+        {
+            await pendingConfirmAction();
+            pendingConfirmAction = null;
+        }
+    }
+
+    /// <summary>
+    /// 确认对话框 - 取消回调
+    /// </summary>
+    private Task OnConfirmDialogCancel()
+    {
+        showConfirmDialog = false;
+        pendingConfirmAction = null;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
     void ResetBattleState()
     {
         battleInProgress = false;
@@ -1241,6 +1300,20 @@ else
         segments = null;
         StopPolling();
         StateHasChanged();
+    }
+    
+    /// <summary>
+    /// 重置战斗状态（带确认）
+    /// </summary>
+    void ResetBattleStateWithConfirm()
+    {
+        ShowConfirmDialog(
+            "重置战斗状态",
+            "确定要重置当前战斗状态吗？这将清除当前战斗数据。",
+            () => { ResetBattleState(); return Task.CompletedTask; },
+            type: ConfirmDialog.DialogType.Warning,
+            confirmText: "重置"
+        );
     }
 
     async Task StartBattle()
@@ -1598,6 +1671,20 @@ else
         }
     }
 
+    /// <summary>
+    /// 停止计划（带确认）
+    /// </summary>
+    void StopPlanWithConfirm(Guid planId)
+    {
+        ShowConfirmDialog(
+            "停止计划",
+            "确定要停止此计划吗？计划将被暂停，可以稍后恢复。",
+            () => StopPlanAsync(planId),
+            type: ConfirmDialog.DialogType.Warning,
+            confirmText: "停止"
+        );
+    }
+
     async Task StopPlanAsync(Guid planId)
     {
         try
@@ -1607,20 +1694,37 @@ else
             if (success)
             {
                 await RefreshPlansAsync();
+                toastNotification?.ShowSuccess("计划已停止");
             }
             else
             {
                 planError = "停止计划失败";
+                toastNotification?.ShowError("停止计划失败");
             }
         }
         catch (Exception ex)
         {
             planError = $"停止计划异常: {ex.Message}";
+            toastNotification?.ShowError($"停止计划异常: {ex.Message}");
         }
         finally
         {
             isBusy = false;
         }
+    }
+
+    /// <summary>
+    /// 取消计划（带确认）
+    /// </summary>
+    void CancelPlanWithConfirm(Guid planId)
+    {
+        ShowConfirmDialog(
+            "取消计划",
+            "确定要取消此计划吗？此操作不可撤销。",
+            () => CancelPlanAsync(planId),
+            warning: "取消后的计划无法恢复，但可以重新创建。",
+            confirmText: "取消计划"
+        );
     }
 
     async Task CancelPlanAsync(Guid planId)
@@ -1632,20 +1736,37 @@ else
             if (success)
             {
                 await RefreshPlansAsync();
+                toastNotification?.ShowSuccess("计划已取消");
             }
             else
             {
                 planError = "取消计划失败";
+                toastNotification?.ShowError("取消计划失败");
             }
         }
         catch (Exception ex)
         {
             planError = $"取消计划异常: {ex.Message}";
+            toastNotification?.ShowError($"取消计划异常: {ex.Message}");
         }
         finally
         {
             isBusy = false;
         }
+    }
+
+    /// <summary>
+    /// 删除计划（带确认）
+    /// </summary>
+    void DeletePlanWithConfirm(Guid planId)
+    {
+        ShowConfirmDialog(
+            "删除计划",
+            "确定要删除此计划吗？此操作不可撤销。",
+            () => DeletePlanAsync(planId),
+            warning: "删除后的计划记录将永久丢失。",
+            confirmText: "删除"
+        );
     }
 
     async Task DeletePlanAsync(Guid planId)
@@ -1657,15 +1778,18 @@ else
             if (success)
             {
                 await RefreshPlansAsync();
+                toastNotification?.ShowSuccess("计划已删除");
             }
             else
             {
                 planError = "删除计划失败";
+                toastNotification?.ShowError("删除计划失败");
             }
         }
         catch (Exception ex)
         {
             planError = $"删除计划异常: {ex.Message}";
+            toastNotification?.ShowError($"删除计划异常: {ex.Message}");
         }
         finally
         {
