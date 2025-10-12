@@ -24,8 +24,20 @@ public class DisenchantService
     /// <param name="characterId">角色ID</param>
     /// <param name="gearInstanceId">装备实例ID</param>
     /// <returns>分解结果，包含获得的材料</returns>
+    /// <exception cref="ArgumentException">当ID无效时抛出</exception>
     public async Task<DisenchantResult> DisenchantAsync(Guid characterId, Guid gearInstanceId)
     {
+        // 参数验证
+        if (characterId == Guid.Empty)
+        {
+            throw new ArgumentException("角色ID不能为空", nameof(characterId));
+        }
+        
+        if (gearInstanceId == Guid.Empty)
+        {
+            throw new ArgumentException("装备ID不能为空", nameof(gearInstanceId));
+        }
+        
         // 1. 获取装备实例
         var gear = await _context.Set<GearInstance>()
             .Include(g => g.Definition)
