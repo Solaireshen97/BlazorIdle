@@ -4,6 +4,7 @@ using BlazorIdle.Server.Domain.Shop;
 using BlazorIdle.Server.Domain.Shop.ValueObjects;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace BlazorIdle.Server.Application.Shop;
 
@@ -13,10 +14,12 @@ namespace BlazorIdle.Server.Application.Shop;
 public class PurchaseValidator : IPurchaseValidator
 {
     private readonly GameDbContext _context;
+    private readonly ShopOptions _options;
 
-    public PurchaseValidator(GameDbContext context)
+    public PurchaseValidator(GameDbContext context, IOptions<ShopOptions> options)
     {
         _context = context;
+        _options = options.Value;
     }
 
     public async Task<(bool isValid, string? errorMessage)> ValidatePurchaseAsync(
@@ -98,12 +101,12 @@ public class PurchaseValidator : IPurchaseValidator
             return 0;
         }
 
-        // 检查是否需要重置
-        if (limit.Type == LimitType.Daily && counter.ShouldReset(86400))
+        // 检查是否需要重置（使用配置的周期）
+        if (limit.Type == LimitType.Daily && counter.ShouldReset(_options.DailyResetSeconds))
         {
             return 0;
         }
-        if (limit.Type == LimitType.Weekly && counter.ShouldReset(604800))
+        if (limit.Type == LimitType.Weekly && counter.ShouldReset(_options.WeeklyResetSeconds))
         {
             return 0;
         }

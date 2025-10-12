@@ -2,6 +2,7 @@
 using BlazorIdle.Server.Application.Activities;
 using BlazorIdle.Server.Application.Battles;
 using BlazorIdle.Server.Application.Economy;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BlazorIdle.Server.Application;
@@ -17,7 +18,7 @@ public static class ApplicationDI
     /// 注册应用层服务。
     /// 返回 IServiceCollection 以支持链式调用（流式 API 风格）。
     /// </summary>
-    public static IServiceCollection AddApplication(this IServiceCollection services)
+    public static IServiceCollection AddApplication(this IServiceCollection services, IConfiguration configuration)
     {
         // BattleRunner:
         //  - 当前实现是纯算法/无状态（每次调用内部 new Clock/Scheduler），线程安全。
@@ -47,6 +48,10 @@ public static class ApplicationDI
         //  - 活动计划服务，管理活动计划的生命周期
         //  - 使用 Scoped：与请求生命周期绑定
         services.AddScoped<ActivityPlanService>();
+
+        // 配置商店系统选项
+        services.Configure<Application.Shop.ShopOptions>(
+            configuration.GetSection(Application.Shop.ShopOptions.SectionName));
 
         // ShopService:
         //  - 商店服务，负责商店和商品查询、购买等功能

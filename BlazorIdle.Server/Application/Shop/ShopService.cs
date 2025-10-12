@@ -4,6 +4,7 @@ using BlazorIdle.Server.Domain.Shop.ValueObjects;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using BlazorIdle.Shared.Models.Shop;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using System.Text.Json;
 
 namespace BlazorIdle.Server.Application.Shop;
@@ -15,11 +16,16 @@ public class ShopService : IShopService
 {
     private readonly GameDbContext _context;
     private readonly IPurchaseValidator _validator;
+    private readonly ShopOptions _options;
 
-    public ShopService(GameDbContext context, IPurchaseValidator validator)
+    public ShopService(
+        GameDbContext context, 
+        IPurchaseValidator validator,
+        IOptions<ShopOptions> options)
     {
         _context = context;
         _validator = validator;
+        _options = options.Value;
     }
 
     public async Task<ListShopsResponse> ListShopsAsync(string characterId)
@@ -252,6 +258,16 @@ public class ShopService : IShopService
             return new PurchaseHistoryResponse();
         }
 
+        // 使用配置的默认值和最大值限制
+        if (pageSize <= 0)
+        {
+            pageSize = _options.DefaultHistoryPageSize;
+        }
+        if (pageSize > _options.MaxHistoryPageSize)
+        {
+            pageSize = _options.MaxHistoryPageSize;
+        }
+
         var skip = (page - 1) * pageSize;
 
         var totalCount = await _context.PurchaseRecords
@@ -328,12 +344,12 @@ public class ShopService : IShopService
             return 0;
         }
 
-        // 检查是否需要重置
-        if (limit.Type == LimitType.Daily && counter.ShouldReset(86400))
+        // 检查是否需要重置（使用配置的周期）
+        if (limit.Type == LimitType.Daily && counter.ShouldReset(_options.DailyResetSeconds))
         {
             return 0;
         }
-        if (limit.Type == LimitType.Weekly && counter.ShouldReset(604800))
+        if (limit.Type == LimitType.Weekly && counter.ShouldReset(_options.WeeklyResetSeconds))
         {
             return 0;
         }
@@ -371,15 +387,15 @@ public class ShopService : IShopService
             _context.PurchaseCounters.Add(counter);
         }
 
-        // 检查是否需要重置
+        // 检查是否需要重置（使用配置的周期）
         var shouldReset = false;
         if (limit.Type == LimitType.Daily)
         {
-            shouldReset = counter.ShouldReset(86400);
+            shouldReset = counter.ShouldReset(_options.DailyResetSeconds);
         }
         else if (limit.Type == LimitType.Weekly)
         {
-            shouldReset = counter.ShouldReset(604800);
+            shouldReset = counter.ShouldReset(_options.WeeklyResetSeconds);
         }
         else if (limit.Type == LimitType.CustomPeriod && limit.ResetPeriodSeconds.HasValue)
         {

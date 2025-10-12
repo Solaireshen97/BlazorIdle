@@ -6,6 +6,7 @@ using BlazorIdle.Server.Infrastructure.Persistence;
 using BlazorIdle.Shared.Models;
 using BlazorIdle.Shared.Models.Shop;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using System.Text.Json;
 using Xunit;
 
@@ -24,13 +25,26 @@ public class ShopServiceTests : IDisposable
     public ShopServiceTests()
     {
         // 使用内存数据库进行测试
-        var options = new DbContextOptionsBuilder<GameDbContext>()
+        var dbOptions = new DbContextOptionsBuilder<GameDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
 
-        _context = new GameDbContext(options);
-        _validator = new PurchaseValidator(_context);
-        _shopService = new ShopService(_context, _validator);
+        _context = new GameDbContext(dbOptions);
+
+        // 创建测试用的商店配置
+        var shopOptions = Options.Create(new ShopOptions
+        {
+            EnablePurchaseLimit = true,
+            DailyResetSeconds = 86400,
+            WeeklyResetSeconds = 604800,
+            DefaultCacheMinutes = 5,
+            CleanupSchedule = "0 0 * * *",
+            DefaultHistoryPageSize = 20,
+            MaxHistoryPageSize = 100
+        });
+
+        _validator = new PurchaseValidator(_context, shopOptions);
+        _shopService = new ShopService(_context, _validator, shopOptions);
 
         // 设置测试数据
         _testCharacterId = Guid.NewGuid();

@@ -70,7 +70,7 @@ builder.Services.AddScoped<JwtTokenService>();
 // 4. ҵ��ֲ�ע��
 builder.Services
     .AddInfrastructure(builder.Configuration)   // ע�������ʩ��DbContext / �ִ����ڲ��ѵ��� AddRepositories��
-    .AddApplication();                          // ע��Ӧ�ò�����������Command/Query Handler �ȣ�
+    .AddApplication(builder.Configuration);     // ע��Ӧ�ò�����������Command/Query Handler �ȣ�
 
 // 5. ע�����߼�⺧̨����
 builder.Services.AddHostedService<OfflineDetectionService>();
