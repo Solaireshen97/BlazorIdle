@@ -232,3 +232,59 @@ public sealed class AffixDto
     public double Value { get; set; }
     public string DisplayText { get; set; } = "";     // 例如: "+5% 暴击率"
 }
+
+// ===== Phase 7: 装备增强系统 =====
+
+/// <summary>装备分解预览响应</summary>
+public sealed class DisenchantPreviewResponse
+{
+    public Guid GearInstanceId { get; set; }
+    public Dictionary<string, int> Materials { get; set; } = new();
+}
+
+/// <summary>装备分解结果</summary>
+public sealed class DisenchantResult
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = "";
+    public Dictionary<string, int> Materials { get; set; } = new();
+}
+
+/// <summary>批量分解结果</summary>
+public sealed class DisenchantBatchResult
+{
+    public int SuccessCount { get; set; }
+    public int FailCount { get; set; }
+    public Dictionary<string, int> TotalMaterials { get; set; } = new();
+    public List<string> Errors { get; set; } = new();
+}
+
+/// <summary>重铸预览响应</summary>
+public sealed class ReforgePreviewResponse
+{
+    public bool CanReforge { get; set; }
+    public string Message { get; set; } = "";
+    public int CurrentTier { get; set; }
+    public int NextTier { get; set; }
+    public Dictionary<string, int> Cost { get; set; } = new();
+    public Dictionary<string, double> CurrentStats { get; set; } = new();
+    public Dictionary<string, double> PreviewStats { get; set; } = new();
+}
+
+/// <summary>重铸装备响应中的装备信息</summary>
+public sealed class ReforgedGearDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = "";
+    public int TierLevel { get; set; }
+    public double QualityScore { get; set; }
+    public Dictionary<string, double> RolledStats { get; set; } = new();
+}
+
+/// <summary>重铸结果</summary>
+public sealed class ReforgeResult
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = "";
+    public ReforgedGearDto? Gear { get; set; }
+}
