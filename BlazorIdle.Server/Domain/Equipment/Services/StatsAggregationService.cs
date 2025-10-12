@@ -40,11 +40,7 @@ public class StatsAggregationService
             // 2.1 聚合装备Roll的基础属性
             foreach (var (statType, value) in gear.RolledStats)
             {
-                if (!stats.ContainsKey(statType))
-                {
-                    stats[statType] = 0;
-                }
-                stats[statType] += value;
+                AddStatValue(stats, statType, value);
             }
 
             // 2.2 聚合词条属性
@@ -52,11 +48,7 @@ public class StatsAggregationService
             {
                 if (affix.ModifierType == ModifierType.Flat || affix.ModifierType == ModifierType.Percent)
                 {
-                    if (!stats.ContainsKey(affix.StatType))
-                    {
-                        stats[affix.StatType] = 0;
-                    }
-                    stats[affix.StatType] += affix.RolledValue;
+                    AddStatValue(stats, affix.StatType, affix.RolledValue);
                 }
             }
 
@@ -66,11 +58,7 @@ public class StatsAggregationService
                 var armorValue = CalculateArmorValue(gear);
                 if (armorValue > 0)
                 {
-                    if (!stats.ContainsKey(StatType.Armor))
-                    {
-                        stats[StatType.Armor] = 0;
-                    }
-                    stats[StatType.Armor] += armorValue;
+                    AddStatValue(stats, StatType.Armor, armorValue);
                 }
             }
         }
@@ -79,11 +67,7 @@ public class StatsAggregationService
         var setBonus = CalculateSetBonus(equippedGear);
         foreach (var (statType, value) in setBonus)
         {
-            if (!stats.ContainsKey(statType))
-            {
-                stats[statType] = 0;
-            }
-            stats[statType] += value;
+            AddStatValue(stats, statType, value);
         }
 
         return stats;
@@ -190,15 +174,27 @@ public class StatsAggregationService
     }
     
     /// <summary>
-    /// 辅助方法：累加套装加成属性
+    /// 辅助方法：累加属性值到字典
+    /// 如果属性不存在则初始化为0，然后累加value
+    /// </summary>
+    /// <param name="stats">属性字典</param>
+    /// <param name="statType">属性类型</param>
+    /// <param name="value">要累加的值</param>
+    private static void AddStatValue(Dictionary<StatType, double> stats, StatType statType, double value)
+    {
+        if (!stats.ContainsKey(statType))
+        {
+            stats[statType] = 0;
+        }
+        stats[statType] += value;
+    }
+    
+    /// <summary>
+    /// 辅助方法：累加套装加成属性（为保持兼容性而保留）
     /// </summary>
     private static void AddBonusStat(Dictionary<StatType, double> bonus, StatType statType, double value)
     {
-        if (!bonus.ContainsKey(statType))
-        {
-            bonus[statType] = 0;
-        }
-        bonus[statType] += value;
+        AddStatValue(bonus, statType, value);
     }
 
     /// <summary>
