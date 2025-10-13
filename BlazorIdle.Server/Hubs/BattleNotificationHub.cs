@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
+using BlazorIdle.Server.Config;
+using Microsoft.Extensions.Options;
 
 namespace BlazorIdle.Server.Hubs;
 
@@ -11,10 +13,14 @@ namespace BlazorIdle.Server.Hubs;
 public sealed class BattleNotificationHub : Hub
 {
     private readonly ILogger<BattleNotificationHub> _logger;
+    private readonly SignalROptions _options;
 
-    public BattleNotificationHub(ILogger<BattleNotificationHub> logger)
+    public BattleNotificationHub(
+        ILogger<BattleNotificationHub> logger,
+        IOptions<SignalROptions> options)
     {
         _logger = logger;
+        _options = options.Value;
     }
 
     /// <summary>
@@ -54,10 +60,13 @@ public sealed class BattleNotificationHub : Hub
     /// </summary>
     public override Task OnConnectedAsync()
     {
-        _logger.LogInformation(
-            "Client connected: {ConnectionId}",
-            Context.ConnectionId
-        );
+        if (_options.Monitoring.LogConnectionEvents)
+        {
+            _logger.LogInformation(
+                "Client connected: {ConnectionId}",
+                Context.ConnectionId
+            );
+        }
         return base.OnConnectedAsync();
     }
 
@@ -67,27 +76,30 @@ public sealed class BattleNotificationHub : Hub
     /// <param name="exception">断开连接的异常（如果有）</param>
     public override Task OnDisconnectedAsync(Exception? exception)
     {
-        if (exception != null)
+        if (_options.Monitoring.LogConnectionEvents)
         {
-            _logger.LogWarning(
-                exception,
-                "Client disconnected with error: {ConnectionId}",
-                Context.ConnectionId
-            );
-        }
-        else
-        {
-            _logger.LogInformation(
-                "Client disconnected: {ConnectionId}",
-                Context.ConnectionId
-            );
+            if (exception != null)
+            {
+                _logger.LogWarning(
+                    exception,
+                    "Client disconnected with error: {ConnectionId}",
+                    Context.ConnectionId
+                );
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "Client disconnected: {ConnectionId}",
+                    Context.ConnectionId
+                );
+            }
         }
         
         return base.OnDisconnectedAsync(exception);
     }
 
     /// <summary>
-    /// 获取战斗的组名称
+    /// 获取战斗的组名称（使用配置的前缀）
     /// </summary>
-    private static string GetBattleGroupName(Guid battleId) => $"battle_{battleId}";
+    private string GetBattleGroupName(Guid battleId) => $"{_options.GroupNamePrefix}{battleId}";
 }

@@ -42,9 +42,11 @@ public sealed class BattleNotificationService : IBattleNotificationService
             return;
         }
 
+        var startTime = _options.Monitoring.EnableMetrics ? DateTime.UtcNow : default;
+
         try
         {
-            var groupName = $"battle_{battleId}";
+            var groupName = GetBattleGroupName(battleId);
             var notification = new StateChangedEvent
             {
                 BattleId = battleId,
@@ -54,15 +56,31 @@ public sealed class BattleNotificationService : IBattleNotificationService
 
             await _hubContext.Clients
                 .Group(groupName)
-                .SendAsync("StateChanged", notification);
+                .SendAsync(_options.Methods.StateChanged, notification);
 
-            if (_options.EnableDetailedLogging)
+            if (_options.EnableDetailedLogging || _options.Monitoring.LogNotificationDetails)
             {
                 _logger.LogDebug(
-                    "Sent SignalR notification: Battle={BattleId}, EventType={EventType}",
+                    "Sent SignalR notification: Battle={BattleId}, EventType={EventType}, Method={MethodName}",
                     battleId,
-                    eventType
+                    eventType,
+                    _options.Methods.StateChanged
                 );
+            }
+
+            // 监控慢通知
+            if (_options.Monitoring.EnableMetrics)
+            {
+                var elapsedMs = (DateTime.UtcNow - startTime).TotalMilliseconds;
+                if (elapsedMs > _options.Monitoring.SlowNotificationThresholdMs)
+                {
+                    _logger.LogWarning(
+                        "Slow SignalR notification detected: Battle={BattleId}, EventType={EventType}, ElapsedMs={ElapsedMs}",
+                        battleId,
+                        eventType,
+                        elapsedMs
+                    );
+                }
             }
         }
         catch (Exception ex)
@@ -86,20 +104,38 @@ public sealed class BattleNotificationService : IBattleNotificationService
             return;
         }
 
+        var startTime = _options.Monitoring.EnableMetrics ? DateTime.UtcNow : default;
+
         try
         {
-            var groupName = $"battle_{battleId}";
+            var groupName = GetBattleGroupName(battleId);
             await _hubContext.Clients
                 .Group(groupName)
-                .SendAsync("BattleEvent", eventData);
+                .SendAsync(_options.Methods.BattleEvent, eventData);
 
-            if (_options.EnableDetailedLogging)
+            if (_options.EnableDetailedLogging || _options.Monitoring.LogNotificationDetails)
             {
                 _logger.LogDebug(
-                    "Sent detailed event notification: Battle={BattleId}, EventType={EventType}",
+                    "Sent detailed event notification: Battle={BattleId}, EventType={EventType}, Method={MethodName}",
                     battleId,
-                    eventData.GetType().Name
+                    eventData.GetType().Name,
+                    _options.Methods.BattleEvent
                 );
+            }
+
+            // 监控慢通知
+            if (_options.Monitoring.EnableMetrics)
+            {
+                var elapsedMs = (DateTime.UtcNow - startTime).TotalMilliseconds;
+                if (elapsedMs > _options.Monitoring.SlowNotificationThresholdMs)
+                {
+                    _logger.LogWarning(
+                        "Slow SignalR event notification detected: Battle={BattleId}, EventType={EventType}, ElapsedMs={ElapsedMs}",
+                        battleId,
+                        eventData.GetType().Name,
+                        elapsedMs
+                    );
+                }
             }
         }
         catch (Exception ex)
@@ -110,5 +146,13 @@ public sealed class BattleNotificationService : IBattleNotificationService
                 battleId
             );
         }
+    }
+
+    /// <summary>
+    /// 获取战斗组名（使用配置的前缀）
+    /// </summary>
+    private string GetBattleGroupName(Guid battleId)
+    {
+        return $"{_options.GroupNamePrefix}{battleId}";
     }
 }
