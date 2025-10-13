@@ -1,6 +1,7 @@
 using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Shop;
+using BlazorIdle.Server.Domain.Shop.Configuration;
 using BlazorIdle.Server.Domain.Shop.ValueObjects;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -91,6 +92,7 @@ public class PurchaseValidator : IPurchaseValidator
     {
         var counterId = PurchaseCounter.GenerateId(characterId, shopItemId);
         var counter = await _context.PurchaseCounters
+            .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == counterId);
 
         if (counter == null)
@@ -99,11 +101,11 @@ public class PurchaseValidator : IPurchaseValidator
         }
 
         // 检查是否需要重置
-        if (limit.Type == LimitType.Daily && counter.ShouldReset(86400))
+        if (limit.Type == LimitType.Daily && counter.ShouldReset(ShopSystemConfig.PurchaseLimitConfig.DailyResetSeconds))
         {
             return 0;
         }
-        if (limit.Type == LimitType.Weekly && counter.ShouldReset(604800))
+        if (limit.Type == LimitType.Weekly && counter.ShouldReset(ShopSystemConfig.PurchaseLimitConfig.WeeklyResetSeconds))
         {
             return 0;
         }

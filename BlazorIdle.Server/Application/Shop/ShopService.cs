@@ -1,5 +1,6 @@
 using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Domain.Shop;
+using BlazorIdle.Server.Domain.Shop.Configuration;
 using BlazorIdle.Server.Domain.Shop.ValueObjects;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using BlazorIdle.Shared.Models.Shop;
@@ -35,6 +36,7 @@ public class ShopService : IShopService
         }
 
         var character = await _context.Characters
+            .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == charGuid);
 
         if (character == null)
@@ -49,6 +51,7 @@ public class ShopService : IShopService
         {
             // 缓存未命中，从数据库加载
             shops = await _context.ShopDefinitions
+                .AsNoTracking()
                 .Include(s => s.Items)
                 .Where(s => s.IsEnabled)
                 .OrderBy(s => s.SortOrder)
@@ -81,6 +84,7 @@ public class ShopService : IShopService
         }
 
         var character = await _context.Characters
+            .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == charGuid);
 
         if (character == null)
@@ -95,6 +99,7 @@ public class ShopService : IShopService
         {
             // 缓存未命中，从数据库加载
             items = await _context.ShopItems
+                .AsNoTracking()
                 .Where(i => i.ShopId == shopId && i.IsEnabled)
                 .OrderBy(i => i.SortOrder)
                 .ToListAsync();
@@ -163,6 +168,7 @@ public class ShopService : IShopService
         }
 
         var character = await _context.Characters
+            .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == charGuid);
 
         if (character == null)
@@ -177,6 +183,7 @@ public class ShopService : IShopService
         {
             // 缓存未命中，从数据库加载
             items = await _context.ShopItems
+                .AsNoTracking()
                 .Where(i => i.ShopId == filter.ShopId && i.IsEnabled)
                 .OrderBy(i => i.SortOrder)
                 .ToListAsync();
@@ -412,10 +419,12 @@ public class ShopService : IShopService
         var skip = (page - 1) * pageSize;
 
         var totalCount = await _context.PurchaseRecords
+            .AsNoTracking()
             .Where(r => r.CharacterId == charGuid)
             .CountAsync();
 
         var records = await _context.PurchaseRecords
+            .AsNoTracking()
             .Where(r => r.CharacterId == charGuid)
             .OrderByDescending(r => r.PurchasedAt)
             .Skip(skip)
@@ -534,6 +543,7 @@ public class ShopService : IShopService
     {
         var counterId = PurchaseCounter.GenerateId(characterId, shopItemId);
         var counter = await _context.PurchaseCounters
+            .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == counterId);
 
         if (counter == null)
@@ -542,11 +552,11 @@ public class ShopService : IShopService
         }
 
         // 检查是否需要重置
-        if (limit.Type == LimitType.Daily && counter.ShouldReset(86400))
+        if (limit.Type == LimitType.Daily && counter.ShouldReset(ShopSystemConfig.PurchaseLimitConfig.DailyResetSeconds))
         {
             return 0;
         }
-        if (limit.Type == LimitType.Weekly && counter.ShouldReset(604800))
+        if (limit.Type == LimitType.Weekly && counter.ShouldReset(ShopSystemConfig.PurchaseLimitConfig.WeeklyResetSeconds))
         {
             return 0;
         }
@@ -588,11 +598,11 @@ public class ShopService : IShopService
         var shouldReset = false;
         if (limit.Type == LimitType.Daily)
         {
-            shouldReset = counter.ShouldReset(86400);
+            shouldReset = counter.ShouldReset(ShopSystemConfig.PurchaseLimitConfig.DailyResetSeconds);
         }
         else if (limit.Type == LimitType.Weekly)
         {
-            shouldReset = counter.ShouldReset(604800);
+            shouldReset = counter.ShouldReset(ShopSystemConfig.PurchaseLimitConfig.WeeklyResetSeconds);
         }
         else if (limit.Type == LimitType.CustomPeriod && limit.ResetPeriodSeconds.HasValue)
         {
