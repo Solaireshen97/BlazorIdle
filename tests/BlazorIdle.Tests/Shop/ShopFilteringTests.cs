@@ -113,11 +113,13 @@ public class ShopFilteringTests : IDisposable
         var inventoryLogger = serviceProvider.GetRequiredService<ILogger<BlazorIdle.Server.Application.Inventory.InventoryService>>();
         var inventoryService = new BlazorIdle.Server.Application.Inventory.InventoryService(_context, inventoryLogger);
         
-        // 创建验证器（需要库存服务）
-        var validator = new PurchaseValidator(_context, shopOptions, inventoryService);
+        // 创建验证器（需要库存服务和logger）
+        var validatorLogger = serviceProvider.GetRequiredService<ILogger<PurchaseValidator>>();
+        var validator = new PurchaseValidator(_context, shopOptions, inventoryService, validatorLogger);
 
-        // 创建商店服务
-        _shopService = new ShopService(_context, validator, cacheService, inventoryService, shopOptions);
+        // 创建商店服务（需要logger）
+        var shopServiceLogger = serviceProvider.GetRequiredService<ILogger<ShopService>>();
+        _shopService = new ShopService(_context, validator, cacheService, inventoryService, shopOptions, shopServiceLogger);
     }
 
     private ShopItem CreateTestItem(

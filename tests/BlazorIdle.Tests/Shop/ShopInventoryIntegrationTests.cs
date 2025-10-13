@@ -69,11 +69,13 @@ public class ShopInventoryIntegrationTests : IDisposable
         var inventoryLogger = serviceProvider.GetRequiredService<ILogger<InventoryService>>();
         _inventoryService = new InventoryService(_context, inventoryLogger);
         
-        // 创建验证器（需要库存服务）
-        var validator = new PurchaseValidator(_context, shopOptions, _inventoryService);
+        // 创建验证器（需要库存服务和logger）
+        var validatorLogger = serviceProvider.GetRequiredService<ILogger<PurchaseValidator>>();
+        var validator = new PurchaseValidator(_context, shopOptions, _inventoryService, validatorLogger);
         
-        // 创建商店服务
-        _shopService = new ShopService(_context, validator, cacheService, _inventoryService, shopOptions);
+        // 创建商店服务（需要logger）
+        var shopServiceLogger = serviceProvider.GetRequiredService<ILogger<ShopService>>();
+        _shopService = new ShopService(_context, validator, cacheService, _inventoryService, shopOptions, shopServiceLogger);
 
         // 设置测试数据
         _testCharacterId = Guid.NewGuid();
