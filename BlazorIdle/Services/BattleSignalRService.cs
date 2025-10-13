@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using BlazorIdle.Shared.Models;
+using BlazorIdle.Client.Config;
 
 namespace BlazorIdle.Client.Services;
 
@@ -11,36 +13,56 @@ public sealed class BattleSignalRService : IAsyncDisposable
 {
     private readonly ILogger<BattleSignalRService> _logger;
     private readonly AuthService _authService;
+    private readonly SignalRClientOptions _options;
     private HubConnection? _connection;
     private bool _isConnecting;
     private readonly string _hubUrl;
-
-    // 配置选项（从配置文件读取）
-    private readonly bool _enableSignalR;
-    private readonly int _maxReconnectAttempts;
-    private readonly int _reconnectBaseDelayMs;
     
     // 事件处理器
     private readonly List<Action<StateChangedEvent>> _stateChangedHandlers = new();
+    
+    // 连接状态事件
+    public event Func<Task>? Connected;
+    public event Func<Exception?, Task>? Disconnected;
+    public event Func<Exception?, Task>? Reconnecting;
+    public event Func<string?, Task>? Reconnected;
 
     public BattleSignalRService(
         ILogger<BattleSignalRService> logger,
         AuthService authService,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IOptions<SignalRClientOptions>? options = null)
     {
         _logger = logger;
         _authService = authService;
         
-        // 从配置读取 SignalR 设置
-        var signalRConfig = configuration.GetSection("SignalR");
-        _enableSignalR = signalRConfig.GetValue<bool>("EnableSignalR", true);
-        _maxReconnectAttempts = signalRConfig.GetValue<int>("MaxReconnectAttempts", 5);
-        _reconnectBaseDelayMs = signalRConfig.GetValue<int>("ReconnectBaseDelayMs", 1000);
+        // 优先使用依赖注入的选项，否则从配置读取
+        if (options?.Value != null)
+        {
+            _options = options.Value;
+        }
+        else
+        {
+            // 向后兼容：从配置直接读取
+            var signalRConfig = configuration.GetSection("SignalR");
+            _options = new SignalRClientOptions
+            {
+                EnableSignalR = signalRConfig.GetValue<bool>("EnableSignalR", true),
+                MaxReconnectAttempts = signalRConfig.GetValue<int>("MaxReconnectAttempts", 5),
+                ReconnectBaseDelayMs = signalRConfig.GetValue<int>("ReconnectBaseDelayMs", 1000),
+                MaxReconnectDelayMs = signalRConfig.GetValue<int>("MaxReconnectDelayMs", 30000),
+                EnableDetailedLogging = signalRConfig.GetValue<bool>("EnableDetailedLogging", false),
+                ConnectionTimeoutSeconds = signalRConfig.GetValue<int>("ConnectionTimeoutSeconds", 30),
+                KeepAliveIntervalSeconds = signalRConfig.GetValue<int>("KeepAliveIntervalSeconds", 15),
+                ServerTimeoutSeconds = signalRConfig.GetValue<int>("ServerTimeoutSeconds", 30),
+                EnableAutomaticReconnect = signalRConfig.GetValue<bool>("EnableAutomaticReconnect", true),
+                HubEndpoint = signalRConfig.GetValue<string>("HubEndpoint", "/hubs/battle") ?? "/hubs/battle"
+            };
+        }
         
         // 构建 Hub URL
         var apiBaseUrl = configuration["ApiBaseUrl"] ?? "https://localhost:7001";
-        var hubEndpoint = signalRConfig.GetValue<string>("HubEndpoint", "/hubs/battle");
-        _hubUrl = $"{apiBaseUrl}{hubEndpoint}";
+        _hubUrl = $"{apiBaseUrl}{_options.HubEndpoint}";
     }
 
     /// <summary>
@@ -51,28 +73,42 @@ public sealed class BattleSignalRService : IAsyncDisposable
     /// <summary>
     /// SignalR 是否可用
     /// </summary>
-    public bool IsAvailable => _enableSignalR && _connection != null;
+    public bool IsAvailable => _options.EnableSignalR && _connection != null;
+    
+    /// <summary>
+    /// 当前连接状态
+    /// </summary>
+    public HubConnectionState? ConnectionState => _connection?.State;
 
     /// <summary>
     /// 连接到 SignalR Hub
     /// </summary>
     public async Task<bool> ConnectAsync()
     {
-        if (!_enableSignalR)
+        if (!_options.EnableSignalR)
         {
-            _logger.LogDebug("SignalR is disabled in configuration");
+            if (_options.EnableDetailedLogging)
+            {
+                _logger.LogDebug("SignalR is disabled in configuration");
+            }
             return false;
         }
 
         if (_isConnecting)
         {
-            _logger.LogDebug("Already connecting to SignalR");
+            if (_options.EnableDetailedLogging)
+            {
+                _logger.LogDebug("Already connecting to SignalR");
+            }
             return false;
         }
 
         if (IsConnected)
         {
-            _logger.LogDebug("Already connected to SignalR");
+            if (_options.EnableDetailedLogging)
+            {
+                _logger.LogDebug("Already connected to SignalR");
+            }
             return true;
         }
 
@@ -89,18 +125,40 @@ public sealed class BattleSignalRService : IAsyncDisposable
             }
 
             // 构建连接
-            _connection = new HubConnectionBuilder()
+            var builder = new HubConnectionBuilder()
                 .WithUrl(_hubUrl, options =>
                 {
                     options.AccessTokenProvider = () => Task.FromResult<string?>(token);
-                })
-                .WithAutomaticReconnect(new SignalRRetryPolicy(_maxReconnectAttempts, _reconnectBaseDelayMs))
-                .ConfigureLogging(logging =>
+                });
+
+            // 配置自动重连（如果启用）
+            if (_options.EnableAutomaticReconnect)
+            {
+                builder.WithAutomaticReconnect(
+                    new SignalRRetryPolicy(
+                        _options.MaxReconnectAttempts, 
+                        _options.ReconnectBaseDelayMs,
+                        _options.MaxReconnectDelayMs
+                    )
+                );
+            }
+            
+            // 配置日志级别
+            builder.ConfigureLogging(logging =>
+            {
+                if (_options.EnableDetailedLogging)
+                {
+                    logging.AddFilter("Microsoft.AspNetCore.SignalR", LogLevel.Debug);
+                    logging.SetMinimumLevel(LogLevel.Debug);
+                }
+                else
                 {
                     logging.AddFilter("Microsoft.AspNetCore.SignalR", LogLevel.Information);
-                    logging.SetMinimumLevel(LogLevel.Debug);
-                })
-                .Build();
+                    logging.SetMinimumLevel(LogLevel.Information);
+                }
+            });
+            
+            _connection = builder.Build();
 
             // 注册事件处理器
             _connection.On<StateChangedEvent>("StateChanged", OnStateChanged);
@@ -114,6 +172,13 @@ public sealed class BattleSignalRService : IAsyncDisposable
             await _connection.StartAsync();
             
             _logger.LogInformation("Connected to SignalR Hub: {HubUrl}", _hubUrl);
+            
+            // 触发连接事件
+            if (Connected != null)
+            {
+                await Connected.Invoke();
+            }
+            
             return true;
         }
         catch (Exception ex)
@@ -216,7 +281,7 @@ public sealed class BattleSignalRService : IAsyncDisposable
         }
     }
 
-    private Task OnConnectionClosed(Exception? exception)
+    private async Task OnConnectionClosed(Exception? exception)
     {
         if (exception != null)
         {
@@ -226,46 +291,68 @@ public sealed class BattleSignalRService : IAsyncDisposable
         {
             _logger.LogInformation("SignalR connection closed");
         }
-        return Task.CompletedTask;
+        
+        // 触发断开连接事件
+        if (Disconnected != null)
+        {
+            await Disconnected.Invoke(exception);
+        }
     }
 
-    private Task OnReconnecting(Exception? exception)
+    private async Task OnReconnecting(Exception? exception)
     {
         _logger.LogWarning(exception, "SignalR reconnecting...");
-        return Task.CompletedTask;
+        
+        // 触发重连事件
+        if (Reconnecting != null)
+        {
+            await Reconnecting.Invoke(exception);
+        }
     }
 
-    private Task OnReconnected(string? connectionId)
+    private async Task OnReconnected(string? connectionId)
     {
         _logger.LogInformation("SignalR reconnected: {ConnectionId}", connectionId);
-        return Task.CompletedTask;
+        
+        // 触发重连成功事件
+        if (Reconnected != null)
+        {
+            await Reconnected.Invoke(connectionId);
+        }
     }
 }
 
 /// <summary>
 /// SignalR 重连策略
+/// 实现指数退避算法，防止过度重连
 /// </summary>
 internal sealed class SignalRRetryPolicy : IRetryPolicy
 {
     private readonly int _maxAttempts;
     private readonly int _baseDelayMs;
+    private readonly int _maxDelayMs;
 
-    public SignalRRetryPolicy(int maxAttempts, int baseDelayMs)
+    public SignalRRetryPolicy(int maxAttempts, int baseDelayMs, int maxDelayMs)
     {
         _maxAttempts = maxAttempts;
         _baseDelayMs = baseDelayMs;
+        _maxDelayMs = maxDelayMs;
     }
 
     public TimeSpan? NextRetryDelay(RetryContext retryContext)
     {
-        // 指数退避策略
+        // 达到最大重试次数，停止重连
         if (retryContext.PreviousRetryCount >= _maxAttempts)
         {
-            return null; // 停止重连
+            return null;
         }
 
-        // 指数退避：1s, 2s, 4s, 8s, 16s
+        // 指数退避策略：1s, 2s, 4s, 8s, 16s...
         var delayMs = _baseDelayMs * Math.Pow(2, retryContext.PreviousRetryCount);
-        return TimeSpan.FromMilliseconds(Math.Min(delayMs, 30000)); // 最多 30 秒
+        
+        // 限制最大延迟
+        var clampedDelayMs = Math.Min(delayMs, _maxDelayMs);
+        
+        return TimeSpan.FromMilliseconds(clampedDelayMs);
     }
 }

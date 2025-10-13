@@ -76,12 +76,20 @@ builder.Services
     .AddApplication();                          // ע��Ӧ�ò�����������Command/Query Handler �ȣ�
 
 // 4.5 SignalR ����
+var signalROptions = builder.Configuration.GetSection("SignalR").Get<SignalROptions>() ?? new SignalROptions();
+
+// 验证 SignalR 配置
+var validationResult = BlazorIdle.Server.Config.SignalROptionsValidator.Validate(signalROptions);
+if (!validationResult.IsValid)
+{
+    throw new InvalidOperationException($"Invalid SignalR configuration: {validationResult.GetErrorMessage()}");
+}
+
 builder.Services.Configure<SignalROptions>(builder.Configuration.GetSection("SignalR"));
 builder.Services.AddSignalR(options =>
 {
-    var signalRConfig = builder.Configuration.GetSection("SignalR").Get<SignalROptions>() ?? new SignalROptions();
-    options.KeepAliveInterval = TimeSpan.FromSeconds(signalRConfig.KeepAliveIntervalSeconds);
-    options.ClientTimeoutInterval = TimeSpan.FromSeconds(signalRConfig.ServerTimeoutSeconds);
+    options.KeepAliveInterval = TimeSpan.FromSeconds(signalROptions.KeepAliveIntervalSeconds);
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(signalROptions.ServerTimeoutSeconds);
 });
 builder.Services.AddSingleton<IBattleNotificationService, BattleNotificationService>();
 
