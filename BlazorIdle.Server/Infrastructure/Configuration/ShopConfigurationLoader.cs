@@ -49,6 +49,13 @@ public class ShopOptions
     public int DefaultPageSize { get; set; } = 20;
     public int MaxPageSize { get; set; } = 100;
     public int PurchaseHistoryDefaultDays { get; set; } = 30;
+    
+    // 购买冷却配置（Phase 3 新增）
+    public bool EnablePurchaseCooldown { get; set; } = false;
+    public int GlobalPurchaseCooldownSeconds { get; set; } = 1;
+    public int ItemPurchaseCooldownSeconds { get; set; } = 5;
+    public int ExpensiveItemThreshold { get; set; } = 1000;
+    public int ExpensiveItemCooldownSeconds { get; set; } = 10;
 }
 
 /// <summary>

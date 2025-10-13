@@ -405,6 +405,12 @@ public class ShopService : IShopService
             };
         }
 
+        // 创建购买冷却记录（Phase 3 新增）
+        if (_shopOptions.EnablePurchaseCooldown)
+        {
+            await CreatePurchaseCooldownsAsync(charGuid.ToString(), shopItem.Id, totalPrice);
+        }
+
         // 所有操作成功，保存到数据库（原子性操作）
         await _context.SaveChangesAsync();
 
@@ -646,5 +652,62 @@ public class ShopService : IShopService
         }
 
         counter.IncrementCount(quantity);
+    }
+
+    /// <summary>
+    /// 创建购买冷却记录（Phase 3 新增）
+    /// </summary>
+    private async Task CreatePurchaseCooldownsAsync(string characterId, string shopItemId, int totalPrice)
+    {
+        var now = DateTime.UtcNow;
+        
+        // 创建或更新全局冷却
+        var globalCooldownId = PurchaseCooldown.GenerateId(characterId);
+        var globalCooldown = await _context.PurchaseCooldowns
+            .FirstOrDefaultAsync(pc => pc.Id == globalCooldownId);
+        
+        if (globalCooldown == null)
+        {
+            globalCooldown = new PurchaseCooldown
+            {
+                Id = globalCooldownId,
+                CharacterId = characterId,
+                ShopItemId = null,
+                CooldownUntil = now.AddSeconds(_shopOptions.GlobalPurchaseCooldownSeconds),
+                CreatedAt = now
+            };
+            _context.PurchaseCooldowns.Add(globalCooldown);
+        }
+        else
+        {
+            globalCooldown.CooldownUntil = now.AddSeconds(_shopOptions.GlobalPurchaseCooldownSeconds);
+        }
+        
+        // 创建或更新商品级冷却
+        var itemCooldownId = PurchaseCooldown.GenerateId(characterId, shopItemId);
+        var itemCooldown = await _context.PurchaseCooldowns
+            .FirstOrDefaultAsync(pc => pc.Id == itemCooldownId);
+        
+        // 判断是否为昂贵物品，使用更长的冷却时间
+        var cooldownSeconds = totalPrice >= _shopOptions.ExpensiveItemThreshold
+            ? _shopOptions.ExpensiveItemCooldownSeconds
+            : _shopOptions.ItemPurchaseCooldownSeconds;
+        
+        if (itemCooldown == null)
+        {
+            itemCooldown = new PurchaseCooldown
+            {
+                Id = itemCooldownId,
+                CharacterId = characterId,
+                ShopItemId = shopItemId,
+                CooldownUntil = now.AddSeconds(cooldownSeconds),
+                CreatedAt = now
+            };
+            _context.PurchaseCooldowns.Add(itemCooldown);
+        }
+        else
+        {
+            itemCooldown.CooldownUntil = now.AddSeconds(cooldownSeconds);
+        }
     }
 }

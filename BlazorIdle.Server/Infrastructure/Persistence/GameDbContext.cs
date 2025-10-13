@@ -44,6 +44,7 @@ public class GameDbContext : DbContext
     public DbSet<ShopItem> ShopItems => Set<ShopItem>();
     public DbSet<PurchaseRecord> PurchaseRecords => Set<PurchaseRecord>();
     public DbSet<PurchaseCounter> PurchaseCounters => Set<PurchaseCounter>();
+    public DbSet<PurchaseCooldown> PurchaseCooldowns => Set<PurchaseCooldown>();
 
     /// <summary>
     /// ģ�͹������ӣ����� Fluent ���á�

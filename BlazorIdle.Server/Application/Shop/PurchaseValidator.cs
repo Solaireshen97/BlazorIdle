@@ -108,6 +108,16 @@ public class PurchaseValidator : IPurchaseValidator
             }
         }
 
+        // 8. 验证购买冷却（Phase 3 新增）
+        if (_shopOptions.EnablePurchaseCooldown)
+        {
+            var cooldownCheck = await ValidatePurchaseCooldownAsync(character.Id, shopItem.Id, totalPrice);
+            if (!cooldownCheck.isValid)
+            {
+                return cooldownCheck;
+            }
+        }
+
         return (true, null);
     }
 
@@ -144,4 +154,40 @@ public class PurchaseValidator : IPurchaseValidator
 
         return counter.PurchaseCount;
     }
+
+    /// <summary>
+    /// 验证购买冷却（Phase 3 新增）
+    /// </summary>
+    private async Task<(bool isValid, string? errorMessage)> ValidatePurchaseCooldownAsync(
+        Guid characterId, 
+        string shopItemId,
+        int totalPrice)
+    {
+        var now = DateTime.UtcNow;
+        
+        // 检查全局冷却
+        var globalCooldownId = PurchaseCooldown.GenerateId(characterId.ToString());
+        var globalCooldown = await _context.PurchaseCooldowns
+            .FirstOrDefaultAsync(pc => pc.Id == globalCooldownId);
+        
+        if (globalCooldown != null && globalCooldown.CooldownUntil > now)
+        {
+            var remainingSeconds = (globalCooldown.CooldownUntil - now).TotalSeconds;
+            return (false, $"购买冷却中，还需等待 {remainingSeconds:F1} 秒");
+        }
+        
+        // 检查商品级冷却
+        var itemCooldownId = PurchaseCooldown.GenerateId(characterId.ToString(), shopItemId);
+        var itemCooldown = await _context.PurchaseCooldowns
+            .FirstOrDefaultAsync(pc => pc.Id == itemCooldownId);
+        
+        if (itemCooldown != null && itemCooldown.CooldownUntil > now)
+        {
+            var remainingSeconds = (itemCooldown.CooldownUntil - now).TotalSeconds;
+            return (false, $"该物品购买冷却中，还需等待 {remainingSeconds:F1} 秒");
+        }
+        
+        return (true, null);
+    }
 }
+
