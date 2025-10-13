@@ -1,3 +1,4 @@
+using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Domain.Combat.Combatants;
 using BlazorWebGame.Domain.Combat;
 
@@ -50,5 +51,11 @@ public record PlayerReviveEvent(double ExecuteAt) : IGameEvent
         
         // 记录复活事件
         context.SegmentCollector.OnTag("player_revive", 1);
+        
+        // 发送 SignalR 通知
+        if (context.NotificationService?.IsAvailable == true)
+        {
+            _ = context.NotificationService.NotifyStateChangeAsync(context.Battle.Id, "PlayerRevive");
+        }
     }
 }

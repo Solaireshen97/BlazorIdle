@@ -1,4 +1,5 @@
-﻿using BlazorIdle.Server.Domain.Characters;
+﻿using BlazorIdle.Server.Application.Abstractions;
+using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Buffs;
 using BlazorIdle.Server.Domain.Combat.Combatants;
 using BlazorIdle.Server.Domain.Combat.Damage;
@@ -46,6 +47,9 @@ public class BattleContext
     
     /// <summary>Phase 6: 当前副本定义（如果有）</summary>
     public DungeonDefinition? CurrentDungeon { get; private set; }
+    
+    /// <summary>SignalR 通知服务（可选）</summary>
+    public IBattleNotificationService? NotificationService { get; set; }
 
     public BattleContext(
         Battle battle,

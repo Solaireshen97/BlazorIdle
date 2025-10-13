@@ -22,14 +22,19 @@ public sealed class StepBattleCoordinator
     private readonly ConcurrentDictionary<Guid, DateTime> _completedAtUtc = new();
 
     private readonly IServiceScopeFactory _scopeFactory; // 改为作用域工厂
+    private readonly IBattleNotificationService? _notificationService;
     
     // 边打边发配置：奖励发放间隔（模拟时间）
     private readonly double _rewardFlushIntervalSimSeconds;
     private readonly bool _enablePeriodicRewards;
 
-    public StepBattleCoordinator(IServiceScopeFactory scopeFactory, IConfiguration config)
+    public StepBattleCoordinator(
+        IServiceScopeFactory scopeFactory, 
+        IConfiguration config,
+        IBattleNotificationService? notificationService = null)
     {
         _scopeFactory = scopeFactory;
+        _notificationService = notificationService;
         _rewardFlushIntervalSimSeconds = config.GetValue<double>("Combat:RewardFlushIntervalSeconds", 10.0);
         _enablePeriodicRewards = config.GetValue<bool>("Combat:EnablePeriodicRewards", true);
     }
@@ -67,6 +72,12 @@ public sealed class StepBattleCoordinator
         if (battleState != null)
         {
             rb.Engine.RestoreBattleState(battleState);
+        }
+        
+        // 注入 SignalR 通知服务
+        if (_notificationService != null)
+        {
+            rb.Context.NotificationService = _notificationService;
         }
 
         if (!_running.TryAdd(id, rb))

@@ -1,4 +1,5 @@
-﻿using BlazorIdle.Server.Domain.Characters;
+﻿using BlazorIdle.Server.Application.Abstractions;
+using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Buffs;
 using BlazorIdle.Server.Domain.Combat.Combatants;
 using BlazorIdle.Server.Domain.Combat.Damage;
@@ -221,6 +222,12 @@ public sealed class BattleEngine
                 Context.RefreshPrimaryEncounter();
                 ResetAttackProgress(); // 切换目标时重置攻击进度
                 Collector.OnTag("retarget_primary", 1);
+                
+                // 发送 SignalR 通知
+                if (Context.NotificationService?.IsAvailable == true)
+                {
+                    _ = Context.NotificationService.NotifyStateChangeAsync(Battle.Id, "TargetSwitched");
+                }
             }
         }
     }
@@ -262,6 +269,8 @@ public sealed class BattleEngine
     private void CaptureNewDeaths()
     {
         var grp = Context.EncounterGroup;
+        var hasNewKills = false;
+        
         if (grp is not null)
         {
             foreach (var e in grp.All)
@@ -270,6 +279,7 @@ public sealed class BattleEngine
                 {
                     Collector.OnTag($"kill.{e.Enemy.Id}", 1);
                     _markedDead.Add(e);
+                    hasNewKills = true;
                 }
             }
         }
@@ -279,7 +289,14 @@ public sealed class BattleEngine
             {
                 Collector.OnTag($"kill.{enc.Enemy.Id}", 1);
                 _markedDead.Add(enc);
+                hasNewKills = true;
             }
+        }
+        
+        // 发送 SignalR 通知（有新击杀时）
+        if (hasNewKills && Context.NotificationService?.IsAvailable == true)
+        {
+            _ = Context.NotificationService.NotifyStateChangeAsync(Battle.Id, "EnemyKilled");
         }
     }
 
