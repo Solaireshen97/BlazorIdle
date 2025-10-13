@@ -71,20 +71,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<JwtTokenService>();
 
-
-// 4. SignalR配置
-var signalROptions = builder.Configuration.GetSection("SignalR").Get<BlazorIdle.Server.Application.SignalR.Configuration.SignalROptions>() ?? new BlazorIdle.Server.Application.SignalR.Configuration.SignalROptions();
-builder.Services.Configure<BlazorIdle.Server.Application.SignalR.Configuration.SignalROptions>(builder.Configuration.GetSection("SignalR"));
-builder.Services.AddSignalR(options =>
-{
-    options.EnableDetailedErrors = signalROptions.EnableDetailedErrors;
-    options.KeepAliveInterval = TimeSpan.FromSeconds(signalROptions.KeepAliveIntervalSeconds);
-    options.ClientTimeoutInterval = TimeSpan.FromSeconds(signalROptions.ClientTimeoutSeconds);
-    options.HandshakeTimeout = TimeSpan.FromSeconds(signalROptions.HandshakeTimeoutSeconds);
-    options.MaximumReceiveMessageSize = signalROptions.MaximumReceiveMessageSize;
-    options.StreamBufferCapacity = signalROptions.StreamBufferCapacity;
-});
-builder.Services.AddSingleton<BlazorIdle.Server.Application.Abstractions.IBattleNotificationService, BlazorIdle.Server.Application.SignalR.BattleNotificationService>();
 // 4. ҵ��ֲ�ע��
 builder.Services
     .AddInfrastructure(builder.Configuration)   // ע�������ʩ��DbContext / �ִ����ڲ��ѵ��� AddRepositories��
@@ -106,8 +92,8 @@ builder.Services.AddCors(options =>
                 "http://localhost:5001",  // HTTP �汾
                 "http://localhost:5000")  // HTTP �汾
             .AllowAnyHeader()
-            .AllowAnyMethod()
-            .AllowCredentials();  // SignalR需要凭证支持
+            .AllowAnyMethod();
+        // .AllowCredentials(); // ��δ��ʹ�� Cookie/��Ȩͷ����ҪЯ��ƾ��
     });
 });
 
@@ -153,9 +139,6 @@ app.UseAuthentication(); // ��֤�м��
 app.UseAuthorization();  // ��Ȩ�м��
 
 app.MapControllers(); // ӳ��������˵㵽·�ɱ�
-
-// 映射SignalR Hub端点
-app.MapHub<BlazorIdle.Server.Hubs.BattleNotificationHub>(signalROptions.HubPath);
 
 // TODO����ѡ��չ����app.MapHealthChecks("/health"); app.MapGet("/version", ...);
 app.Run(); // ������������ͬ��������ֱ������ֹͣ��
