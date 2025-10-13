@@ -7,6 +7,7 @@
 @inject AuthService AuthService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject BattleSignalRService SignalRService
 @implements IDisposable
 
 <!-- 离线结算弹窗 -->
@@ -40,6 +41,14 @@ else
     <div class="user-info-panel">
         <h5>👤 当前用户: @currentUser.Username</h5>
         <p>角色数量: @userCharacters.Count / 5</p>
+        @if (signalRConnected)
+        {
+            <p style="color: #28a745;">🟢 SignalR 已连接</p>
+        }
+        else if (signalRAttempted)
+        {
+            <p style="color: #dc3545;">🔴 SignalR 未连接（使用轮询模式）</p>
+        }
     </div>
 }
 
@@ -932,6 +941,11 @@ else
     private UserCharacterDto? selectedCharacter;
     private ToastNotification? toastNotification;
     
+    // ====== SignalR 状态 ======
+    private bool signalRConnected = false;
+    private bool signalRAttempted = false;
+    private Guid? currentSubscribedBattleId = null;
+    
     // ====== 确认对话框 ======
     private bool showConfirmDialog = false;
     private string confirmDialogTitle = "";
@@ -964,6 +978,9 @@ else
 
             isAuthenticated = true;
 
+            // 初始化 SignalR 连接
+            await InitializeSignalRAsync();
+
             // 加载当前用户信息和角色列表
             await LoadUserDataAsync();
 
@@ -979,6 +996,154 @@ else
         catch (Exception ex)
         {
             toastNotification?.ShowError($"初始化失败: {ex.Message}");
+        }
+    }
+    
+    /// <summary>
+    /// 初始化 SignalR 连接
+    /// </summary>
+    private async Task InitializeSignalRAsync()
+    {
+        try
+        {
+            signalRAttempted = true;
+            
+            // 注册状态变更事件处理器
+            SignalRService.OnStateChanged(OnSignalRStateChanged);
+            
+            // 尝试连接
+            signalRConnected = await SignalRService.ConnectAsync();
+            
+            if (signalRConnected)
+            {
+                toastNotification?.ShowSuccess("SignalR 连接成功", "", 2000);
+            }
+            else
+            {
+                toastNotification?.ShowWarning("SignalR 连接失败，使用轮询模式", "", 3000);
+            }
+            
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            signalRConnected = false;
+            toastNotification?.ShowWarning($"SignalR 初始化失败: {ex.Message}，使用轮询模式", "", 3000);
+        }
+    }
+    
+    /// <summary>
+    /// SignalR 状态变更事件处理器
+    /// </summary>
+    private void OnSignalRStateChanged(StateChangedEvent evt)
+    {
+        try
+        {
+            // 如果是当前订阅的战斗，立即触发轮询刷新
+            if (evt.BattleId == currentSubscribedBattleId)
+            {
+                // 根据事件类型显示通知
+                var eventName = evt.EventType switch
+                {
+                    "PlayerDeath" => "玩家死亡",
+                    "PlayerRevive" => "玩家复活",
+                    "EnemyKilled" => "击杀敌人",
+                    "TargetSwitched" => "切换目标",
+                    _ => evt.EventType
+                };
+                
+                toastNotification?.ShowInfo($"战斗事件: {eventName}", "", 2000);
+                
+                // 立即触发一次轮询刷新
+                _ = TriggerImmediatePollingAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            // 不应该让事件处理器中的错误影响其他功能
+            Console.WriteLine($"SignalR event handler error: {ex.Message}");
+        }
+    }
+    
+    /// <summary>
+    /// 触发立即轮询（响应 SignalR 事件）
+    /// </summary>
+    private async Task TriggerImmediatePollingAsync()
+    {
+        try
+        {
+            // 立即执行一次轮询刷新
+            var coordinator = GetPollingCoordinator();
+            
+            // 如果是 Step 战斗在轮询，触发立即刷新
+            if (stepIsPolling && stepBattleId.HasValue)
+            {
+                await PollStepOnceAsync(CancellationToken.None);
+            }
+            
+            // 如果是计划战斗在轮询，触发立即刷新
+            if (planIsPolling && currentSubscribedBattleId.HasValue)
+            {
+                await PollPlanBattleOnceAsync(CancellationToken.None);
+            }
+            
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Immediate polling trigger failed: {ex.Message}");
+        }
+    }
+    
+    /// <summary>
+    /// 订阅战斗 SignalR 通知
+    /// </summary>
+    private async Task SubscribeSignalRBattleAsync(Guid battleId)
+    {
+        if (!signalRConnected)
+        {
+            return; // SignalR 未连接，使用纯轮询模式
+        }
+        
+        try
+        {
+            // 取消之前的订阅
+            if (currentSubscribedBattleId.HasValue && currentSubscribedBattleId != battleId)
+            {
+                await SignalRService.UnsubscribeBattleAsync(currentSubscribedBattleId.Value);
+            }
+            
+            // 订阅新战斗
+            var success = await SignalRService.SubscribeBattleAsync(battleId);
+            if (success)
+            {
+                currentSubscribedBattleId = battleId;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"SignalR subscribe failed: {ex.Message}");
+        }
+    }
+    
+    /// <summary>
+    /// 取消订阅战斗 SignalR 通知
+    /// </summary>
+    private async Task UnsubscribeSignalRBattleAsync()
+    {
+        if (!signalRConnected || !currentSubscribedBattleId.HasValue)
+        {
+            return;
+        }
+        
+        try
+        {
+            await SignalRService.UnsubscribeBattleAsync(currentSubscribedBattleId.Value);
+            currentSubscribedBattleId = null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"SignalR unsubscribe failed: {ex.Message}");
         }
     }
 
@@ -1556,6 +1721,9 @@ else
     {
         if (stepBattleId is null) return;
         
+        // 订阅 SignalR 通知（如果已连接）
+        await SubscribeSignalRBattleAsync(stepBattleId.Value);
+        
         // 使用统一的轮询协调器
         stepIsPolling = true;
         GetPollingCoordinator().StartStepBattlePolling(stepBattleId.Value, stepPollMs);
@@ -1608,6 +1776,9 @@ else
 
     void StopStepPolling() 
     { 
+        // 取消订阅 SignalR 通知
+        _ = UnsubscribeSignalRBattleAsync();
+        
         // 使用统一的轮询协调器
         GetPollingCoordinator().StopStepBattlePolling();
         stepIsPolling = false;
@@ -1680,6 +1851,9 @@ else
         StopDebugAutoPolling(); 
         StopPlanPolling();
         _pollingCoordinator?.Dispose();
+        
+        // 清理 SignalR 连接
+        _ = SignalRService.DisposeAsync();
     }
 
     // ====== 活动计划管理 ======
@@ -1973,6 +2147,9 @@ else
 
     async Task StartPlanPollingAsync(Guid battleId)
     {
+        // 订阅 SignalR 通知（如果已连接）
+        await SubscribeSignalRBattleAsync(battleId);
+        
         // 使用统一的轮询协调器
         planIsPolling = true;
         GetPollingCoordinator().StartPlanBattlePolling(battleId, 2000);
@@ -1982,6 +2159,9 @@ else
 
     void StopPlanPolling()
     {
+        // 取消订阅 SignalR 通知
+        _ = UnsubscribeSignalRBattleAsync();
+        
         // 使用统一的轮询协调器
         GetPollingCoordinator().StopPlanBattlePolling();
         planIsPolling = false;
