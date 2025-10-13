@@ -86,6 +86,29 @@ public sealed class PerformanceOptions
 }
 ```
 
+### 4. MonitoringOptions 类
+
+**新增** (2025-10-13) - 监控和指标收集：
+
+```csharp
+public sealed class MonitoringOptions
+{
+    public bool EnableMetrics { get; set; }                    // 启用性能指标
+    public int MetricsIntervalSeconds { get; set; }            // 指标收集间隔
+    public bool EnableConnectionTracking { get; set; }         // 启用连接追踪
+    public bool EnableLatencyMeasurement { get; set; }         // 启用延迟测量
+    public int SlowNotificationThresholdMs { get; set; }       // 慢通知阈值
+}
+```
+
+### 5. 新增配置项
+
+```csharp
+public string BattleGroupPrefix { get; set; } = "battle_";              // SignalR 分组前缀
+public int MaxConcurrentConnections { get; set; } = 0;                 // 最大并发连接数(0=不限制)
+public int ConnectionIdleTimeoutSeconds { get; set; } = 300;           // 连接空闲超时
+```
+
 ---
 
 ## ⚙️ 配置文件
@@ -349,6 +372,90 @@ dotnet test --filter "FullyQualifiedName~SignalR"
 
 ---
 
+## 🔧 配置验证
+
+新增了 `SignalROptionsValidator` 类，在应用启动时自动验证配置：
+
+```csharp
+public sealed class SignalROptionsValidator : IValidateOptions<SignalROptions>
+{
+    public ValidateOptionsResult Validate(string? name, SignalROptions options)
+    {
+        // 验证逻辑
+        // - HubEndpoint 必须以 '/' 开头
+        // - 延迟配置必须合理
+        // - 超时时间必须大于0
+        // - BattleGroupPrefix 不能为空
+        // - 等等...
+    }
+}
+```
+
+**使用方式**：
+
+```csharp
+// Program.cs 中自动注册
+builder.Services.Configure<SignalROptions>(builder.Configuration.GetSection(SignalROptions.SectionName));
+builder.Services.AddSingleton<IValidateOptions<SignalROptions>, SignalROptionsValidator>();
+```
+
+---
+
+## 📊 监控功能
+
+### 延迟测量
+
+当 `Monitoring.EnableLatencyMeasurement = true` 时，服务会自动测量每次通知的延迟：
+
+```csharp
+// 自动记录通知发送时间
+var startTime = DateTime.UtcNow;
+await _hubContext.Clients.Group(groupName).SendAsync("StateChanged", notification);
+
+// 测量延迟
+var latencyMs = (DateTime.UtcNow - startTime).TotalMilliseconds;
+
+// 慢通知警告
+if (latencyMs > _options.Monitoring.SlowNotificationThresholdMs)
+{
+    _logger.LogWarning("Slow SignalR notification detected: {Latency}ms", latencyMs);
+}
+```
+
+### 开发环境建议配置
+
+```json
+{
+  "SignalR": {
+    "EnableDetailedLogging": true,
+    "Monitoring": {
+      "EnableMetrics": true,
+      "EnableConnectionTracking": true,
+      "EnableLatencyMeasurement": true,
+      "SlowNotificationThresholdMs": 500
+    }
+  }
+}
+```
+
+### 生产环境建议配置
+
+```json
+{
+  "SignalR": {
+    "EnableDetailedLogging": false,
+    "Monitoring": {
+      "EnableMetrics": true,
+      "EnableConnectionTracking": false,
+      "EnableLatencyMeasurement": true,
+      "SlowNotificationThresholdMs": 1000
+    }
+  }
+}
+```
+
+---
+
 ## ✅ 验收标准
 
 - [x] 所有配置参数从配置文件读取
@@ -357,6 +464,33 @@ dotnet test --filter "FullyQualifiedName~SignalR"
 - [x] 支持细粒度事件控制
 - [x] 配置验证和测试通过
 - [x] 文档完整清晰
+- [x] **新增**: 配置验证器自动检查配置有效性
+- [x] **新增**: 监控选项支持性能追踪
+- [x] **新增**: 可配置 SignalR 分组前缀
+- [x] **新增**: 17个单元测试全部通过
+
+---
+
+## 📝 变更日志
+
+### 2025-10-13 - Stage 1.5 配置增强
+
+**新增功能**:
+- 添加 `MonitoringOptions` 配置类
+- 添加 `BattleGroupPrefix` 配置项
+- 添加 `MaxConcurrentConnections` 配置项
+- 添加 `ConnectionIdleTimeoutSeconds` 配置项
+- 创建 `SignalROptionsValidator` 配置验证器
+- 服务中实现延迟测量和慢通知警告
+
+**测试**:
+- 新增 6 个单元测试
+- 总计 17 个测试，全部通过
+
+**文档**:
+- 更新配置优化指南
+- 添加监控功能说明
+- 添加配置验证说明
 
 ---
 
