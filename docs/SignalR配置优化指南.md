@@ -357,9 +357,87 @@ dotnet test --filter "FullyQualifiedName~SignalR"
 - [x] 支持细粒度事件控制
 - [x] 配置验证和测试通过
 - [x] 文档完整清晰
+- [x] 配置示例文件提供（Development/Production）
+- [x] 性能监控系统集成
+- [x] 启动时自动验证配置
+
+---
+
+## 🆕 Stage 2 更新（2025-10-13）
+
+### 配置验证
+
+系统现在会在启动时自动验证所有配置参数：
+
+```csharp
+// Program.cs 中自动注册验证器
+builder.Services.AddOptions<SignalROptions>()
+    .Bind(builder.Configuration.GetSection("SignalR"))
+    .ValidateOnStart();
+```
+
+**验证规则**:
+- Hub端点必须以 '/' 开头
+- MaxReconnectAttempts: 0-100
+- ReconnectBaseDelayMs: 100-10000ms
+- ConnectionTimeoutSeconds: 5-300秒
+- KeepAliveIntervalSeconds: 5-60秒
+- ThrottleWindowMs: 100-10000ms
+- 等等...
+
+### 性能监控
+
+新增 `SignalRMetrics` 类实时追踪性能指标：
+
+```csharp
+// 获取性能指标
+var metrics = _notificationService.GetMetrics();
+
+Console.WriteLine($"总发送: {metrics.TotalSent}");
+Console.WriteLine($"成功率: {metrics.SuccessRate:F2}%");
+Console.WriteLine($"平均延迟: {metrics.AverageLatencyMs:F2}ms");
+Console.WriteLine($"P95延迟: {metrics.P95LatencyMs:F2}ms");
+Console.WriteLine($"P99延迟: {metrics.P99LatencyMs:F2}ms");
+```
+
+**监控指标**:
+- TotalNotificationsSent: 成功发送总数
+- TotalNotificationsFailed: 失败总数
+- TotalNotificationsSkipped: 跳过总数
+- AverageLatencyMs: 平均延迟
+- P95LatencyMs: 95百分位延迟
+- P99LatencyMs: 99百分位延迟
+- SuccessRate: 成功率百分比
+
+### 配置示例文件
+
+提供两套完整的配置模板：
+
+**Development** (`appsettings.SignalR.Development.example.json`):
+- 详细日志启用
+- 所有事件通知启用
+- 快速重连配置
+- 宽松超时设置
+
+**Production** (`appsettings.SignalR.Production.example.json`):
+- 关闭详细日志
+- 仅关键事件启用
+- 标准重连配置
+- 性能优化启用
+
+---
+
+## 📚 相关文档
+
+- [SignalR集成优化方案.md](./SignalR集成优化方案.md) - 完整技术设计
+- [SignalR_Phase1_实施总结.md](./SignalR_Phase1_实施总结.md) - Phase 1 总结
+- [SignalR_Phase2_服务端集成完成报告.md](./SignalR_Phase2_服务端集成完成报告.md) - Phase 2 总结
+- [SignalR性能监控指南.md](./SignalR性能监控指南.md) - 性能监控详细指南
+- [SignalR优化进度更新.md](./SignalR优化进度更新.md) - 进度跟踪
 
 ---
 
 **更新人**: GitHub Copilot Agent  
 **更新日期**: 2025-10-13  
-**下次更新**: Stage 2 前端集成准备完成后
+**版本**: 1.1 (新增验证和监控)  
+**下次更新**: Phase 2 前端集成完成后
