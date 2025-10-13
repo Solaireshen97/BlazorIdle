@@ -16,15 +16,18 @@ public class ShopService : IShopService
     private readonly GameDbContext _context;
     private readonly IPurchaseValidator _validator;
     private readonly IShopCacheService _cacheService;
+    private readonly Infrastructure.Configuration.ShopOptions _shopOptions;
 
     public ShopService(
         GameDbContext context, 
         IPurchaseValidator validator,
-        IShopCacheService cacheService)
+        IShopCacheService cacheService,
+        Microsoft.Extensions.Options.IOptions<Infrastructure.Configuration.ShopOptions> shopOptions)
     {
         _context = context;
         _validator = validator;
         _cacheService = cacheService;
+        _shopOptions = shopOptions.Value;
     }
 
     public async Task<ListShopsResponse> ListShopsAsync(string characterId)
@@ -402,11 +405,23 @@ public class ShopService : IShopService
         };
     }
 
-    public async Task<PurchaseHistoryResponse> GetPurchaseHistoryAsync(string characterId, int page = 1, int pageSize = 20)
+    public async Task<PurchaseHistoryResponse> GetPurchaseHistoryAsync(string characterId, int page = 1, int pageSize = 0)
     {
         if (!Guid.TryParse(characterId, out var charGuid))
         {
             return new PurchaseHistoryResponse();
+        }
+
+        // 使用配置的默认页面大小，如果未指定
+        if (pageSize <= 0)
+        {
+            pageSize = _shopOptions.DefaultPageSize;
+        }
+        
+        // 限制最大页面大小
+        if (pageSize > _shopOptions.MaxPageSize)
+        {
+            pageSize = _shopOptions.MaxPageSize;
         }
 
         var skip = (page - 1) * pageSize;
@@ -542,11 +557,11 @@ public class ShopService : IShopService
         }
 
         // 检查是否需要重置
-        if (limit.Type == LimitType.Daily && counter.ShouldReset(86400))
+        if (limit.Type == LimitType.Daily && counter.ShouldReset(_shopOptions.DailyResetSeconds))
         {
             return 0;
         }
-        if (limit.Type == LimitType.Weekly && counter.ShouldReset(604800))
+        if (limit.Type == LimitType.Weekly && counter.ShouldReset(_shopOptions.WeeklyResetSeconds))
         {
             return 0;
         }
@@ -588,11 +603,11 @@ public class ShopService : IShopService
         var shouldReset = false;
         if (limit.Type == LimitType.Daily)
         {
-            shouldReset = counter.ShouldReset(86400);
+            shouldReset = counter.ShouldReset(_shopOptions.DailyResetSeconds);
         }
         else if (limit.Type == LimitType.Weekly)
         {
-            shouldReset = counter.ShouldReset(604800);
+            shouldReset = counter.ShouldReset(_shopOptions.WeeklyResetSeconds);
         }
         else if (limit.Type == LimitType.CustomPeriod && limit.ResetPeriodSeconds.HasValue)
         {

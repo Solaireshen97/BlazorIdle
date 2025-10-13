@@ -2,8 +2,10 @@ using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Shop;
 using BlazorIdle.Server.Domain.Shop.ValueObjects;
+using BlazorIdle.Server.Infrastructure.Configuration;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace BlazorIdle.Server.Application.Shop;
 
@@ -13,10 +15,12 @@ namespace BlazorIdle.Server.Application.Shop;
 public class PurchaseValidator : IPurchaseValidator
 {
     private readonly GameDbContext _context;
+    private readonly ShopOptions _shopOptions;
 
-    public PurchaseValidator(GameDbContext context)
+    public PurchaseValidator(GameDbContext context, IOptions<ShopOptions> shopOptions)
     {
         _context = context;
+        _shopOptions = shopOptions.Value;
     }
 
     public async Task<(bool isValid, string? errorMessage)> ValidatePurchaseAsync(
@@ -43,9 +47,14 @@ public class PurchaseValidator : IPurchaseValidator
         }
 
         // 4. 验证购买数量
-        if (quantity <= 0)
+        if (quantity < _shopOptions.MinPurchaseQuantity)
         {
-            return (false, "购买数量必须大于0");
+            return (false, $"购买数量必须至少为 {_shopOptions.MinPurchaseQuantity}");
+        }
+        
+        if (quantity > _shopOptions.MaxPurchaseQuantity)
+        {
+            return (false, $"单次购买数量不能超过 {_shopOptions.MaxPurchaseQuantity}");
         }
 
         // 5. 验证价格
@@ -99,11 +108,11 @@ public class PurchaseValidator : IPurchaseValidator
         }
 
         // 检查是否需要重置
-        if (limit.Type == LimitType.Daily && counter.ShouldReset(86400))
+        if (limit.Type == LimitType.Daily && counter.ShouldReset(_shopOptions.DailyResetSeconds))
         {
             return 0;
         }
-        if (limit.Type == LimitType.Weekly && counter.ShouldReset(604800))
+        if (limit.Type == LimitType.Weekly && counter.ShouldReset(_shopOptions.WeeklyResetSeconds))
         {
             return 0;
         }
