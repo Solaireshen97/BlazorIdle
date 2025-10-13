@@ -121,7 +121,7 @@ public class ShopCacheTests
     }
 
     [Fact]
-    public void ClearAllCache_ShouldRemoveShopsCache()
+    public async Task ClearAllCache_ShouldRemoveShopsCache()
     {
         // Arrange
         var shops = new List<ShopDefinition>
@@ -141,14 +141,14 @@ public class ShopCacheTests
 
         // Act
         _cacheService.ClearAllCache();
-        var result = _cacheService.GetShopsAsync().Result;
+        var result = await _cacheService.GetShopsAsync();
 
         // Assert
         Assert.Null(result);
     }
 
     [Fact]
-    public void ClearShopItemsCache_ShouldRemoveSpecificShopCache()
+    public async Task ClearShopItemsCache_ShouldRemoveSpecificShopCache()
     {
         // Arrange
         var items = new List<ShopItem>
@@ -172,7 +172,7 @@ public class ShopCacheTests
 
         // Act
         _cacheService.ClearShopItemsCache("test_shop");
-        var result = _cacheService.GetShopItemsAsync("test_shop").Result;
+        var result = await _cacheService.GetShopItemsAsync("test_shop");
 
         // Assert
         Assert.Null(result);

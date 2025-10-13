@@ -49,6 +49,69 @@ public class ShopOptions
     public int DefaultPageSize { get; set; } = 20;
     public int MaxPageSize { get; set; } = 100;
     public int PurchaseHistoryDefaultDays { get; set; } = 30;
+
+    /// <summary>
+    /// 验证配置值的有效性
+    /// </summary>
+    public void Validate()
+    {
+        if (ShopDefinitionCacheMinutes < 1)
+            throw new InvalidOperationException("ShopDefinitionCacheMinutes must be at least 1 minute");
+        
+        if (ShopItemsCacheMinutes < 1)
+            throw new InvalidOperationException("ShopItemsCacheMinutes must be at least 1 minute");
+        
+        if (string.IsNullOrWhiteSpace(ConfigPath))
+            throw new InvalidOperationException("ConfigPath cannot be empty");
+        
+        if (string.IsNullOrWhiteSpace(ShopDefinitionsFile))
+            throw new InvalidOperationException("ShopDefinitionsFile cannot be empty");
+        
+        if (string.IsNullOrWhiteSpace(ShopItemsFile))
+            throw new InvalidOperationException("ShopItemsFile cannot be empty");
+        
+        if (DefaultRefreshIntervalSeconds < 60)
+            throw new InvalidOperationException("DefaultRefreshIntervalSeconds must be at least 60 seconds");
+        
+        if (MaxShopNameLength < 1 || MaxShopNameLength > 1000)
+            throw new InvalidOperationException("MaxShopNameLength must be between 1 and 1000");
+        
+        if (MaxItemNameLength < 1 || MaxItemNameLength > 1000)
+            throw new InvalidOperationException("MaxItemNameLength must be between 1 and 1000");
+        
+        if (DailyResetSeconds < 3600)
+            throw new InvalidOperationException("DailyResetSeconds must be at least 3600 (1 hour)");
+        
+        if (WeeklyResetSeconds < 86400)
+            throw new InvalidOperationException("WeeklyResetSeconds must be at least 86400 (1 day)");
+        
+        if (MinPriceAmount < 0)
+            throw new InvalidOperationException("MinPriceAmount cannot be negative");
+        
+        if (MaxPriceAmount < MinPriceAmount)
+            throw new InvalidOperationException("MaxPriceAmount must be greater than MinPriceAmount");
+        
+        if (MinLevelRequirement < 1)
+            throw new InvalidOperationException("MinLevelRequirement must be at least 1");
+        
+        if (MaxLevelRequirement < MinLevelRequirement)
+            throw new InvalidOperationException("MaxLevelRequirement must be greater than MinLevelRequirement");
+        
+        if (MinPurchaseQuantity < 1)
+            throw new InvalidOperationException("MinPurchaseQuantity must be at least 1");
+        
+        if (MaxPurchaseQuantity < MinPurchaseQuantity)
+            throw new InvalidOperationException("MaxPurchaseQuantity must be greater than MinPurchaseQuantity");
+        
+        if (DefaultPageSize < 1 || DefaultPageSize > MaxPageSize)
+            throw new InvalidOperationException("DefaultPageSize must be between 1 and MaxPageSize");
+        
+        if (MaxPageSize < 1 || MaxPageSize > 1000)
+            throw new InvalidOperationException("MaxPageSize must be between 1 and 1000");
+        
+        if (PurchaseHistoryDefaultDays < 1)
+            throw new InvalidOperationException("PurchaseHistoryDefaultDays must be at least 1");
+    }
 }
 
 /// <summary>
@@ -84,6 +147,18 @@ public class ShopConfigurationLoader : IShopConfigurationLoader
         _options = options.Value;
         _logger = logger;
         _env = env;
+        
+        // Validate configuration on startup
+        try
+        {
+            _options.Validate();
+            _logger.LogInformation("Shop configuration validated successfully");
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogError(ex, "Shop configuration validation failed: {Message}", ex.Message);
+            throw;
+        }
     }
 
     public async Task<ShopDefinitionsConfig> LoadShopDefinitionsAsync()
@@ -94,30 +169,49 @@ public class ShopConfigurationLoader : IShopConfigurationLoader
             
             if (!File.Exists(filePath))
             {
-                _logger.LogWarning("Shop definitions file not found at {FilePath}, returning empty config", filePath);
+                _logger.LogWarning("Shop definitions file not found at {FilePath}, returning empty config. " +
+                    "Ensure the file exists in the Config/Shop directory.", filePath);
                 return new ShopDefinitionsConfig();
             }
 
             var json = await File.ReadAllTextAsync(filePath);
+            
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                _logger.LogWarning("Shop definitions file at {FilePath} is empty, returning empty config", filePath);
+                return new ShopDefinitionsConfig();
+            }
+
             var config = JsonSerializer.Deserialize<ShopDefinitionsConfig>(json, new JsonSerializerOptions
             {
-                PropertyNameCaseInsensitive = true
+                PropertyNameCaseInsensitive = true,
+                AllowTrailingCommas = true,
+                ReadCommentHandling = System.Text.Json.JsonCommentHandling.Skip
             });
 
             if (config == null)
             {
-                _logger.LogWarning("Failed to deserialize shop definitions from {FilePath}", filePath);
+                _logger.LogWarning("Failed to deserialize shop definitions from {FilePath}. " +
+                    "Check JSON format and ensure it matches ShopDefinitionsConfig structure.", filePath);
                 return new ShopDefinitionsConfig();
             }
 
-            _logger.LogInformation("Loaded {Count} shop definitions from {FilePath}", 
-                config.Shops.Count, filePath);
+            _logger.LogInformation("Successfully loaded {Count} shop definitions from {FilePath}", 
+                config.Shops?.Count ?? 0, filePath);
             
             return config;
         }
+        catch (JsonException jsonEx)
+        {
+            _logger.LogError(jsonEx, "JSON parsing error in shop definitions file. " +
+                "Check for syntax errors at line {LineNumber}, position {BytePosition}", 
+                jsonEx.LineNumber, jsonEx.BytePositionInLine);
+            return new ShopDefinitionsConfig();
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error loading shop definitions configuration");
+            _logger.LogError(ex, "Unexpected error loading shop definitions configuration from {FilePath}", 
+                Path.Combine(_env.ContentRootPath, _options.ConfigPath, _options.ShopDefinitionsFile));
             return new ShopDefinitionsConfig();
         }
     }
@@ -130,30 +224,49 @@ public class ShopConfigurationLoader : IShopConfigurationLoader
             
             if (!File.Exists(filePath))
             {
-                _logger.LogWarning("Shop items file not found at {FilePath}, returning empty config", filePath);
+                _logger.LogWarning("Shop items file not found at {FilePath}, returning empty config. " +
+                    "Ensure the file exists in the Config/Shop directory.", filePath);
                 return new ShopItemsConfig();
             }
 
             var json = await File.ReadAllTextAsync(filePath);
+            
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                _logger.LogWarning("Shop items file at {FilePath} is empty, returning empty config", filePath);
+                return new ShopItemsConfig();
+            }
+
             var config = JsonSerializer.Deserialize<ShopItemsConfig>(json, new JsonSerializerOptions
             {
-                PropertyNameCaseInsensitive = true
+                PropertyNameCaseInsensitive = true,
+                AllowTrailingCommas = true,
+                ReadCommentHandling = System.Text.Json.JsonCommentHandling.Skip
             });
 
             if (config == null)
             {
-                _logger.LogWarning("Failed to deserialize shop items from {FilePath}", filePath);
+                _logger.LogWarning("Failed to deserialize shop items from {FilePath}. " +
+                    "Check JSON format and ensure it matches ShopItemsConfig structure.", filePath);
                 return new ShopItemsConfig();
             }
 
-            _logger.LogInformation("Loaded {Count} shop items from {FilePath}", 
-                config.Items.Count, filePath);
+            _logger.LogInformation("Successfully loaded {Count} shop items from {FilePath}", 
+                config.Items?.Count ?? 0, filePath);
             
             return config;
         }
+        catch (JsonException jsonEx)
+        {
+            _logger.LogError(jsonEx, "JSON parsing error in shop items file. " +
+                "Check for syntax errors at line {LineNumber}, position {BytePosition}", 
+                jsonEx.LineNumber, jsonEx.BytePositionInLine);
+            return new ShopItemsConfig();
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error loading shop items configuration");
+            _logger.LogError(ex, "Unexpected error loading shop items configuration from {FilePath}", 
+                Path.Combine(_env.ContentRootPath, _options.ConfigPath, _options.ShopItemsFile));
             return new ShopItemsConfig();
         }
     }
