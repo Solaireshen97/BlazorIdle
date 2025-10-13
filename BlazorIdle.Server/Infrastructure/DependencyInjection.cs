@@ -80,6 +80,7 @@ public static class DependencyInjection
         
         // 商店系统配置
         services.Configure<ShopOptions>(configuration.GetSection("Shop"));
+        services.AddSingleton<IShopConfigurationValidator, ShopConfigurationValidator>();
         services.AddSingleton<IShopConfigurationLoader, ShopConfigurationLoader>();
         
         // 商店系统缓存

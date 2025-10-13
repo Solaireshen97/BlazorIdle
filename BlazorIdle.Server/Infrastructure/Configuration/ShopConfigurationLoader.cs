@@ -75,15 +75,18 @@ public class ShopConfigurationLoader : IShopConfigurationLoader
     private readonly ShopOptions _options;
     private readonly ILogger<ShopConfigurationLoader> _logger;
     private readonly IWebHostEnvironment _env;
+    private readonly IShopConfigurationValidator _validator;
 
     public ShopConfigurationLoader(
         IOptions<ShopOptions> options,
         ILogger<ShopConfigurationLoader> logger,
-        IWebHostEnvironment env)
+        IWebHostEnvironment env,
+        IShopConfigurationValidator validator)
     {
         _options = options.Value;
         _logger = logger;
         _env = env;
+        _validator = validator;
     }
 
     public async Task<ShopDefinitionsConfig> LoadShopDefinitionsAsync()
@@ -110,7 +113,15 @@ public class ShopConfigurationLoader : IShopConfigurationLoader
                 return new ShopDefinitionsConfig();
             }
 
-            _logger.LogInformation("Loaded {Count} shop definitions from {FilePath}", 
+            // 验证配置
+            var (isValid, errors) = _validator.ValidateShopDefinitions(config);
+            if (!isValid)
+            {
+                _logger.LogError("Shop definitions validation failed with {ErrorCount} errors", errors.Count);
+                throw new InvalidOperationException($"商店定义配置验证失败: {string.Join("; ", errors)}");
+            }
+
+            _logger.LogInformation("Loaded and validated {Count} shop definitions from {FilePath}", 
                 config.Shops.Count, filePath);
             
             return config;
@@ -146,10 +157,25 @@ public class ShopConfigurationLoader : IShopConfigurationLoader
                 return new ShopItemsConfig();
             }
 
-            _logger.LogInformation("Loaded {Count} shop items from {FilePath}", 
+            // 加载商店定义用于引用验证
+            var shopDefinitions = await LoadShopDefinitionsAsync();
+            
+            // 验证配置
+            var (isValid, errors) = _validator.ValidateShopItems(config, shopDefinitions);
+            if (!isValid)
+            {
+                _logger.LogError("Shop items validation failed with {ErrorCount} errors", errors.Count);
+                throw new InvalidOperationException($"商品配置验证失败: {string.Join("; ", errors)}");
+            }
+
+            _logger.LogInformation("Loaded and validated {Count} shop items from {FilePath}", 
                 config.Items.Count, filePath);
             
             return config;
+        }
+        catch (InvalidOperationException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
