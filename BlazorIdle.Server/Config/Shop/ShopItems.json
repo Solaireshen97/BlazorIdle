@@ -68,7 +68,7 @@
       "itemIcon": "⚔️",
       "price": {
         "currencyType": "Gold",
-        "amount": 500
+        "amount": 5
       },
       "purchaseLimit": {
         "type": "Unlimited"
