@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.Options;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -76,10 +77,11 @@ builder.Services
     .AddApplication();                          // ע��Ӧ�ò�����������Command/Query Handler �ȣ�
 
 // 4.5 SignalR ����
-builder.Services.Configure<SignalROptions>(builder.Configuration.GetSection("SignalR"));
+builder.Services.Configure<SignalROptions>(builder.Configuration.GetSection(SignalROptions.SectionName));
+builder.Services.AddSingleton<IValidateOptions<SignalROptions>, SignalROptionsValidator>();
 builder.Services.AddSignalR(options =>
 {
-    var signalRConfig = builder.Configuration.GetSection("SignalR").Get<SignalROptions>() ?? new SignalROptions();
+    var signalRConfig = builder.Configuration.GetSection(SignalROptions.SectionName).Get<SignalROptions>() ?? new SignalROptions();
     options.KeepAliveInterval = TimeSpan.FromSeconds(signalRConfig.KeepAliveIntervalSeconds);
     options.ClientTimeoutInterval = TimeSpan.FromSeconds(signalRConfig.ServerTimeoutSeconds);
 });
@@ -150,10 +152,11 @@ app.UseAuthorization();  // ��Ȩ�м��
 app.MapControllers(); // ӳ��������˵㵽·�ɱ�
 
 // SignalR Hub ӳ��
-var signalRConfig = app.Configuration.GetSection("SignalR").Get<SignalROptions>() ?? new SignalROptions();
+var signalRConfig = app.Configuration.GetSection(SignalROptions.SectionName).Get<SignalROptions>() ?? new SignalROptions();
 if (signalRConfig.EnableSignalR)
 {
     app.MapHub<BattleNotificationHub>(signalRConfig.HubEndpoint);
+    app.Logger.LogInformation("SignalR Hub mapped to {HubEndpoint}", signalRConfig.HubEndpoint);
 }
 
 // TODO����ѡ��չ����app.MapHealthChecks("/health"); app.MapGet("/version", ...);

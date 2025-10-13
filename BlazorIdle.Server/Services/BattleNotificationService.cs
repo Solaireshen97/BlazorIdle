@@ -58,19 +58,43 @@ public sealed class BattleNotificationService : IBattleNotificationService
 
         try
         {
-            var groupName = $"battle_{battleId}";
+            var startTime = DateTime.UtcNow;
+            var groupName = $"{_options.BattleGroupPrefix}{battleId}";
             var notification = new StateChangedEvent
             {
                 BattleId = battleId,
                 EventType = eventType,
-                Timestamp = DateTime.UtcNow
+                Timestamp = startTime
             };
 
             await _hubContext.Clients
                 .Group(groupName)
                 .SendAsync("StateChanged", notification);
 
-            if (_options.EnableDetailedLogging)
+            // 性能监控：测量通知延迟
+            if (_options.Monitoring.EnableLatencyMeasurement)
+            {
+                var latencyMs = (DateTime.UtcNow - startTime).TotalMilliseconds;
+                if (latencyMs > _options.Monitoring.SlowNotificationThresholdMs)
+                {
+                    _logger.LogWarning(
+                        "Slow SignalR notification detected: Battle={BattleId}, EventType={EventType}, Latency={Latency}ms",
+                        battleId,
+                        eventType,
+                        latencyMs
+                    );
+                }
+                else if (_options.EnableDetailedLogging)
+                {
+                    _logger.LogDebug(
+                        "Sent SignalR notification: Battle={BattleId}, EventType={EventType}, Latency={Latency}ms",
+                        battleId,
+                        eventType,
+                        latencyMs
+                    );
+                }
+            }
+            else if (_options.EnableDetailedLogging)
             {
                 _logger.LogDebug(
                     "Sent SignalR notification: Battle={BattleId}, EventType={EventType}",
@@ -120,12 +144,36 @@ public sealed class BattleNotificationService : IBattleNotificationService
 
         try
         {
-            var groupName = $"battle_{battleId}";
+            var startTime = DateTime.UtcNow;
+            var groupName = $"{_options.BattleGroupPrefix}{battleId}";
             await _hubContext.Clients
                 .Group(groupName)
                 .SendAsync("BattleEvent", eventData);
 
-            if (_options.EnableDetailedLogging)
+            // 性能监控：测量通知延迟
+            if (_options.Monitoring.EnableLatencyMeasurement)
+            {
+                var latencyMs = (DateTime.UtcNow - startTime).TotalMilliseconds;
+                if (latencyMs > _options.Monitoring.SlowNotificationThresholdMs)
+                {
+                    _logger.LogWarning(
+                        "Slow detailed event notification: Battle={BattleId}, EventType={EventType}, Latency={Latency}ms",
+                        battleId,
+                        eventData.GetType().Name,
+                        latencyMs
+                    );
+                }
+                else if (_options.EnableDetailedLogging)
+                {
+                    _logger.LogDebug(
+                        "Sent detailed event notification: Battle={BattleId}, EventType={EventType}, Latency={Latency}ms",
+                        battleId,
+                        eventData.GetType().Name,
+                        latencyMs
+                    );
+                }
+            }
+            else if (_options.EnableDetailedLogging)
             {
                 _logger.LogDebug(
                     "Sent detailed event notification: Battle={BattleId}, EventType={EventType}",

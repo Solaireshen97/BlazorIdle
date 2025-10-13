@@ -56,6 +56,21 @@ public sealed class SignalROptions
     public int ServerTimeoutSeconds { get; set; } = 30;
     
     /// <summary>
+    /// 战斗组名称前缀（用于 SignalR 分组）
+    /// </summary>
+    public string BattleGroupPrefix { get; set; } = "battle_";
+    
+    /// <summary>
+    /// 最大并发连接数（0 表示不限制）
+    /// </summary>
+    public int MaxConcurrentConnections { get; set; } = 0;
+    
+    /// <summary>
+    /// 连接空闲超时时间（秒，0 表示不限制）
+    /// </summary>
+    public int ConnectionIdleTimeoutSeconds { get; set; } = 300;
+    
+    /// <summary>
     /// 通知配置选项
     /// </summary>
     public NotificationOptions Notification { get; set; } = new();
@@ -64,6 +79,11 @@ public sealed class SignalROptions
     /// 性能配置选项（预留给 Phase 4）
     /// </summary>
     public PerformanceOptions Performance { get; set; } = new();
+    
+    /// <summary>
+    /// 监控配置选项
+    /// </summary>
+    public MonitoringOptions Monitoring { get; set; } = new();
 }
 
 /// <summary>
@@ -136,4 +156,35 @@ public sealed class PerformanceOptions
     /// 移动端自动降级
     /// </summary>
     public bool AutoDegradeOnMobile { get; set; } = false;
+}
+
+/// <summary>
+/// 监控相关配置
+/// </summary>
+public sealed class MonitoringOptions
+{
+    /// <summary>
+    /// 启用性能监控指标
+    /// </summary>
+    public bool EnableMetrics { get; set; } = false;
+    
+    /// <summary>
+    /// 指标收集间隔（秒）
+    /// </summary>
+    public int MetricsIntervalSeconds { get; set; } = 60;
+    
+    /// <summary>
+    /// 启用连接追踪
+    /// </summary>
+    public bool EnableConnectionTracking { get; set; } = false;
+    
+    /// <summary>
+    /// 启用通知延迟测量
+    /// </summary>
+    public bool EnableLatencyMeasurement { get; set; } = false;
+    
+    /// <summary>
+    /// 记录慢速通知的阈值（毫秒）
+    /// </summary>
+    public int SlowNotificationThresholdMs { get; set; } = 1000;
 }

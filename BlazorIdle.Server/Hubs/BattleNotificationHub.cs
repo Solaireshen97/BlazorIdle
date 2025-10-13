@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
+using BlazorIdle.Server.Config;
+using Microsoft.Extensions.Options;
 
 namespace BlazorIdle.Server.Hubs;
 
@@ -11,10 +13,14 @@ namespace BlazorIdle.Server.Hubs;
 public sealed class BattleNotificationHub : Hub
 {
     private readonly ILogger<BattleNotificationHub> _logger;
+    private readonly SignalROptions _options;
 
-    public BattleNotificationHub(ILogger<BattleNotificationHub> logger)
+    public BattleNotificationHub(
+        ILogger<BattleNotificationHub> logger,
+        IOptions<SignalROptions> options)
     {
         _logger = logger;
+        _options = options.Value;
     }
 
     /// <summary>
@@ -89,5 +95,5 @@ public sealed class BattleNotificationHub : Hub
     /// <summary>
     /// 获取战斗的组名称
     /// </summary>
-    private static string GetBattleGroupName(Guid battleId) => $"battle_{battleId}";
+    private string GetBattleGroupName(Guid battleId) => $"{_options.BattleGroupPrefix}{battleId}";
 }
