@@ -12,4 +12,8 @@ builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiBase)
 builder.Services.AddScoped<BlazorIdle.Client.Services.AuthService>();
 builder.Services.AddScoped<BlazorIdle.Client.Services.ApiClient>();
 builder.Services.AddScoped<BlazorIdle.Services.IShopService, BlazorIdle.Services.ShopService>();
+
+// SignalR ����
+builder.Services.AddScoped<BlazorIdle.Client.Services.BattleSignalRService>();
+
 await builder.Build().RunAsync();
