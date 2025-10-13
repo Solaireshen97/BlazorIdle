@@ -277,6 +277,134 @@ public class ShopInventoryIntegrationTests : IDisposable
         Assert.Equal("test_shop", purchaseRecord.ShopId);
     }
 
+    [Fact]
+    public async Task PurchaseItemWithItemCurrency_Should_DeductItemsAndAddReward()
+    {
+        // Arrange - 创建一个用物品换物品的商品
+        var itemCurrencyPrice = new Price
+        {
+            CurrencyType = CurrencyType.Item,
+            CurrencyId = "dragon_scale", // 需要龙鳞
+            Amount = 5
+        };
+
+        var limit = new PurchaseLimit
+        {
+            Type = LimitType.Unlimited,
+            MaxPurchases = -1,
+            ResetPeriodSeconds = 0
+        };
+
+        var specialItem = new ShopItem
+        {
+            Id = "special_item",
+            ShopId = "test_shop",
+            ItemDefinitionId = "legendary_sword",
+            ItemName = "传说之剑",
+            ItemIcon = "⚔️",
+            StockQuantity = -1,
+            MinLevel = 1,
+            IsEnabled = true,
+            SortOrder = 2
+        };
+        specialItem.SetPrice(itemCurrencyPrice);
+        specialItem.SetPurchaseLimit(limit);
+
+        _context.ShopItems.Add(specialItem);
+        
+        // 给角色添加足够的龙鳞
+        await _inventoryService.AddItemAsync(_testCharacterId, "dragon_scale", 10);
+        await _context.SaveChangesAsync();
+
+        var request = new PurchaseRequest
+        {
+            ShopItemId = "special_item",
+            Quantity = 1
+        };
+
+        // Act
+        var response = await _shopService.PurchaseItemAsync(_testCharacterId.ToString(), request);
+
+        // Assert
+        Assert.True(response.Success);
+        
+        // 验证龙鳞被扣除
+        var dragonScale = await _context.InventoryItems
+            .FirstOrDefaultAsync(i => i.CharacterId == _testCharacterId && i.ItemId == "dragon_scale");
+        Assert.NotNull(dragonScale);
+        Assert.Equal(5, dragonScale.Quantity); // 10 - 5 = 5
+        
+        // 验证传说之剑被添加
+        var legendarySword = await _context.InventoryItems
+            .FirstOrDefaultAsync(i => i.CharacterId == _testCharacterId && i.ItemId == "legendary_sword");
+        Assert.NotNull(legendarySword);
+        Assert.Equal(1, legendarySword.Quantity);
+    }
+
+    [Fact]
+    public async Task PurchaseItemWithItemCurrency_InsufficientItems_Should_Fail()
+    {
+        // Arrange - 创建一个用物品换物品的商品
+        var itemCurrencyPrice = new Price
+        {
+            CurrencyType = CurrencyType.Item,
+            CurrencyId = "dragon_scale",
+            Amount = 10
+        };
+
+        var limit = new PurchaseLimit
+        {
+            Type = LimitType.Unlimited,
+            MaxPurchases = -1,
+            ResetPeriodSeconds = 0
+        };
+
+        var specialItem = new ShopItem
+        {
+            Id = "special_item2",
+            ShopId = "test_shop",
+            ItemDefinitionId = "legendary_armor",
+            ItemName = "传说之甲",
+            ItemIcon = "🛡️",
+            StockQuantity = -1,
+            MinLevel = 1,
+            IsEnabled = true,
+            SortOrder = 3
+        };
+        specialItem.SetPrice(itemCurrencyPrice);
+        specialItem.SetPurchaseLimit(limit);
+
+        _context.ShopItems.Add(specialItem);
+        
+        // 只给角色5个龙鳞，不够购买（需要10个）
+        await _inventoryService.AddItemAsync(_testCharacterId, "dragon_scale", 5);
+        await _context.SaveChangesAsync();
+
+        var request = new PurchaseRequest
+        {
+            ShopItemId = "special_item2",
+            Quantity = 1
+        };
+
+        // Act
+        var response = await _shopService.PurchaseItemAsync(_testCharacterId.ToString(), request);
+
+        // Assert
+        Assert.False(response.Success);
+        Assert.Contains("物品不足", response.Message);
+        
+        // 验证龙鳞数量未变
+        var dragonScale = await _context.InventoryItems
+            .FirstOrDefaultAsync(i => i.CharacterId == _testCharacterId && i.ItemId == "dragon_scale");
+        Assert.NotNull(dragonScale);
+        Assert.Equal(5, dragonScale.Quantity); // 数量未变
+        
+        // 验证传说之甲未添加
+        var legendaryArmor = await _context.InventoryItems
+            .FirstOrDefaultAsync(i => i.CharacterId == _testCharacterId && i.ItemId == "legendary_armor");
+        Assert.Null(legendaryArmor);
+    }
+
     public void Dispose()
     {
         _context.Database.EnsureDeleted();
