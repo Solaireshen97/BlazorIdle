@@ -114,33 +114,46 @@
 
 ---
 
-### ⏳ Phase 2: 进度条精准同步（第 3-4 周）
+### ✅ Phase 2: 进度条精准同步（第 3-4 周）
 
-**预计开始**: 2025-10-14  
-**状态**: 待开始  
+**开始日期**: 2025-10-13  
+**状态**: 部分完成  
 **优先级**: 高
 
-#### 待实施任务
+#### 已完成任务
 
-##### 2.1 事件埋点（高优先级）
-- [ ] 在 `PlayerDeathEvent.Execute()` 中调用 `NotifyStateChangeAsync("PlayerDeath")`
-- [ ] 在 `BattleEngine.CaptureNewDeaths()` 中调用 `NotifyStateChangeAsync("EnemyKilled")`  
-- [ ] 在 `BattleEngine.TryRetargetPrimaryIfDead()` 中调用 `NotifyStateChangeAsync("TargetSwitched")`
-- [ ] 在 `PlayerReviveEvent.Execute()` 中调用 `NotifyStateChangeAsync("PlayerRevive")`
+##### 2.1 事件埋点（高优先级）✅
+- [x] 在 `PlayerDeathEvent.Execute()` 中调用 `NotifyStateChangeAsync("PlayerDeath")`
+- [x] 在 `BattleEngine.CaptureNewDeaths()` 中调用 `NotifyStateChangeAsync("EnemyKilled")`  
+- [x] 在 `BattleEngine.TryRetargetPrimaryIfDead()` 中调用 `NotifyStateChangeAsync("TargetSwitched")`
+- [x] 在 `PlayerReviveEvent.Execute()` 中调用 `NotifyStateChangeAsync("PlayerRevive")`
+- [x] 在 `BattleContext` 中添加 `NotificationService` 属性
+- [x] 在 `StepBattleCoordinator` 中注入通知服务
+- [x] 编写测试验证事件埋点（6个新测试）
+- [x] 所有测试通过（14/14）
 
-##### 2.2 前端集成（高优先级）
+**技术实现细节**:
+- 通过在 `BattleContext` 添加可选的 `NotificationService` 属性实现解耦
+- 在战斗创建时由 `StepBattleCoordinator` 注入服务
+- 所有通知调用都检查 `IsAvailable` 属性
+- 保持向后兼容，NotificationService 为 null 时不影响功能
+
+##### 2.2 前端集成（待实施）
 - [ ] 查找或创建战斗页面组件
 - [ ] 在组件初始化时连接 SignalR
 - [ ] 注册 `StateChanged` 事件处理器
 - [ ] 收到通知后立即触发轮询
 - [ ] 实现进度条状态机（Idle → Simulating → Interrupted）
 
-##### 2.3 进度条优化（中优先级）
+##### 2.3 进度条优化（待实施）
 - [ ] 基于 `NextSignificantEventAt` 计算进度
 - [ ] 实现进度条中断逻辑
 - [ ] 平滑过渡动画（避免视觉跳变）
 
 ##### 2.4 测试验证
+- [x] 单元测试（14个测试全部通过）
+  - 8个基础 SignalR 服务测试
+  - 6个新增战斗事件集成测试
 - [ ] 端到端测试（服务器→客户端）
 - [ ] 通知延迟测试（目标 <1s）
 - [ ] 重连机制测试
@@ -149,12 +162,14 @@
 
 #### 验收标准
 
-| 验收项 | 标准 |
-|-------|------|
-| 通知延迟 | <1s (P99) |
-| 进度条误差 | <5% |
-| 重连成功率 | >95% |
-| 降级功能 | SignalR 不可用时正常轮询 |
+| 验收项 | 目标标准 | 当前状态 |
+|-------|---------|---------|
+| 事件埋点完成 | 4个关键事件 | ✅ 完成 |
+| 单元测试通过 | 100% | ✅ 14/14 |
+| 通知延迟 | <1s (P99) | ⏳ 待测试 |
+| 进度条误差 | <5% | ⏳ 待实施 |
+| 重连成功率 | >95% | ⏳ 待测试 |
+| 降级功能 | SignalR 不可用时正常轮询 | ✅ 已实现 |
 
 ---
 
