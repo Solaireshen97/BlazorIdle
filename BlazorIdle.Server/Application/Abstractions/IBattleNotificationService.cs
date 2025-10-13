@@ -1,3 +1,5 @@
+using BlazorIdle.Server.Services;
+
 namespace BlazorIdle.Server.Application.Abstractions;
 
 /// <summary>
@@ -24,4 +26,9 @@ public interface IBattleNotificationService
     /// 检查 SignalR 服务是否可用
     /// </summary>
     bool IsAvailable { get; }
+    
+    /// <summary>
+    /// 获取性能指标摘要
+    /// </summary>
+    SignalRMetricsSummary GetMetrics();
 }

@@ -58,13 +58,14 @@ public sealed class SignalRIntegrationTests
         // Arrange
         var hubContextMock = new Mock<IHubContext<BattleNotificationHub>>();
         var loggerMock = new Mock<ILogger<BattleNotificationService>>();
+        var metrics = new BlazorIdle.Server.Services.SignalRMetrics();
         
         var enabledOptions = Options.Create(new SignalROptions { EnableSignalR = true });
         var disabledOptions = Options.Create(new SignalROptions { EnableSignalR = false });
 
         // Act
-        var enabledService = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, enabledOptions);
-        var disabledService = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, disabledOptions);
+        var enabledService = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, enabledOptions, metrics);
+        var disabledService = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, disabledOptions, metrics);
 
         // Assert
         Assert.True(enabledService.IsAvailable);
@@ -84,8 +85,9 @@ public sealed class SignalRIntegrationTests
         
         var loggerMock = new Mock<ILogger<BattleNotificationService>>();
         var options = Options.Create(new SignalROptions { EnableSignalR = true });
+        var metrics = new BlazorIdle.Server.Services.SignalRMetrics();
         
-        var service = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, options);
+        var service = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, options, metrics);
         var battleId = Guid.NewGuid();
 
         // Act & Assert - should not throw
@@ -113,8 +115,9 @@ public sealed class SignalRIntegrationTests
         
         var loggerMock = new Mock<ILogger<BattleNotificationService>>();
         var options = Options.Create(new SignalROptions { EnableSignalR = false });
+        var metrics = new BlazorIdle.Server.Services.SignalRMetrics();
         
-        var service = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, options);
+        var service = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, options, metrics);
         var battleId = Guid.NewGuid();
 
         // Act
@@ -146,8 +149,9 @@ public sealed class SignalRIntegrationTests
         
         var loggerMock = new Mock<ILogger<BattleNotificationService>>();
         var options = Options.Create(new SignalROptions { EnableSignalR = true });
+        var metrics = new BlazorIdle.Server.Services.SignalRMetrics();
         
-        var service = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, options);
+        var service = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, options, metrics);
         var battleId = Guid.NewGuid();
 
         // Act
@@ -175,8 +179,9 @@ public sealed class SignalRIntegrationTests
         
         var loggerMock = new Mock<ILogger<BattleNotificationService>>();
         var options = Options.Create(new SignalROptions { EnableSignalR = true });
+        var metrics = new BlazorIdle.Server.Services.SignalRMetrics();
         
-        var notificationService = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, options);
+        var notificationService = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, options, metrics);
         
         // Act
         var context = new BlazorIdle.Server.Domain.Combat.BattleContext(
@@ -215,8 +220,9 @@ public sealed class SignalRIntegrationTests
                 EnablePlayerDeathNotification = false // 禁用玩家死亡通知
             }
         });
+        var metrics = new BlazorIdle.Server.Services.SignalRMetrics();
         
-        var service = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, options);
+        var service = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, options, metrics);
         var battleId = Guid.NewGuid();
 
         // Act
@@ -236,5 +242,144 @@ public sealed class SignalRIntegrationTests
     {
         // Assert
         Assert.Equal("SignalR", SignalROptions.SectionName);
+    }
+
+    [Fact]
+    public void SignalRMetrics_RecordsNotificationsSent()
+    {
+        // Arrange
+        var metrics = new BlazorIdle.Server.Services.SignalRMetrics();
+
+        // Act
+        metrics.RecordNotificationSent(100);
+        metrics.RecordNotificationSent(200);
+        metrics.RecordNotificationSent(150);
+
+        // Assert
+        Assert.Equal(3, metrics.TotalNotificationsSent);
+        Assert.True(metrics.AverageLatencyMs > 0);
+        Assert.Equal(100, metrics.SuccessRate);
+    }
+
+    [Fact]
+    public void SignalRMetrics_RecordsNotificationsFailed()
+    {
+        // Arrange
+        var metrics = new BlazorIdle.Server.Services.SignalRMetrics();
+
+        // Act
+        metrics.RecordNotificationSent(100);
+        metrics.RecordNotificationFailed();
+
+        // Assert
+        Assert.Equal(1, metrics.TotalNotificationsSent);
+        Assert.Equal(1, metrics.TotalNotificationsFailed);
+        Assert.Equal(50, metrics.SuccessRate);
+    }
+
+    [Fact]
+    public void SignalRMetrics_RecordsNotificationsSkipped()
+    {
+        // Arrange
+        var metrics = new BlazorIdle.Server.Services.SignalRMetrics();
+
+        // Act
+        metrics.RecordNotificationSkipped();
+        metrics.RecordNotificationSkipped();
+
+        // Assert
+        Assert.Equal(2, metrics.TotalNotificationsSkipped);
+    }
+
+    [Fact]
+    public void SignalRMetrics_CalculatesPercentiles()
+    {
+        // Arrange
+        var metrics = new BlazorIdle.Server.Services.SignalRMetrics();
+
+        // Act - 记录 100 个延迟值
+        for (int i = 1; i <= 100; i++)
+        {
+            metrics.RecordNotificationSent(i);
+        }
+
+        // Assert
+        Assert.True(metrics.P95LatencyMs >= 90);
+        Assert.True(metrics.P99LatencyMs >= 98);
+    }
+
+    [Fact]
+    public async Task BattleNotificationService_GetMetrics_ReturnsCorrectSummary()
+    {
+        // Arrange
+        var clientProxyMock = new Mock<IClientProxy>();
+        var groupManagerMock = new Mock<IHubClients>();
+        groupManagerMock.Setup(x => x.Group(It.IsAny<string>())).Returns(clientProxyMock.Object);
+        
+        var hubContextMock = new Mock<IHubContext<BattleNotificationHub>>();
+        hubContextMock.Setup(x => x.Clients).Returns(groupManagerMock.Object);
+        
+        var loggerMock = new Mock<ILogger<BattleNotificationService>>();
+        var options = Options.Create(new SignalROptions { EnableSignalR = true });
+        var metrics = new BlazorIdle.Server.Services.SignalRMetrics();
+        
+        var service = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, options, metrics);
+        var battleId = Guid.NewGuid();
+
+        // Act
+        await service.NotifyStateChangeAsync(battleId, "PlayerDeath");
+        var summary = service.GetMetrics();
+
+        // Assert
+        Assert.Equal(1, summary.TotalSent);
+        Assert.Equal(0, summary.TotalFailed);
+        Assert.Equal(100, summary.SuccessRate);
+    }
+
+    [Fact]
+    public void SignalROptionsValidator_ValidatesCorrectly()
+    {
+        // Arrange
+        var validator = new BlazorIdle.Server.Config.SignalROptionsValidator();
+        var validOptions = new SignalROptions
+        {
+            HubEndpoint = "/hubs/battle",
+            EnableSignalR = true,
+            MaxReconnectAttempts = 5,
+            ReconnectBaseDelayMs = 1000,
+            MaxReconnectDelayMs = 30000,
+            ConnectionTimeoutSeconds = 30,
+            KeepAliveIntervalSeconds = 15,
+            ServerTimeoutSeconds = 30,
+            Notification = new NotificationOptions(),
+            Performance = new PerformanceOptions()
+        };
+
+        // Act
+        var result = validator.Validate(null, validOptions);
+
+        // Assert
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public void SignalROptionsValidator_FailsForInvalidOptions()
+    {
+        // Arrange
+        var validator = new BlazorIdle.Server.Config.SignalROptionsValidator();
+        var invalidOptions = new SignalROptions
+        {
+            HubEndpoint = "hubs/battle", // 缺少前导斜杠
+            MaxReconnectAttempts = -1, // 负数
+            ReconnectBaseDelayMs = 50, // 太小
+            Notification = new NotificationOptions(),
+            Performance = new PerformanceOptions()
+        };
+
+        // Act
+        var result = validator.Validate(null, invalidOptions);
+
+        // Assert
+        Assert.True(result.Failed);
     }
 }

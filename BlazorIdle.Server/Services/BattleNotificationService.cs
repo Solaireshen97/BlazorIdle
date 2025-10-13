@@ -4,6 +4,7 @@ using BlazorIdle.Server.Hubs;
 using BlazorIdle.Shared.Models;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
+using System.Diagnostics;
 
 namespace BlazorIdle.Server.Services;
 
@@ -15,15 +16,18 @@ public sealed class BattleNotificationService : IBattleNotificationService
     private readonly IHubContext<BattleNotificationHub> _hubContext;
     private readonly ILogger<BattleNotificationService> _logger;
     private readonly SignalROptions _options;
+    private readonly SignalRMetrics _metrics;
 
     public BattleNotificationService(
         IHubContext<BattleNotificationHub> hubContext,
         ILogger<BattleNotificationService> logger,
-        IOptions<SignalROptions> options)
+        IOptions<SignalROptions> options,
+        SignalRMetrics metrics)
     {
         _hubContext = hubContext;
         _logger = logger;
         _options = options.Value;
+        _metrics = metrics;
     }
 
     public bool IsAvailable => _options.EnableSignalR;
@@ -39,6 +43,7 @@ public sealed class BattleNotificationService : IBattleNotificationService
             {
                 _logger.LogDebug("SignalR is disabled, skipping notification for battle {BattleId}", battleId);
             }
+            _metrics.RecordNotificationSkipped();
             return;
         }
 
@@ -53,9 +58,11 @@ public sealed class BattleNotificationService : IBattleNotificationService
                     battleId
                 );
             }
+            _metrics.RecordNotificationSkipped();
             return;
         }
 
+        var stopwatch = Stopwatch.StartNew();
         try
         {
             var groupName = $"battle_{battleId}";
@@ -70,17 +77,24 @@ public sealed class BattleNotificationService : IBattleNotificationService
                 .Group(groupName)
                 .SendAsync("StateChanged", notification);
 
+            stopwatch.Stop();
+            _metrics.RecordNotificationSent(stopwatch.ElapsedMilliseconds);
+
             if (_options.EnableDetailedLogging)
             {
                 _logger.LogDebug(
-                    "Sent SignalR notification: Battle={BattleId}, EventType={EventType}",
+                    "Sent SignalR notification: Battle={BattleId}, EventType={EventType}, Latency={LatencyMs}ms",
                     battleId,
-                    eventType
+                    eventType,
+                    stopwatch.ElapsedMilliseconds
                 );
             }
         }
         catch (Exception ex)
         {
+            stopwatch.Stop();
+            _metrics.RecordNotificationFailed();
+            
             _logger.LogError(
                 ex,
                 "Failed to send SignalR notification for battle {BattleId}, eventType {EventType}",
@@ -115,9 +129,11 @@ public sealed class BattleNotificationService : IBattleNotificationService
     {
         if (!_options.EnableSignalR)
         {
+            _metrics.RecordNotificationSkipped();
             return;
         }
 
+        var stopwatch = Stopwatch.StartNew();
         try
         {
             var groupName = $"battle_{battleId}";
@@ -125,17 +141,24 @@ public sealed class BattleNotificationService : IBattleNotificationService
                 .Group(groupName)
                 .SendAsync("BattleEvent", eventData);
 
+            stopwatch.Stop();
+            _metrics.RecordNotificationSent(stopwatch.ElapsedMilliseconds);
+
             if (_options.EnableDetailedLogging)
             {
                 _logger.LogDebug(
-                    "Sent detailed event notification: Battle={BattleId}, EventType={EventType}",
+                    "Sent detailed event notification: Battle={BattleId}, EventType={EventType}, Latency={LatencyMs}ms",
                     battleId,
-                    eventData.GetType().Name
+                    eventData.GetType().Name,
+                    stopwatch.ElapsedMilliseconds
                 );
             }
         }
         catch (Exception ex)
         {
+            stopwatch.Stop();
+            _metrics.RecordNotificationFailed();
+            
             _logger.LogError(
                 ex,
                 "Failed to send detailed event notification for battle {BattleId}",
@@ -143,4 +166,9 @@ public sealed class BattleNotificationService : IBattleNotificationService
             );
         }
     }
+    
+    /// <summary>
+    /// 获取性能指标摘要
+    /// </summary>
+    public SignalRMetricsSummary GetMetrics() => _metrics.GetSummary();
 }

@@ -76,13 +76,17 @@ builder.Services
     .AddApplication();                          // ע��Ӧ�ò�����������Command/Query Handler �ȣ�
 
 // 4.5 SignalR ����
-builder.Services.Configure<SignalROptions>(builder.Configuration.GetSection("SignalR"));
+builder.Services.AddOptions<SignalROptions>()
+    .Bind(builder.Configuration.GetSection("SignalR"))
+    .ValidateOnStart();
+builder.Services.AddSingleton<SignalROptionsValidator>();
 builder.Services.AddSignalR(options =>
 {
     var signalRConfig = builder.Configuration.GetSection("SignalR").Get<SignalROptions>() ?? new SignalROptions();
     options.KeepAliveInterval = TimeSpan.FromSeconds(signalRConfig.KeepAliveIntervalSeconds);
     options.ClientTimeoutInterval = TimeSpan.FromSeconds(signalRConfig.ServerTimeoutSeconds);
 });
+builder.Services.AddSingleton<SignalRMetrics>();
 builder.Services.AddSingleton<IBattleNotificationService, BattleNotificationService>();
 
 // 5. ע�����߼�⺧̨����
