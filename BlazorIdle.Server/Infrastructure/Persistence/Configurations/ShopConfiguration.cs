@@ -48,6 +48,9 @@ public class ShopDefinitionConfiguration : IEntityTypeConfiguration<ShopDefiniti
         builder.HasIndex(s => s.Type);
         builder.HasIndex(s => s.IsEnabled);
         builder.HasIndex(s => s.SortOrder);
+        // 复合索引用于常见查询模式
+        builder.HasIndex(s => new { s.IsEnabled, s.SortOrder })
+            .HasDatabaseName("IX_ShopDefinitions_IsEnabled_SortOrder");
 
         // 关系
         builder.HasMany(s => s.Items)
@@ -112,6 +115,14 @@ public class ShopItemConfiguration : IEntityTypeConfiguration<ShopItem>
         builder.HasIndex(i => i.ItemDefinitionId);
         builder.HasIndex(i => i.IsEnabled);
         builder.HasIndex(i => i.SortOrder);
+        // 复合索引用于商品查询和过滤
+        builder.HasIndex(i => new { i.ShopId, i.IsEnabled })
+            .HasDatabaseName("IX_ShopItems_ShopId_IsEnabled");
+        builder.HasIndex(i => new { i.IsEnabled, i.MinLevel })
+            .HasDatabaseName("IX_ShopItems_IsEnabled_MinLevel");
+        // 添加稀有度和类别的索引（如果字段存在）
+        builder.HasIndex(i => i.ItemCategory);
+        builder.HasIndex(i => i.Rarity);
     }
 }
 
@@ -158,6 +169,9 @@ public class PurchaseRecordConfiguration : IEntityTypeConfiguration<PurchaseReco
         builder.HasIndex(p => p.ShopId);
         builder.HasIndex(p => p.ShopItemId);
         builder.HasIndex(p => p.PurchasedAt);
+        // 复合索引用于购买历史查询（按角色和时间排序）
+        builder.HasIndex(p => new { p.CharacterId, p.PurchasedAt })
+            .HasDatabaseName("IX_PurchaseRecords_CharacterId_PurchasedAt");
     }
 }
 

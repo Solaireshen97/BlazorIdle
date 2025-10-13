@@ -59,11 +59,12 @@ public class ShopServiceTests : IDisposable
         var inventoryLogger = serviceProvider.GetRequiredService<ILogger<BlazorIdle.Server.Application.Inventory.InventoryService>>();
         var inventoryService = new BlazorIdle.Server.Application.Inventory.InventoryService(_context, inventoryLogger);
         
-        // 创建验证器（需要库存服务）
-        _validator = new PurchaseValidator(_context, shopOptions, inventoryService);
+        // 创建验证器（需要库存服务和logger）
+        var validatorLogger = serviceProvider.GetRequiredService<ILogger<PurchaseValidator>>();
+        _validator = new PurchaseValidator(_context, shopOptions, inventoryService, validatorLogger);
             
         var cache = serviceProvider.GetRequiredService<IMemoryCache>();
-        var logger = serviceProvider.GetRequiredService<ILogger<ShopCacheService>>();
+        var cacheLogger = serviceProvider.GetRequiredService<ILogger<ShopCacheService>>();
         
         // 创建配置（禁用缓存以便测试）
         var configBuilder = new ConfigurationBuilder();
@@ -73,9 +74,11 @@ public class ShopServiceTests : IDisposable
         });
         var configuration = configBuilder.Build();
         
-        _cacheService = new ShopCacheService(cache, logger, configuration);
+        _cacheService = new ShopCacheService(cache, cacheLogger, configuration);
         
-        _shopService = new ShopService(_context, _validator, _cacheService, inventoryService, shopOptions);
+        // 创建ShopService（需要logger）
+        var shopServiceLogger = serviceProvider.GetRequiredService<ILogger<ShopService>>();
+        _shopService = new ShopService(_context, _validator, _cacheService, inventoryService, shopOptions, shopServiceLogger);
 
         // 设置测试数据
         _testCharacterId = Guid.NewGuid();

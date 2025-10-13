@@ -18,19 +18,22 @@ public class ShopService : IShopService
     private readonly IShopCacheService _cacheService;
     private readonly IInventoryService _inventoryService;
     private readonly Infrastructure.Configuration.ShopOptions _shopOptions;
+    private readonly ILogger<ShopService> _logger;
 
     public ShopService(
         GameDbContext context, 
         IPurchaseValidator validator,
         IShopCacheService cacheService,
         IInventoryService inventoryService,
-        Microsoft.Extensions.Options.IOptions<Infrastructure.Configuration.ShopOptions> shopOptions)
+        Microsoft.Extensions.Options.IOptions<Infrastructure.Configuration.ShopOptions> shopOptions,
+        ILogger<ShopService> logger)
     {
         _context = context;
         _validator = validator;
         _cacheService = cacheService;
         _inventoryService = inventoryService;
         _shopOptions = shopOptions.Value;
+        _logger = logger;
     }
 
     public async Task<ListShopsResponse> ListShopsAsync(string characterId)
@@ -41,6 +44,7 @@ public class ShopService : IShopService
         }
 
         var character = await _context.Characters
+            .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == charGuid);
 
         if (character == null)
@@ -55,6 +59,7 @@ public class ShopService : IShopService
         {
             // 缓存未命中，从数据库加载
             shops = await _context.ShopDefinitions
+                .AsNoTracking()
                 .Include(s => s.Items)
                 .Where(s => s.IsEnabled)
                 .OrderBy(s => s.SortOrder)
@@ -87,6 +92,7 @@ public class ShopService : IShopService
         }
 
         var character = await _context.Characters
+            .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == charGuid);
 
         if (character == null)
@@ -169,6 +175,7 @@ public class ShopService : IShopService
         }
 
         var character = await _context.Characters
+            .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == charGuid);
 
         if (character == null)
@@ -293,8 +300,12 @@ public class ShopService : IShopService
 
     public async Task<PurchaseResponse> PurchaseItemAsync(string characterId, PurchaseRequest request)
     {
+        _logger.LogInformation("开始处理购买请求: CharacterId={CharacterId}, ShopItemId={ShopItemId}, Quantity={Quantity}", 
+            characterId, request.ShopItemId, request.Quantity);
+
         if (!Guid.TryParse(characterId, out var charGuid))
         {
+            _logger.LogWarning("无效的角色ID格式: {CharacterId}", characterId);
             return new PurchaseResponse
             {
                 Success = false,
@@ -307,6 +318,7 @@ public class ShopService : IShopService
 
         if (character == null)
         {
+            _logger.LogWarning("角色不存在: CharacterId={CharacterId}", charGuid);
             return new PurchaseResponse
             {
                 Success = false,
@@ -320,6 +332,7 @@ public class ShopService : IShopService
 
         if (shopItem == null)
         {
+            _logger.LogWarning("商品不存在: ShopItemId={ShopItemId}", request.ShopItemId);
             return new PurchaseResponse
             {
                 Success = false,
@@ -335,6 +348,8 @@ public class ShopService : IShopService
 
         if (!isValid)
         {
+            _logger.LogInformation("购买验证失败: CharacterId={CharacterId}, ShopItemId={ShopItemId}, Reason={Reason}", 
+                charGuid, request.ShopItemId, errorMessage);
             return new PurchaseResponse
             {
                 Success = false,
@@ -408,6 +423,9 @@ public class ShopService : IShopService
         // 所有操作成功，保存到数据库（原子性操作）
         await _context.SaveChangesAsync();
 
+        _logger.LogInformation("购买成功: CharacterId={CharacterId}, ShopItemId={ShopItemId}, ItemName={ItemName}, Quantity={Quantity}, TotalPrice={TotalPrice}", 
+            charGuid, request.ShopItemId, shopItem.ItemName, request.Quantity, totalPrice);
+
         return new PurchaseResponse
         {
             Success = true,
@@ -453,10 +471,12 @@ public class ShopService : IShopService
         var skip = (page - 1) * pageSize;
 
         var totalCount = await _context.PurchaseRecords
+            .AsNoTracking()
             .Where(r => r.CharacterId == charGuid)
             .CountAsync();
 
         var records = await _context.PurchaseRecords
+            .AsNoTracking()
             .Where(r => r.CharacterId == charGuid)
             .OrderByDescending(r => r.PurchasedAt)
             .Skip(skip)
