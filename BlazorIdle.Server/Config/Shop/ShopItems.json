@@ -202,6 +202,150 @@
       "rarity": "Rare",
       "isEnabled": true,
       "sortOrder": 4
+    },
+    {
+      "id": "general_shop_cheese",
+      "shopId": "general_shop",
+      "itemDefinitionId": "cheese",
+      "itemName": "奶酪",
+      "itemIcon": "🧀",
+      "price": {
+        "currencyType": "Gold",
+        "amount": 20
+      },
+      "purchaseLimit": {
+        "type": "Unlimited"
+      },
+      "stockQuantity": -1,
+      "minLevel": 1,
+      "itemCategory": "Consumable",
+      "rarity": "Common",
+      "isEnabled": true,
+      "sortOrder": 4
+    },
+    {
+      "id": "weapon_shop_iron_armor",
+      "shopId": "weapon_shop",
+      "itemDefinitionId": "iron_armor",
+      "itemName": "铁甲",
+      "itemIcon": "🛡️",
+      "price": {
+        "currencyType": "Gold",
+        "amount": 800
+      },
+      "purchaseLimit": {
+        "type": "Unlimited"
+      },
+      "stockQuantity": -1,
+      "minLevel": 3,
+      "itemCategory": "Equipment",
+      "rarity": "Common",
+      "isEnabled": true,
+      "sortOrder": 4
+    },
+    {
+      "id": "weapon_shop_battle_axe",
+      "shopId": "weapon_shop",
+      "itemDefinitionId": "battle_axe",
+      "itemName": "战斧",
+      "itemIcon": "🪓",
+      "price": {
+        "currencyType": "Gold",
+        "amount": 2000
+      },
+      "purchaseLimit": {
+        "type": "Unlimited"
+      },
+      "stockQuantity": -1,
+      "minLevel": 8,
+      "itemCategory": "Equipment",
+      "rarity": "Uncommon",
+      "isEnabled": true,
+      "sortOrder": 5
+    },
+    {
+      "id": "alchemist_shop_phoenix_feather",
+      "shopId": "alchemist_shop",
+      "itemDefinitionId": "phoenix_feather",
+      "itemName": "凤凰羽毛",
+      "itemIcon": "🪶",
+      "price": {
+        "currencyType": "Gold",
+        "amount": 10000
+      },
+      "purchaseLimit": {
+        "type": "PerCharacter",
+        "maxPurchases": 1
+      },
+      "stockQuantity": -1,
+      "minLevel": 25,
+      "itemCategory": "Material",
+      "rarity": "Legendary",
+      "isEnabled": true,
+      "sortOrder": 5
+    },
+    {
+      "id": "general_shop_apple",
+      "shopId": "general_shop",
+      "itemDefinitionId": "apple",
+      "itemName": "苹果",
+      "itemIcon": "🍎",
+      "price": {
+        "currencyType": "Gold",
+        "amount": 15
+      },
+      "purchaseLimit": {
+        "type": "Daily",
+        "maxPurchases": 20
+      },
+      "stockQuantity": -1,
+      "minLevel": 1,
+      "itemCategory": "Consumable",
+      "rarity": "Common",
+      "isEnabled": true,
+      "sortOrder": 5
+    },
+    {
+      "id": "weapon_shop_mythril_sword",
+      "shopId": "weapon_shop",
+      "itemDefinitionId": "mythril_sword",
+      "itemName": "秘银剑",
+      "itemIcon": "⚔️",
+      "price": {
+        "currencyType": "Gold",
+        "amount": 5000
+      },
+      "purchaseLimit": {
+        "type": "Weekly",
+        "maxPurchases": 2
+      },
+      "stockQuantity": 5,
+      "minLevel": 15,
+      "itemCategory": "Equipment",
+      "rarity": "Epic",
+      "isEnabled": true,
+      "sortOrder": 6
+    },
+    {
+      "id": "alchemist_shop_mana_crystal",
+      "shopId": "alchemist_shop",
+      "itemDefinitionId": "mana_crystal",
+      "itemName": "魔力水晶",
+      "itemIcon": "💎",
+      "price": {
+        "currencyType": "Gold",
+        "amount": 3000
+      },
+      "purchaseLimit": {
+        "type": "Weekly",
+        "maxPurchases": 5
+      },
+      "stockQuantity": -1,
+      "minLevel": 12,
+      "itemCategory": "Material",
+      "rarity": "Rare",
+      "isEnabled": true,
+      "sortOrder": 6
     }
   ]
 }
