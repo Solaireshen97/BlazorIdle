@@ -1,4 +1,5 @@
 using BlazorIdle.Server.Application.Abstractions;
+using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Shop;
 using BlazorIdle.Server.Domain.Shop.ValueObjects;
 using BlazorIdle.Server.Infrastructure.Persistence;
@@ -306,11 +307,7 @@ public class ShopService : IShopService
         if (!Guid.TryParse(characterId, out var charGuid))
         {
             _logger.LogWarning("无效的角色ID格式: {CharacterId}", characterId);
-            return new PurchaseResponse
-            {
-                Success = false,
-                Message = "角色 ID 格式错误"
-            };
+            return ShopErrorHelper.InvalidCharacterId();
         }
 
         var character = await _context.Characters
@@ -319,11 +316,7 @@ public class ShopService : IShopService
         if (character == null)
         {
             _logger.LogWarning("角色不存在: CharacterId={CharacterId}", charGuid);
-            return new PurchaseResponse
-            {
-                Success = false,
-                Message = "角色不存在"
-            };
+            return ShopErrorHelper.CharacterNotFound();
         }
 
         var shopItem = await _context.ShopItems
@@ -333,11 +326,7 @@ public class ShopService : IShopService
         if (shopItem == null)
         {
             _logger.LogWarning("商品不存在: ShopItemId={ShopItemId}", request.ShopItemId);
-            return new PurchaseResponse
-            {
-                Success = false,
-                Message = "商品不存在"
-            };
+            return ShopErrorHelper.ItemNotFound(request.ShopItemId);
         }
 
         // 验证购买
@@ -350,11 +339,9 @@ public class ShopService : IShopService
         {
             _logger.LogInformation("购买验证失败: CharacterId={CharacterId}, ShopItemId={ShopItemId}, Reason={Reason}", 
                 charGuid, request.ShopItemId, errorMessage);
-            return new PurchaseResponse
-            {
-                Success = false,
-                Message = errorMessage
-            };
+            
+            // 根据错误消息返回对应的错误码
+            return ParseValidationError(errorMessage, character, shopItem, request.Quantity);
         }
 
         // 执行购买
@@ -372,11 +359,7 @@ public class ShopService : IShopService
             var itemRemoved = await _inventoryService.RemoveItemAsync(charGuid, price.CurrencyId!, totalPrice);
             if (!itemRemoved)
             {
-                return new PurchaseResponse
-                {
-                    Success = false,
-                    Message = "扣除物品货币失败，购买已取消"
-                };
+                return ShopErrorHelper.ItemDeductFailed("背包中没有足够的货币物品");
             }
         }
 
@@ -413,11 +396,7 @@ public class ShopService : IShopService
         if (!itemAdded)
         {
             // 如果发放物品失败，不保存任何更改（自动回滚）
-            return new PurchaseResponse
-            {
-                Success = false,
-                Message = "发放物品到背包失败，购买已取消"
-            };
+            return ShopErrorHelper.ItemAddFailed("背包空间不足或物品定义不存在");
         }
 
         // 所有操作成功，保存到数据库（原子性操作）
@@ -426,27 +405,24 @@ public class ShopService : IShopService
         _logger.LogInformation("购买成功: CharacterId={CharacterId}, ShopItemId={ShopItemId}, ItemName={ItemName}, Quantity={Quantity}, TotalPrice={TotalPrice}", 
             charGuid, request.ShopItemId, shopItem.ItemName, request.Quantity, totalPrice);
 
-        return new PurchaseResponse
+        var recordDto = new PurchaseRecordDto
         {
-            Success = true,
-            Message = $"购买成功！获得 {shopItem.ItemName} x{request.Quantity}",
-            Record = new PurchaseRecordDto
+            Id = record.Id,
+            CharacterId = record.CharacterId.ToString(),
+            ShopId = record.ShopId,
+            ShopItemId = record.ShopItemId,
+            ItemDefinitionId = record.ItemDefinitionId,
+            Quantity = record.Quantity,
+            Price = new PriceDto
             {
-                Id = record.Id,
-                CharacterId = record.CharacterId.ToString(),
-                ShopId = record.ShopId,
-                ShopItemId = record.ShopItemId,
-                ItemDefinitionId = record.ItemDefinitionId,
-                Quantity = record.Quantity,
-                Price = new PriceDto
-                {
-                    CurrencyType = price.CurrencyType.ToString(),
-                    CurrencyId = price.CurrencyId,
-                    Amount = price.Amount
-                },
-                PurchasedAt = record.PurchasedAt
-            }
+                CurrencyType = price.CurrencyType.ToString(),
+                CurrencyId = price.CurrencyId,
+                Amount = price.Amount
+            },
+            PurchasedAt = record.PurchasedAt
         };
+
+        return ShopErrorHelper.Success(shopItem.ItemName, request.Quantity, recordDto);
     }
 
     public async Task<PurchaseHistoryResponse> GetPurchaseHistoryAsync(string characterId, int page = 1, int pageSize = 0)
@@ -666,5 +642,69 @@ public class ShopService : IShopService
         }
 
         counter.IncrementCount(quantity);
+    }
+
+    /// <summary>
+    /// 解析验证错误并返回对应的错误响应（保留原始消息格式以兼容现有测试）
+    /// </summary>
+    private PurchaseResponse ParseValidationError(string? errorMessage, Character character, ShopItem shopItem, int quantity)
+    {
+        if (string.IsNullOrWhiteSpace(errorMessage))
+        {
+            return new PurchaseResponse
+            {
+                Success = false,
+                Message = "未知错误",
+                ErrorCode = ShopErrorCode.UnknownError
+            };
+        }
+
+        // 确定错误码但保留原始消息
+        ShopErrorCode errorCode = ShopErrorCode.UnknownError;
+
+        // 等级不足
+        if (errorMessage.StartsWith("需要等级"))
+        {
+            errorCode = ShopErrorCode.InsufficientLevel;
+        }
+        // 库存不足
+        else if (errorMessage.Contains("库存不足"))
+        {
+            errorCode = ShopErrorCode.InsufficientStock;
+        }
+        // 购买数量错误
+        else if (errorMessage.Contains("购买数量"))
+        {
+            errorCode = ShopErrorCode.InvalidQuantity;
+        }
+        // 价格配置错误
+        else if (errorMessage.Contains("价格配置错误"))
+        {
+            errorCode = ShopErrorCode.InvalidPrice;
+        }
+        // 金币不足
+        else if (errorMessage.Contains("金币不足"))
+        {
+            errorCode = ShopErrorCode.InsufficientGold;
+        }
+        // 物品货币不足
+        else if (errorMessage.Contains("物品不足"))
+        {
+            errorCode = ShopErrorCode.InsufficientCurrency;
+        }
+        // 购买限制
+        else if (errorMessage.Contains("超过购买限制"))
+        {
+            errorCode = ShopErrorCode.PurchaseLimitReached;
+        }
+
+        // 返回响应，保留原始消息但添加错误码
+        return new PurchaseResponse
+        {
+            Success = false,
+            Message = errorMessage,
+            ErrorCode = errorCode,
+            Error = ShopErrorResponse.Error(errorCode, errorMessage)
+        };
     }
 }
