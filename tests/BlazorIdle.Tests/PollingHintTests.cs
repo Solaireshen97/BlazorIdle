@@ -11,21 +11,11 @@ namespace BlazorIdle.Tests;
 
 public class PollingHintTests
 {
-    private StepBattleCoordinator CreateCoordinator()
-    {
-        var services = new ServiceCollection();
-        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
-        var serviceProvider = services.BuildServiceProvider();
-        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
-        
-        return new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build());
-    }
-
     [Fact]
     public void GetStatus_ReturnsPollingHint_WhenBattleIsRunning()
     {
         // Arrange
-        var coordinator = CreateCoordinator();
+        var coordinator = TestHelpers.CreateCoordinator();
         var characterId = Guid.NewGuid();
         var stats = new CharacterStats
         {
@@ -58,7 +48,7 @@ public class PollingHintTests
     public void GetStatus_ReturnsStablePollingHint_ForHealthyPlayer()
     {
         // Arrange
-        var coordinator = CreateCoordinator();
+        var coordinator = TestHelpers.CreateCoordinator();
         var characterId = Guid.NewGuid();
         var stats = new CharacterStats
         {
@@ -96,7 +86,7 @@ public class PollingHintTests
     public void GetStatus_ReturnsSlowestPollingHint_ForCompletedBattle()
     {
         // Arrange
-        var coordinator = CreateCoordinator();
+        var coordinator = TestHelpers.CreateCoordinator();
         var characterId = Guid.NewGuid();
         var stats = new CharacterStats
         {
@@ -141,7 +131,7 @@ public class PollingHintTests
     public void GetStatus_PollingHintContainsNextSignificantEvent()
     {
         // Arrange
-        var coordinator = CreateCoordinator();
+        var coordinator = TestHelpers.CreateCoordinator();
         var characterId = Guid.NewGuid();
         var stats = new CharacterStats
         {

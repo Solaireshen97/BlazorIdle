@@ -21,7 +21,7 @@ public class BattleInfoTransmissionTests
         var serviceProvider = services.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
         
-        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build());
+        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build(), new MockBattleNotificationService());
         var characterId = Guid.NewGuid();
         var profession = Profession.Warrior;
         var stats = new CharacterStats();
@@ -59,7 +59,7 @@ public class BattleInfoTransmissionTests
         var serviceProvider = services.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
         
-        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build());
+        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build(), new MockBattleNotificationService());
         var characterId = Guid.NewGuid();
         var profession = Profession.Warrior;
         var stats = new CharacterStats { AttackPower = 50 };
@@ -105,7 +105,7 @@ public class BattleInfoTransmissionTests
         var serviceProvider = services.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
         
-        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build());
+        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build(), new MockBattleNotificationService());
         var characterId = Guid.NewGuid();
         var profession = Profession.Warrior;
         var stats = new CharacterStats { AttackPower = 50 };
@@ -143,7 +143,7 @@ public class BattleInfoTransmissionTests
         var serviceProvider = services.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
         
-        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build());
+        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build(), new MockBattleNotificationService());
         var characterId = Guid.NewGuid();
         var profession = Profession.Warrior;
         var stats = new CharacterStats { AttackPower = 50 };
@@ -181,7 +181,7 @@ public class BattleInfoTransmissionTests
         var serviceProvider = services.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
         
-        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build());
+        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build(), new MockBattleNotificationService());
         var characterId = Guid.NewGuid();
         var profession = Profession.Warrior;
         var stats = new CharacterStats { AttackPower = 1000 }; // 高攻击力快速击杀
@@ -235,7 +235,7 @@ public class BattleInfoTransmissionTests
         var serviceProvider = services.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
         
-        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build());
+        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build(), new MockBattleNotificationService());
         var characterId = Guid.NewGuid();
         var profession = Profession.Warrior;
         var stats = new CharacterStats { AttackPower = 10000 }; // 超高攻击力快速击杀

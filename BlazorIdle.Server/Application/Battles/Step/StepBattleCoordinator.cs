@@ -22,14 +22,16 @@ public sealed class StepBattleCoordinator
     private readonly ConcurrentDictionary<Guid, DateTime> _completedAtUtc = new();
 
     private readonly IServiceScopeFactory _scopeFactory; // 改为作用域工厂
+    private readonly IBattleNotificationService _notificationService;
     
     // 边打边发配置：奖励发放间隔（模拟时间）
     private readonly double _rewardFlushIntervalSimSeconds;
     private readonly bool _enablePeriodicRewards;
 
-    public StepBattleCoordinator(IServiceScopeFactory scopeFactory, IConfiguration config)
+    public StepBattleCoordinator(IServiceScopeFactory scopeFactory, IConfiguration config, IBattleNotificationService notificationService)
     {
         _scopeFactory = scopeFactory;
+        _notificationService = notificationService;
         _rewardFlushIntervalSimSeconds = config.GetValue<double>("Combat:RewardFlushIntervalSeconds", 10.0);
         _enablePeriodicRewards = config.GetValue<bool>("Combat:EnablePeriodicRewards", true);
     }
@@ -439,7 +441,14 @@ public sealed class StepBattleCoordinator
             var rb = kv.Value;
             if (!rb.Completed)
             {
+                // 记录推进前的最后一个段索引，用于检测新事件
+                var previousSegmentCount = rb.Segments.Count;
+                var previousLastSegmentIndex = previousSegmentCount > 0 ? previousSegmentCount - 1 : -1;
+                
                 rb.Advance(maxEvents: maxEventsPerBattle, maxSimSecondsSlice: maxSliceSeconds);
+
+                // Phase 1.4: 检测新生成的段中的关键事件，发送 SignalR 通知
+                DetectAndNotifyBattleEvents(rb, previousLastSegmentIndex);
 
                 if (rb.Completed)
                 {
@@ -626,6 +635,51 @@ public sealed class StepBattleCoordinator
         {
             // 静默失败，避免影响战斗推进
             // TODO: 可以考虑记录日志
+        }
+    }
+    
+    /// <summary>
+    /// Phase 1.4: 检测战斗段中的关键事件，并发送 SignalR 通知
+    /// </summary>
+    private void DetectAndNotifyBattleEvents(RunningBattle rb, int previousLastSegmentIndex)
+    {
+        // 检查从上次检查后新增的段
+        var currentSegmentCount = rb.Segments.Count;
+        if (currentSegmentCount <= previousLastSegmentIndex + 1)
+            return; // 没有新段
+        
+        // 遍历新段，检测关键事件
+        for (int i = previousLastSegmentIndex + 1; i < currentSegmentCount; i++)
+        {
+            var segment = rb.Segments[i];
+            
+            // 检查玩家死亡事件
+            if (segment.TagCounters.TryGetValue("player_death", out var deathCount) && deathCount > 0)
+            {
+                _ = _notificationService.NotifyStateChangeAsync(rb.Id, "PlayerDeath");
+            }
+            
+            // 检查玩家复活事件
+            if (segment.TagCounters.TryGetValue("player_revive", out var reviveCount) && reviveCount > 0)
+            {
+                _ = _notificationService.NotifyStateChangeAsync(rb.Id, "PlayerRevive");
+            }
+            
+            // 检查怪物击杀事件
+            foreach (var (tag, count) in segment.TagCounters)
+            {
+                if (tag.StartsWith("kill.", StringComparison.Ordinal) && count > 0)
+                {
+                    _ = _notificationService.NotifyStateChangeAsync(rb.Id, "EnemyKilled");
+                    break; // 只通知一次，避免过多通知
+                }
+            }
+            
+            // 检查目标切换事件
+            if (segment.TagCounters.TryGetValue("retarget_primary", out var retargetCount) && retargetCount > 0)
+            {
+                _ = _notificationService.NotifyStateChangeAsync(rb.Id, "TargetSwitched");
+            }
         }
     }
 }

@@ -1,5 +1,8 @@
+using BlazorIdle.Server.Application.Battles.Step;
 using BlazorIdle.Server.Domain.Equipment.Models;
 using BlazorIdle.Server.Domain.Equipment.Services;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -11,6 +14,21 @@ namespace BlazorIdle.Tests;
 /// </summary>
 public static class TestHelpers
 {
+    /// <summary>
+    /// Creates a StepBattleCoordinator with a mock notification service for testing
+    /// </summary>
+    public static StepBattleCoordinator CreateCoordinator()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+        var serviceProvider = services.BuildServiceProvider();
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+        var mockNotificationService = new MockBattleNotificationService();
+        
+        return new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build(), mockNotificationService);
+    }
+    
+
     /// <summary>
     /// Fake EquipmentStatsIntegration for testing - returns base stats without equipment
     /// </summary>

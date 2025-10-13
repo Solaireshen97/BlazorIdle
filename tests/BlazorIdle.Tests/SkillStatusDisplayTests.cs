@@ -23,7 +23,7 @@ public class SkillStatusDisplayTests
         var serviceProvider = services.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
         
-        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build());
+        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build(), new MockBattleNotificationService());
         var characterId = Guid.NewGuid();
         var profession = Profession.Warrior;
         
@@ -79,7 +79,7 @@ public class SkillStatusDisplayTests
         var serviceProvider = services.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
         
-        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build());
+        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build(), new MockBattleNotificationService());
         var characterId = Guid.NewGuid();
         var profession = Profession.Ranger;
         var stats = new CharacterStats { AttackPower = 80, CritChance = 0.25 };
@@ -114,7 +114,7 @@ public class SkillStatusDisplayTests
         var serviceProvider = services.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
         
-        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build());
+        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build(), new MockBattleNotificationService());
         var characterId = Guid.NewGuid();
         var profession = Profession.Warrior;
         var stats = new CharacterStats { AttackPower = 100 };
@@ -169,7 +169,7 @@ public class SkillStatusDisplayTests
         var serviceProvider = services.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
         
-        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build());
+        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build(), new MockBattleNotificationService());
         var characterId = Guid.NewGuid();
         var profession = Profession.Warrior;
         var stats = new CharacterStats { AttackPower = 100 };

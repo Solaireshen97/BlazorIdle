@@ -23,7 +23,7 @@ public class BuffStatusDisplayTests
         var serviceProvider = services.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
         
-        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build());
+        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build(), new MockBattleNotificationService());
         var characterId = Guid.NewGuid();
         var profession = Profession.Warrior;
         
@@ -76,7 +76,7 @@ public class BuffStatusDisplayTests
         var serviceProvider = services.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
         
-        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build());
+        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build(), new MockBattleNotificationService());
         var characterId = Guid.NewGuid();
         var profession = Profession.Ranger;
         var stats = new CharacterStats { AttackPower = 50 };
@@ -116,7 +116,7 @@ public class BuffStatusDisplayTests
         var serviceProvider = services.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
         
-        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build());
+        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build(), new MockBattleNotificationService());
         var characterId = Guid.NewGuid();
         var profession = Profession.Warrior;
         var stats = new CharacterStats { AttackPower = 100 };
