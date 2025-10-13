@@ -1,4 +1,6 @@
-﻿namespace BlazorIdle.Server.Domain.Combat.Engine;
+﻿using BlazorIdle.Server.Application.Abstractions;
+
+namespace BlazorIdle.Server.Domain.Combat.Engine;
 
 public sealed class BattleMeta
 {
@@ -10,4 +12,7 @@ public sealed class BattleMeta
 
     // 预留：额外自定义标签（key 为完整 tag，如 "ctx.foo.bar"）
     public Dictionary<string, int>? ExtraTags { get; init; }
+    
+    // SignalR 实时通知服务（Phase 2）
+    public IBattleNotificationService? NotificationService { get; init; }
 }

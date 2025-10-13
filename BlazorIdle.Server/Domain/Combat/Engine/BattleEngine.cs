@@ -41,6 +41,7 @@ public sealed class BattleEngine
     public int RunCount => _provider?.CompletedRunCount ?? 0;
 
     private readonly IEncounterProvider? _provider;
+    private readonly Application.Abstractions.IBattleNotificationService? _notificationService;
 
     // 刷新/击杀标记
     private EncounterGroup? _pendingNextGroup;
@@ -98,6 +99,7 @@ public sealed class BattleEngine
         BattleMeta? meta)                                             // 新增 meta
     {
         _provider = provider;
+        _notificationService = meta?.NotificationService;
 
         var professionModule = module ?? ProfessionRegistry.Resolve(profession);
 
@@ -132,7 +134,8 @@ public sealed class BattleEngine
             encounter: null,
             encounterGroup: initialGroup,
             stats: stats,
-            dungeon: dungeonDef
+            dungeon: dungeonDef,
+            notificationService: _notificationService
         );
 
         SeedIndexStart = rng.Index;
@@ -221,6 +224,9 @@ public sealed class BattleEngine
                 Context.RefreshPrimaryEncounter();
                 ResetAttackProgress(); // 切换目标时重置攻击进度
                 Collector.OnTag("retarget_primary", 1);
+                
+                // SignalR Phase 2: 发送目标切换通知
+                _notificationService?.NotifyStateChangeAsync(Battle.Id, "TargetSwitched");
             }
         }
     }
@@ -270,6 +276,9 @@ public sealed class BattleEngine
                 {
                     Collector.OnTag($"kill.{e.Enemy.Id}", 1);
                     _markedDead.Add(e);
+                    
+                    // SignalR Phase 2: 发送怪物击杀通知
+                    _notificationService?.NotifyStateChangeAsync(Battle.Id, "EnemyKilled");
                 }
             }
         }
@@ -279,6 +288,9 @@ public sealed class BattleEngine
             {
                 Collector.OnTag($"kill.{enc.Enemy.Id}", 1);
                 _markedDead.Add(enc);
+                
+                // SignalR Phase 2: 发送怪物击杀通知
+                _notificationService?.NotifyStateChangeAsync(Battle.Id, "EnemyKilled");
             }
         }
     }

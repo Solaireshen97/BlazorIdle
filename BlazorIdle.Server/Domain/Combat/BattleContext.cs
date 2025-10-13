@@ -46,6 +46,9 @@ public class BattleContext
     
     /// <summary>Phase 6: 当前副本定义（如果有）</summary>
     public DungeonDefinition? CurrentDungeon { get; private set; }
+    
+    /// <summary>SignalR Phase 2: 实时通知服务（可选）</summary>
+    public Application.Abstractions.IBattleNotificationService? NotificationService { get; private set; }
 
     public BattleContext(
         Battle battle,
@@ -61,7 +64,8 @@ public class BattleContext
         int stamina = 10,
         string? characterId = null,
         string? characterName = null,
-        DungeonDefinition? dungeon = null)
+        DungeonDefinition? dungeon = null,
+        Application.Abstractions.IBattleNotificationService? notificationService = null)
     {
         Battle = battle;
         Clock = clock;
@@ -99,6 +103,9 @@ public class BattleContext
         {
             Player.AutoReviveEnabled = dungeon.AllowAutoRevive;
         }
+        
+        // SignalR Phase 2: 设置通知服务
+        NotificationService = notificationService;
         
         // Phase 2: 初始化目标选取管理器
         TargetSelector = new TargetSelector(rng);

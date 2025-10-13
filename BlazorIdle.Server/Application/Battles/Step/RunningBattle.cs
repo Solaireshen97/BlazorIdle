@@ -81,7 +81,8 @@ public sealed class RunningBattle
         double? dungeonWaveDelaySeconds = null,
         double? dungeonRunDelaySeconds = null,
         IProfessionModule? module = null,
-        int stamina = 10)
+        int stamina = 10,
+        Abstractions.IBattleNotificationService? notificationService = null)
     {
         Id = id;
         CharacterId = characterId;
@@ -129,7 +130,8 @@ public sealed class RunningBattle
             ModeTag = modeTag,
             EnemyId = EnemyId,
             EnemyCount = EnemyCount,
-            DungeonId = (mode == StepBattleMode.DungeonSingle || mode == StepBattleMode.DungeonLoop) ? (dungeonId ?? "intro_cave") : null
+            DungeonId = (mode == StepBattleMode.DungeonSingle || mode == StepBattleMode.DungeonLoop) ? (dungeonId ?? "intro_cave") : null,
+            NotificationService = notificationService
         };
 
         Engine =

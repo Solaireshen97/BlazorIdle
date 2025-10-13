@@ -1,4 +1,6 @@
 using BlazorIdle.Server.Application.Battles.Step;
+using Moq;
+using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Shared.Models;
 using Microsoft.Extensions.Configuration;
@@ -23,7 +25,7 @@ public class SkillStatusDisplayTests
         var serviceProvider = services.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
         
-        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build());
+        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build(), new Mock<IBattleNotificationService>().Object);
         var characterId = Guid.NewGuid();
         var profession = Profession.Warrior;
         
@@ -79,7 +81,7 @@ public class SkillStatusDisplayTests
         var serviceProvider = services.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
         
-        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build());
+        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build(), new Mock<IBattleNotificationService>().Object);
         var characterId = Guid.NewGuid();
         var profession = Profession.Ranger;
         var stats = new CharacterStats { AttackPower = 80, CritChance = 0.25 };
@@ -114,7 +116,7 @@ public class SkillStatusDisplayTests
         var serviceProvider = services.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
         
-        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build());
+        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build(), new Mock<IBattleNotificationService>().Object);
         var characterId = Guid.NewGuid();
         var profession = Profession.Warrior;
         var stats = new CharacterStats { AttackPower = 100 };
@@ -169,7 +171,7 @@ public class SkillStatusDisplayTests
         var serviceProvider = services.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
         
-        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build());
+        var coordinator = new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build(), new Mock<IBattleNotificationService>().Object);
         var characterId = Guid.NewGuid();
         var profession = Profession.Warrior;
         var stats = new CharacterStats { AttackPower = 100 };

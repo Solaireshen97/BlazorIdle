@@ -1,4 +1,6 @@
 using BlazorIdle.Server.Application.Battles.Step;
+using Moq;
+using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Enemies;
 using BlazorIdle.Shared.Models;
@@ -17,8 +19,9 @@ public class PollingHintTests
         services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
         var serviceProvider = services.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+        var notificationServiceMock = new Mock<IBattleNotificationService>();
         
-        return new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build());
+        return new StepBattleCoordinator(scopeFactory, new ConfigurationBuilder().Build(), notificationServiceMock.Object);
     }
 
     [Fact]

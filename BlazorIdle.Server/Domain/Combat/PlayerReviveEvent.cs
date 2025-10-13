@@ -50,5 +50,8 @@ public record PlayerReviveEvent(double ExecuteAt) : IGameEvent
         
         // 记录复活事件
         context.SegmentCollector.OnTag("player_revive", 1);
+        
+        // SignalR Phase 2: 发送玩家复活通知
+        context.NotificationService?.NotifyStateChangeAsync(context.Battle.Id, "PlayerRevive");
     }
 }

@@ -51,5 +51,8 @@ public record PlayerDeathEvent(double ExecuteAt) : IGameEvent
         
         // 记录死亡事件
         context.SegmentCollector.OnTag("player_death", 1);
+        
+        // SignalR Phase 2: 发送玩家死亡通知
+        context.NotificationService?.NotifyStateChangeAsync(context.Battle.Id, "PlayerDeath");
     }
 }

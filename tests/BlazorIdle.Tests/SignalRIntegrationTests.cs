@@ -142,4 +142,53 @@ public sealed class SignalRIntegrationTests
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
+
+    [Fact]
+    public void BattleMeta_CanStoreNotificationService()
+    {
+        // Arrange
+        var serviceMock = new Mock<IBattleNotificationService>();
+        
+        // Act
+        var meta = new BlazorIdle.Server.Domain.Combat.Engine.BattleMeta
+        {
+            NotificationService = serviceMock.Object
+        };
+        
+        // Assert
+        Assert.NotNull(meta.NotificationService);
+        Assert.Same(serviceMock.Object, meta.NotificationService);
+    }
+
+    [Fact]
+    public void BattleContext_CanStoreNotificationService()
+    {
+        // Arrange
+        var serviceMock = new Mock<IBattleNotificationService>();
+        var battle = new BlazorIdle.Server.Domain.Combat.Battle { Id = Guid.NewGuid() };
+        var clock = new Mock<BlazorWebGame.Domain.Combat.IGameClock>();
+        var scheduler = new Mock<BlazorWebGame.Domain.Combat.IEventScheduler>();
+        var collector = new BlazorIdle.Server.Domain.Combat.SegmentCollector();
+        var stats = new BlazorIdle.Server.Domain.Characters.CharacterStats();
+        var rng = new BlazorIdle.Server.Domain.Combat.Rng.RngContext(12345UL);
+        var professionModule = BlazorIdle.Server.Domain.Combat.Professions.ProfessionRegistry.Resolve(
+            BlazorIdle.Shared.Models.Profession.Warrior);
+        
+        // Act
+        var context = new BlazorIdle.Server.Domain.Combat.BattleContext(
+            battle: battle,
+            clock: clock.Object,
+            scheduler: scheduler.Object,
+            collector: collector,
+            professionModule: professionModule,
+            profession: BlazorIdle.Shared.Models.Profession.Warrior,
+            rng: rng,
+            stats: stats,
+            notificationService: serviceMock.Object
+        );
+        
+        // Assert
+        Assert.NotNull(context.NotificationService);
+        Assert.Same(serviceMock.Object, context.NotificationService);
+    }
 }
