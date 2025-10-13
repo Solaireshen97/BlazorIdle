@@ -2,6 +2,7 @@ using BlazorIdle.Server.Application.Shop;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Shop;
 using BlazorIdle.Server.Domain.Shop.ValueObjects;
+using BlazorIdle.Server.Infrastructure.Configuration;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using BlazorIdle.Shared.Models.Shop;
 using Microsoft.Data.Sqlite;
@@ -10,6 +11,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System.Text.Json;
 
 namespace BlazorIdle.Tests.Shop;
@@ -95,11 +97,23 @@ public class ShopFilteringTests : IDisposable
         
         var cacheService = new ShopCacheService(cache, logger, configuration);
 
+        // 创建 ShopOptions 用于测试
+        var shopOptions = Options.Create(new ShopOptions
+        {
+            EnableCaching = false,
+            DailyResetSeconds = 86400,
+            WeeklyResetSeconds = 604800,
+            MinPurchaseQuantity = 1,
+            MaxPurchaseQuantity = 999,
+            DefaultPageSize = 20,
+            MaxPageSize = 100
+        });
+
         // 创建验证器
-        var validator = new PurchaseValidator(_context);
+        var validator = new PurchaseValidator(_context, shopOptions);
 
         // 创建商店服务
-        _shopService = new ShopService(_context, validator, cacheService);
+        _shopService = new ShopService(_context, validator, cacheService, shopOptions);
     }
 
     private ShopItem CreateTestItem(
