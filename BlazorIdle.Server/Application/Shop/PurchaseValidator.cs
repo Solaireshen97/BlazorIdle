@@ -16,11 +16,16 @@ public class PurchaseValidator : IPurchaseValidator
 {
     private readonly GameDbContext _context;
     private readonly ShopOptions _shopOptions;
+    private readonly IInventoryService _inventoryService;
 
-    public PurchaseValidator(GameDbContext context, IOptions<ShopOptions> shopOptions)
+    public PurchaseValidator(
+        GameDbContext context, 
+        IOptions<ShopOptions> shopOptions,
+        IInventoryService inventoryService)
     {
         _context = context;
         _shopOptions = shopOptions.Value;
+        _inventoryService = inventoryService;
     }
 
     public async Task<(bool isValid, string? errorMessage)> ValidatePurchaseAsync(
@@ -75,8 +80,21 @@ public class PurchaseValidator : IPurchaseValidator
         }
         else if (price.CurrencyType == CurrencyType.Item)
         {
-            // TODO: 验证物品货币（需要库存系统支持）
-            return (false, "物品交易暂未实现");
+            // 验证物品货币（需要背包中有足够的物品）
+            if (string.IsNullOrWhiteSpace(price.CurrencyId))
+            {
+                return (false, "商品价格配置错误：缺少物品ID");
+            }
+
+            var hasEnoughItems = await _inventoryService.HasItemAsync(
+                character.Id, 
+                price.CurrencyId, 
+                totalPrice);
+
+            if (!hasEnoughItems)
+            {
+                return (false, $"物品不足，需要 {totalPrice} 个 {price.CurrencyId}");
+            }
         }
 
         // 7. 验证购买限制

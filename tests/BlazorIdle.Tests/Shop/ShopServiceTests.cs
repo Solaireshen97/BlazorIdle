@@ -49,13 +49,18 @@ public class ShopServiceTests : IDisposable
             MaxPageSize = 100
         });
         
-        _validator = new PurchaseValidator(_context, shopOptions);
-        
-        // 创建缓存服务（测试时禁用缓存以确保测试数据新鲜）
+        // 创建服务提供者（测试时禁用缓存以确保测试数据新鲜）
         var serviceProvider = new ServiceCollection()
             .AddMemoryCache()
             .AddLogging()
             .BuildServiceProvider();
+        
+        // 创建库存服务
+        var inventoryLogger = serviceProvider.GetRequiredService<ILogger<BlazorIdle.Server.Application.Inventory.InventoryService>>();
+        var inventoryService = new BlazorIdle.Server.Application.Inventory.InventoryService(_context, inventoryLogger);
+        
+        // 创建验证器（需要库存服务）
+        _validator = new PurchaseValidator(_context, shopOptions, inventoryService);
             
         var cache = serviceProvider.GetRequiredService<IMemoryCache>();
         var logger = serviceProvider.GetRequiredService<ILogger<ShopCacheService>>();
@@ -69,10 +74,6 @@ public class ShopServiceTests : IDisposable
         var configuration = configBuilder.Build();
         
         _cacheService = new ShopCacheService(cache, logger, configuration);
-        
-        // 创建库存服务
-        var inventoryLogger = serviceProvider.GetRequiredService<ILogger<BlazorIdle.Server.Application.Inventory.InventoryService>>();
-        var inventoryService = new BlazorIdle.Server.Application.Inventory.InventoryService(_context, inventoryLogger);
         
         _shopService = new ShopService(_context, _validator, _cacheService, inventoryService, shopOptions);
 

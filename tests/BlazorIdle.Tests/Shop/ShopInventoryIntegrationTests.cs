@@ -54,9 +54,6 @@ public class ShopInventoryIntegrationTests : IDisposable
             MaxPageSize = 100
         });
         
-        // 创建验证器
-        var validator = new PurchaseValidator(_context, shopOptions);
-        
         // 创建缓存服务
         var cache = serviceProvider.GetRequiredService<IMemoryCache>();
         var cacheLogger = serviceProvider.GetRequiredService<ILogger<ShopCacheService>>();
@@ -71,6 +68,9 @@ public class ShopInventoryIntegrationTests : IDisposable
         // 创建库存服务
         var inventoryLogger = serviceProvider.GetRequiredService<ILogger<InventoryService>>();
         _inventoryService = new InventoryService(_context, inventoryLogger);
+        
+        // 创建验证器（需要库存服务）
+        var validator = new PurchaseValidator(_context, shopOptions, _inventoryService);
         
         // 创建商店服务
         _shopService = new ShopService(_context, validator, cacheService, _inventoryService, shopOptions);

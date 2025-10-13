@@ -351,6 +351,19 @@ public class ShopService : IShopService
         {
             character.Gold -= totalPrice;
         }
+        else if (price.CurrencyType == CurrencyType.Item)
+        {
+            // 扣除物品货币
+            var itemRemoved = await _inventoryService.RemoveItemAsync(charGuid, price.CurrencyId!, totalPrice);
+            if (!itemRemoved)
+            {
+                return new PurchaseResponse
+                {
+                    Success = false,
+                    Message = "扣除物品货币失败，购买已取消"
+                };
+            }
+        }
 
         // 减少库存（如果有限制）
         if (shopItem.StockQuantity >= 0)

@@ -109,12 +109,12 @@ public class ShopFilteringTests : IDisposable
             MaxPageSize = 100
         });
 
-        // 创建验证器
-        var validator = new PurchaseValidator(_context, shopOptions);
-        
         // 创建库存服务
         var inventoryLogger = serviceProvider.GetRequiredService<ILogger<BlazorIdle.Server.Application.Inventory.InventoryService>>();
         var inventoryService = new BlazorIdle.Server.Application.Inventory.InventoryService(_context, inventoryLogger);
+        
+        // 创建验证器（需要库存服务）
+        var validator = new PurchaseValidator(_context, shopOptions, inventoryService);
 
         // 创建商店服务
         _shopService = new ShopService(_context, validator, cacheService, inventoryService, shopOptions);
