@@ -53,8 +53,9 @@ public class ShopService : IShopService
         
         if (shops == null)
         {
-            // 缓存未命中，从数据库加载
+            // 缓存未命中，从数据库加载（使用 AsNoTracking 优化只读查询）
             shops = await _context.ShopDefinitions
+                .AsNoTracking()
                 .Include(s => s.Items)
                 .Where(s => s.IsEnabled)
                 .OrderBy(s => s.SortOrder)
@@ -99,8 +100,9 @@ public class ShopService : IShopService
         
         if (items == null)
         {
-            // 缓存未命中，从数据库加载
+            // 缓存未命中，从数据库加载（使用 AsNoTracking 优化只读查询）
             items = await _context.ShopItems
+                .AsNoTracking()
                 .Where(i => i.ShopId == shopId && i.IsEnabled)
                 .OrderBy(i => i.SortOrder)
                 .ToListAsync();
@@ -181,8 +183,9 @@ public class ShopService : IShopService
         
         if (items == null)
         {
-            // 缓存未命中，从数据库加载
+            // 缓存未命中，从数据库加载（使用 AsNoTracking 优化只读查询）
             items = await _context.ShopItems
+                .AsNoTracking()
                 .Where(i => i.ShopId == filter.ShopId && i.IsEnabled)
                 .OrderBy(i => i.SortOrder)
                 .ToListAsync();
@@ -406,7 +409,19 @@ public class ShopService : IShopService
         }
 
         // 所有操作成功，保存到数据库（原子性操作）
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // 并发冲突：库存已被其他请求修改
+            return new PurchaseResponse
+            {
+                Success = false,
+                Message = "商品库存不足或已被抢购，请刷新后重试"
+            };
+        }
 
         return new PurchaseResponse
         {

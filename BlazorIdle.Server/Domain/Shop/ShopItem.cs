@@ -100,6 +100,12 @@ public class ShopItem
     /// </summary>
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>
+    /// 行版本（用于乐观并发控制）
+    /// </summary>
+    [Timestamp]
+    public byte[]? RowVersion { get; set; }
+
     // Navigation properties
     public ShopDefinition? Shop { get; set; }
 
