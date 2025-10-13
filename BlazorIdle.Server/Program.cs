@@ -5,6 +5,7 @@ using BlazorIdle.Server.Config;
 using BlazorIdle.Server.Hubs;
 using BlazorIdle.Server.Infrastructure;
 using BlazorIdle.Server.Services;
+using BlazorIdle.Server.Services.Filters;
 using Microsoft.EntityFrameworkCore;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -83,6 +84,12 @@ builder.Services.AddSignalR(options =>
     options.KeepAliveInterval = TimeSpan.FromSeconds(signalRConfig.KeepAliveIntervalSeconds);
     options.ClientTimeoutInterval = TimeSpan.FromSeconds(signalRConfig.ServerTimeoutSeconds);
 });
+
+// ע�� SignalR ֪ͨ������
+builder.Services.AddSingleton<INotificationFilter, EventTypeFilter>();
+builder.Services.AddSingleton<INotificationFilter, RateLimitFilter>();
+builder.Services.AddSingleton<NotificationFilterPipeline>();
+
 builder.Services.AddSingleton<IBattleNotificationService, BattleNotificationService>();
 
 // 5. ע�����߼�⺧̨����

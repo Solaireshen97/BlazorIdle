@@ -15,22 +15,18 @@ public sealed class BattleNotificationService : IBattleNotificationService
     private readonly IHubContext<BattleNotificationHub> _hubContext;
     private readonly ILogger<BattleNotificationService> _logger;
     private readonly SignalROptions _options;
-    private readonly NotificationThrottler? _throttler;
+    private readonly NotificationFilterPipeline? _filterPipeline;
 
     public BattleNotificationService(
         IHubContext<BattleNotificationHub> hubContext,
         ILogger<BattleNotificationService> logger,
-        IOptions<SignalROptions> options)
+        IOptions<SignalROptions> options,
+        NotificationFilterPipeline? filterPipeline = null)
     {
         _hubContext = hubContext;
         _logger = logger;
         _options = options.Value;
-        
-        // 如果启用节流，创建节流器
-        if (_options.Performance.EnableThrottling)
-        {
-            _throttler = new NotificationThrottler(_options.Performance.ThrottleWindowMs);
-        }
+        _filterPipeline = filterPipeline;
     }
 
     public bool IsAvailable => _options.EnableSignalR;
@@ -49,33 +45,23 @@ public sealed class BattleNotificationService : IBattleNotificationService
             return;
         }
 
-        // 检查特定事件类型是否启用
-        if (!IsEventTypeEnabled(eventType))
+        // 使用过滤器管道进行过滤决策
+        if (_filterPipeline != null)
         {
-            if (_options.EnableDetailedLogging)
+            var context = new NotificationFilterContext
             {
-                _logger.LogDebug(
-                    "Event type {EventType} is disabled in configuration, skipping notification for battle {BattleId}",
-                    eventType,
-                    battleId
-                );
-            }
-            return;
-        }
+                BattleId = battleId,
+                EventType = eventType
+            };
 
-        // 检查节流
-        if (_throttler != null)
-        {
-            var throttleKey = $"battle_{battleId}_{eventType}";
-            if (!_throttler.ShouldSend(throttleKey))
+            if (!_filterPipeline.Execute(context))
             {
                 if (_options.EnableDetailedLogging)
                 {
                     _logger.LogDebug(
-                        "Notification throttled: Battle={BattleId}, EventType={EventType}, SuppressedCount={Count}",
+                        "Notification blocked by filter pipeline: Battle={BattleId}, EventType={EventType}",
                         battleId,
-                        eventType,
-                        _throttler.GetSuppressedCount(throttleKey)
+                        eventType
                     );
                 }
                 return;
@@ -114,24 +100,6 @@ public sealed class BattleNotificationService : IBattleNotificationService
                 eventType
             );
         }
-    }
-
-    /// <summary>
-    /// 检查事件类型是否启用
-    /// </summary>
-    private bool IsEventTypeEnabled(string eventType)
-    {
-        return eventType switch
-        {
-            "PlayerDeath" => _options.Notification.EnablePlayerDeathNotification,
-            "PlayerRevive" => _options.Notification.EnablePlayerReviveNotification,
-            "EnemyKilled" => _options.Notification.EnableEnemyKilledNotification,
-            "TargetSwitched" => _options.Notification.EnableTargetSwitchedNotification,
-            "WaveSpawn" => _options.Notification.EnableWaveSpawnNotification,
-            "SkillCast" => _options.Notification.EnableSkillCastNotification,
-            "BuffChange" => _options.Notification.EnableBuffChangeNotification,
-            _ => true // 默认启用未知类型
-        };
     }
 
     /// <summary>

@@ -2,6 +2,7 @@ using Xunit;
 using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Config;
 using BlazorIdle.Server.Services;
+using BlazorIdle.Server.Services.Filters;
 using BlazorIdle.Server.Hubs;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -216,7 +217,16 @@ public sealed class SignalRIntegrationTests
             }
         });
         
-        var service = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, options);
+        // 创建过滤器管道
+        var filters = new INotificationFilter[]
+        {
+            new EventTypeFilter(options),
+            new RateLimitFilter(options)
+        };
+        var pipelineLoggerMock = new Mock<ILogger<NotificationFilterPipeline>>();
+        var pipeline = new NotificationFilterPipeline(filters, pipelineLoggerMock.Object);
+        
+        var service = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, options, pipeline);
         var battleId = Guid.NewGuid();
 
         // Act
@@ -260,7 +270,16 @@ public sealed class SignalRIntegrationTests
             }
         });
         
-        var service = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, options);
+        // 创建过滤器管道
+        var filters = new INotificationFilter[]
+        {
+            new EventTypeFilter(options),
+            new RateLimitFilter(options)
+        };
+        var pipelineLoggerMock = new Mock<ILogger<NotificationFilterPipeline>>();
+        var pipeline = new NotificationFilterPipeline(filters, pipelineLoggerMock.Object);
+        
+        var service = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, options, pipeline);
         var battleId = Guid.NewGuid();
 
         // Act - 快速发送 5 次相同通知
