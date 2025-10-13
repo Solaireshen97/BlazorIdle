@@ -119,6 +119,15 @@ else
         OnItemsChanged="@RefreshEquipmentData" />
 }
 
+<!-- 1.8) 商店系统界面 -->
+@if (lastCreated is not null)
+{
+    <ShopPanel 
+        CharacterId="@lastCreated.Id"
+        CurrentGold="@lastCreatedGold"
+        OnPurchaseSuccess="@HandleShopPurchase" />
+}
+
 <!-- 2) 同步战斗 -->
 @if (lastCreated is not null)
 {
@@ -990,12 +999,16 @@ else
                     // 用选中的角色作为 lastCreated 以便其他功能使用
                     lastCreated = new CharacterCreated(selectedCharacter.Id, selectedCharacter.Name);
                     
+                    // 更新金币显示
+                    await UpdateCharacterGoldAsync();
+                    
                     // 检查离线收益（会触发 RefreshPlansAsync）
                     await CheckOfflineRewardsAsync();
                 }
                 // 如果已经有选中的角色，刷新其计划列表
                 else if (selectedCharacter is not null && lastCreated is not null)
                 {
+                    await UpdateCharacterGoldAsync();
                     await RefreshPlansAsync();
                 }
                 
@@ -1189,6 +1202,9 @@ else
     Dictionary<string, double> equipmentStats = new();
     List<EquipmentEnhancementPanel.InventoryItemDto> inventoryGearItems = new();
 
+    // ====== 商店系统 ======
+    long lastCreatedGold = 0;
+
     bool CanStartBattle => !isBusy && lastCreated is not null && !battleInProgress;
 
     async Task CreateCharacter()
@@ -1324,6 +1340,42 @@ else
         }
         
         return equippedItems;
+    }
+
+    /// <summary>
+    /// 更新角色金币显示
+    /// </summary>
+    async Task UpdateCharacterGoldAsync()
+    {
+        if (lastCreated == null) return;
+
+        try
+        {
+            var inventory = await Api.GetInventoryAsync(lastCreated.Id);
+            if (inventory != null)
+            {
+                lastCreatedGold = inventory.Gold;
+            }
+        }
+        catch
+        {
+            // 静默失败，不影响其他功能
+        }
+    }
+
+    /// <summary>
+    /// 处理商店购买成功事件
+    /// </summary>
+    async Task HandleShopPurchase()
+    {
+        // 刷新金币和背包显示
+        await UpdateCharacterGoldAsync();
+        await LoadUserDataAsync();
+        
+        // 显示成功提示
+        toastNotification?.ShowSuccess("购买成功！", "", 2000);
+        
+        StateHasChanged();
     }
 
     /// <summary>

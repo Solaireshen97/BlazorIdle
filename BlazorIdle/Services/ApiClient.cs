@@ -387,6 +387,45 @@ public class ApiClient
         resp.EnsureSuccessStatusCode();
         return await resp.Content.ReadFromJsonAsync<HeartbeatResponse>(cancellationToken: ct);
     }
+
+    // ===== 商店系统 =====
+    /// <summary>
+    /// 获取商店列表
+    /// </summary>
+    public Task<BlazorIdle.Shared.Models.Shop.ListShopsResponse?> GetShopsAsync(string characterId, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        return _http.GetFromJsonAsync<BlazorIdle.Shared.Models.Shop.ListShopsResponse>($"/api/shop/list?characterId={characterId}", ct);
+    }
+
+    /// <summary>
+    /// 获取商店商品列表
+    /// </summary>
+    public Task<BlazorIdle.Shared.Models.Shop.ListShopItemsResponse?> GetShopItemsAsync(string shopId, string characterId, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        return _http.GetFromJsonAsync<BlazorIdle.Shared.Models.Shop.ListShopItemsResponse>($"/api/shop/{shopId}/items?characterId={characterId}", ct);
+    }
+
+    /// <summary>
+    /// 购买商品
+    /// </summary>
+    public async Task<BlazorIdle.Shared.Models.Shop.PurchaseResponse?> PurchaseItemAsync(string characterId, BlazorIdle.Shared.Models.Shop.PurchaseRequest request, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        var resp = await _http.PostAsJsonAsync($"/api/shop/purchase?characterId={characterId}", request, ct);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<BlazorIdle.Shared.Models.Shop.PurchaseResponse>(cancellationToken: ct);
+    }
+
+    /// <summary>
+    /// 获取购买历史
+    /// </summary>
+    public Task<BlazorIdle.Shared.Models.Shop.PurchaseHistoryResponse?> GetPurchaseHistoryAsync(string characterId, int days = 30, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        return _http.GetFromJsonAsync<BlazorIdle.Shared.Models.Shop.PurchaseHistoryResponse>($"/api/shop/history?characterId={characterId}&days={days}", ct);
+    }
 }
 
 // ====== Step DTOs（保留运行中需要的） ======

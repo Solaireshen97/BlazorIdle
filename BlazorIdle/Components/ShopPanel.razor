@@ -1,0 +1,406 @@
+@using BlazorIdle.Client.Services
+@using BlazorIdle.Shared.Models.Shop
+@inject ApiClient Api
+
+<div class="shop-panel">
+    <h5>🏪 商店系统</h5>
+    
+    @if (isLoading)
+    {
+        <p><em>加载中...</em></p>
+    }
+    else if (error is not null)
+    {
+        <div class="alert alert-danger">@error</div>
+    }
+    else
+    {
+        @if (currentShop is null)
+        {
+            <!-- 商店列表 -->
+            <div class="shop-list">
+                <h6>选择商店</h6>
+                @if (shops is not null && shops.Count > 0)
+                {
+                    <div class="row">
+                        @foreach (var shop in shops)
+                        {
+                            <div class="col-md-6 mb-3">
+                                <div class="card shop-card @(shop.IsUnlocked ? "" : "locked")">
+                                    <div class="card-body">
+                                        <h6 class="card-title">
+                                            <span class="shop-icon">@shop.Icon</span>
+                                            @shop.Name
+                                            @if (!shop.IsUnlocked)
+                                            {
+                                                <span class="badge bg-secondary">🔒 已锁定</span>
+                                            }
+                                        </h6>
+                                        <p class="card-text text-muted small">@shop.Description</p>
+                                        <p class="small mb-2">
+                                            <span class="badge bg-info">@shop.Type</span>
+                                            <span class="text-muted">商品数: @shop.ItemCount</span>
+                                        </p>
+                                        @if (shop.IsUnlocked)
+                                        {
+                                            <button class="btn btn-sm btn-primary" @onclick="() => SelectShop(shop)">
+                                                进入商店
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-sm btn-secondary" disabled>
+                                                未解锁
+                                            </button>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted">暂无可用商店</p>
+                }
+            </div>
+        }
+        else
+        {
+            <!-- 商品列表 -->
+            <div class="shop-items">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="BackToShopList">
+                            <span class="oi oi-arrow-left"></span> 返回商店列表
+                        </button>
+                        <h6 class="d-inline ms-3">
+                            <span class="shop-icon">@currentShop.Icon</span>
+                            @currentShop.Name
+                        </h6>
+                    </div>
+                    <div>
+                        <span class="text-muted">金币: </span>
+                        <strong class="gold-text">@CurrentGold.ToString("N0")</strong>
+                    </div>
+                </div>
+
+                @if (shopItems is not null && shopItems.Count > 0)
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover shop-items-table">
+                            <thead>
+                                <tr>
+                                    <th>物品</th>
+                                    <th>价格</th>
+                                    <th>等级</th>
+                                    <th>限制</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in shopItems)
+                                {
+                                    <tr class="@(item.CanPurchase ? "" : "disabled-item")">
+                                        <td>
+                                            <div class="item-info">
+                                                <span class="item-icon">@item.ItemIcon</span>
+                                                <div class="item-details">
+                                                    <div class="item-name">
+                                                        @item.ItemName
+                                                        @if (!string.IsNullOrEmpty(item.Rarity))
+                                                        {
+                                                            <span class="badge rarity-@item.Rarity.ToLower()">@item.Rarity</span>
+                                                        }
+                                                    </div>
+                                                    @if (!string.IsNullOrEmpty(item.ItemCategory))
+                                                    {
+                                                        <small class="text-muted">@item.ItemCategory</small>
+                                                    }
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <strong class="gold-text">@item.Price.Amount.ToString("N0")</strong>
+                                            <small class="text-muted d-block">@item.Price.CurrencyType</small>
+                                        </td>
+                                        <td>
+                                            @if (item.MinLevel > 1)
+                                            {
+                                                <span class="badge bg-secondary">Lv @item.MinLevel</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">-</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (item.PurchaseLimit.Type != "Unlimited")
+                                            {
+                                                <small>
+                                                    @item.PurchaseLimit.Type: 
+                                                    @item.CurrentPurchaseCount/@item.PurchaseLimit.MaxPurchases
+                                                </small>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">无限</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (item.CanPurchase)
+                                            {
+                                                <button class="btn btn-sm btn-success" 
+                                                        @onclick="() => PurchaseItem(item)"
+                                                        disabled="@isPurchasing">
+                                                    购买
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-sm btn-secondary" disabled 
+                                                        title="@item.PurchaseBlockReason">
+                                                    无法购买
+                                                </button>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted">该商店暂无商品</p>
+                }
+            </div>
+        }
+
+        <div class="shop-actions mt-3">
+            <button class="btn btn-sm btn-outline-primary" @onclick="RefreshShops" disabled="@isLoading">
+                <span class="oi oi-reload"></span> 刷新
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid CharacterId { get; set; }
+
+    [Parameter]
+    public long CurrentGold { get; set; }
+
+    [Parameter]
+    public EventCallback OnPurchaseSuccess { get; set; }
+
+    private List<ShopDto>? shops;
+    private ShopDto? currentShop;
+    private List<ShopItemDto>? shopItems;
+    private bool isLoading;
+    private bool isPurchasing;
+    private string? error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (CharacterId != Guid.Empty && shops is null)
+        {
+            await LoadShopsAsync();
+        }
+    }
+
+    private async Task LoadShopsAsync()
+    {
+        if (CharacterId == Guid.Empty) return;
+
+        isLoading = true;
+        error = null;
+        try
+        {
+            var response = await Api.GetShopsAsync(CharacterId.ToString());
+            if (response is not null)
+            {
+                shops = response.Shops;
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"加载商店失败: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SelectShop(ShopDto shop)
+    {
+        if (!shop.IsUnlocked) return;
+
+        currentShop = shop;
+        isLoading = true;
+        error = null;
+        try
+        {
+            var response = await Api.GetShopItemsAsync(shop.Id, CharacterId.ToString());
+            if (response is not null)
+            {
+                shopItems = response.Items;
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"加载商品失败: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void BackToShopList()
+    {
+        currentShop = null;
+        shopItems = null;
+    }
+
+    private async Task PurchaseItem(ShopItemDto item)
+    {
+        if (isPurchasing || CharacterId == Guid.Empty) return;
+
+        isPurchasing = true;
+        error = null;
+        try
+        {
+            var request = new PurchaseRequest
+            {
+                ShopItemId = item.Id,
+                Quantity = 1
+            };
+
+            var response = await Api.PurchaseItemAsync(CharacterId.ToString(), request);
+            
+            if (response is not null && response.Success)
+            {
+                // 刷新商品列表和角色信息
+                if (currentShop is not null)
+                {
+                    await SelectShop(currentShop);
+                }
+                
+                // 通知父组件购买成功，以便刷新金币等信息
+                await OnPurchaseSuccess.InvokeAsync();
+            }
+            else
+            {
+                error = response?.Message ?? "购买失败";
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"购买失败: {ex.Message}";
+        }
+        finally
+        {
+            isPurchasing = false;
+        }
+    }
+
+    private async Task RefreshShops()
+    {
+        shops = null;
+        currentShop = null;
+        shopItems = null;
+        await LoadShopsAsync();
+    }
+}
+
+<style>
+    .shop-panel {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 20px;
+        background-color: #f8f9fa;
+        margin-bottom: 20px;
+    }
+
+    .shop-card {
+        transition: all 0.3s ease;
+        height: 100%;
+    }
+
+    .shop-card:hover:not(.locked) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .shop-card.locked {
+        opacity: 0.6;
+        background-color: #e9ecef;
+    }
+
+    .shop-icon {
+        font-size: 1.5em;
+        margin-right: 8px;
+    }
+
+    .item-icon {
+        font-size: 1.8em;
+        margin-right: 10px;
+    }
+
+    .item-info {
+        display: flex;
+        align-items: center;
+    }
+
+    .item-details {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .item-name {
+        font-weight: 600;
+        margin-bottom: 2px;
+    }
+
+    .gold-text {
+        color: #f39c12;
+        font-weight: bold;
+    }
+
+    .rarity-common {
+        background-color: #95a5a6;
+    }
+
+    .rarity-uncommon {
+        background-color: #2ecc71;
+    }
+
+    .rarity-rare {
+        background-color: #3498db;
+    }
+
+    .rarity-epic {
+        background-color: #9b59b6;
+    }
+
+    .rarity-legendary {
+        background-color: #f39c12;
+    }
+
+    .disabled-item {
+        opacity: 0.6;
+        background-color: #f8f9fa;
+    }
+
+    .shop-items-table tbody tr:hover:not(.disabled-item) {
+        background-color: #e3f2fd;
+    }
+
+    .shop-actions {
+        border-top: 1px solid #dee2e6;
+        padding-top: 15px;
+    }
+</style>
