@@ -1,5 +1,8 @@
 using BlazorIdle.Server.Application;
+using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Application.Auth;
+using BlazorIdle.Server.Config;
+using BlazorIdle.Server.Hubs;
 using BlazorIdle.Server.Infrastructure;
 using BlazorIdle.Server.Services;
 using Microsoft.EntityFrameworkCore;
@@ -72,6 +75,16 @@ builder.Services
     .AddInfrastructure(builder.Configuration)   // ע�������ʩ��DbContext / �ִ����ڲ��ѵ��� AddRepositories��
     .AddApplication();                          // ע��Ӧ�ò�����������Command/Query Handler �ȣ�
 
+// 4.5 SignalR ����
+builder.Services.Configure<SignalROptions>(builder.Configuration.GetSection("SignalR"));
+builder.Services.AddSignalR(options =>
+{
+    var signalRConfig = builder.Configuration.GetSection("SignalR").Get<SignalROptions>() ?? new SignalROptions();
+    options.KeepAliveInterval = TimeSpan.FromSeconds(signalRConfig.KeepAliveIntervalSeconds);
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(signalRConfig.ServerTimeoutSeconds);
+});
+builder.Services.AddSingleton<IBattleNotificationService, BattleNotificationService>();
+
 // 5. ע�����߼�⺧̨����
 builder.Services.AddHostedService<OfflineDetectionService>();
 
@@ -135,6 +148,13 @@ app.UseAuthentication(); // ��֤�м��
 app.UseAuthorization();  // ��Ȩ�м��
 
 app.MapControllers(); // ӳ��������˵㵽·�ɱ�
+
+// SignalR Hub ӳ��
+var signalRConfig = app.Configuration.GetSection("SignalR").Get<SignalROptions>() ?? new SignalROptions();
+if (signalRConfig.EnableSignalR)
+{
+    app.MapHub<BattleNotificationHub>(signalRConfig.HubEndpoint);
+}
 
 // TODO����ѡ��չ����app.MapHealthChecks("/health"); app.MapGet("/version", ...);
 app.Run(); // ������������ͬ��������ֱ������ֹͣ��
