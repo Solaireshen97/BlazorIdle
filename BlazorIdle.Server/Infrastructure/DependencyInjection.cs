@@ -12,6 +12,7 @@ using BlazorIdle.Server.Application.Battles;
 using BlazorIdle.Server.Application.Activities;
 using BlazorIdle.Server.Domain.Equipment.Services;
 using BlazorIdle.Server.Infrastructure.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace BlazorIdle.Server.Infrastructure;
 
@@ -80,6 +81,7 @@ public static class DependencyInjection
         
         // 商店系统配置
         services.Configure<ShopOptions>(configuration.GetSection("Shop"));
+        services.AddSingleton<IValidateOptions<ShopOptions>, ShopOptionsValidator>();
         services.AddSingleton<IShopConfigurationLoader, ShopConfigurationLoader>();
         
         // 商店系统缓存
