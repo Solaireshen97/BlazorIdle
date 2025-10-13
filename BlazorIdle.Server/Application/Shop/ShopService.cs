@@ -1,5 +1,6 @@
 using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Domain.Shop;
+using BlazorIdle.Server.Domain.Shop.Configuration;
 using BlazorIdle.Server.Domain.Shop.ValueObjects;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using BlazorIdle.Shared.Models.Shop;
@@ -16,15 +17,18 @@ public class ShopService : IShopService
     private readonly GameDbContext _context;
     private readonly IPurchaseValidator _validator;
     private readonly IShopCacheService _cacheService;
+    private readonly IConfiguration _configuration;
 
     public ShopService(
         GameDbContext context, 
         IPurchaseValidator validator,
-        IShopCacheService cacheService)
+        IShopCacheService cacheService,
+        IConfiguration configuration)
     {
         _context = context;
         _validator = validator;
         _cacheService = cacheService;
+        _configuration = configuration;
     }
 
     public async Task<ListShopsResponse> ListShopsAsync(string characterId)
@@ -402,11 +406,24 @@ public class ShopService : IShopService
         };
     }
 
-    public async Task<PurchaseHistoryResponse> GetPurchaseHistoryAsync(string characterId, int page = 1, int pageSize = 20)
+    public async Task<PurchaseHistoryResponse> GetPurchaseHistoryAsync(string characterId, int page = 1, int pageSize = 0)
     {
         if (!Guid.TryParse(characterId, out var charGuid))
         {
             return new PurchaseHistoryResponse();
+        }
+
+        // 使用配置的默认分页大小，如果没有指定
+        if (pageSize <= 0)
+        {
+            pageSize = _configuration.GetValue<int>("Shop:DefaultPageSize", ShopSystemConfig.QueryConfig.DefaultPageSize);
+        }
+        
+        // 限制最大分页大小
+        var maxPageSize = _configuration.GetValue<int>("Shop:MaxPageSize", ShopSystemConfig.QueryConfig.MaxPageSize);
+        if (pageSize > maxPageSize)
+        {
+            pageSize = maxPageSize;
         }
 
         var skip = (page - 1) * pageSize;

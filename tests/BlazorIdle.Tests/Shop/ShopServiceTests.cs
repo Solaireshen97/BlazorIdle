@@ -34,7 +34,20 @@ public class ShopServiceTests : IDisposable
             .Options;
 
         _context = new GameDbContext(options);
-        _validator = new PurchaseValidator(_context);
+        
+        // 创建配置（禁用缓存以便测试）
+        var configBuilder = new ConfigurationBuilder();
+        configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            { "Shop:EnableCaching", "false" },
+            { "Shop:DefaultPageSize", "20" },
+            { "Shop:MaxPageSize", "100" },
+            { "Shop:DailyResetSeconds", "86400" },
+            { "Shop:WeeklyResetSeconds", "604800" }
+        });
+        var configuration = configBuilder.Build();
+        
+        _validator = new PurchaseValidator(_context, configuration);
         
         // 创建缓存服务（测试时禁用缓存以确保测试数据新鲜）
         var serviceProvider = new ServiceCollection()
@@ -45,16 +58,8 @@ public class ShopServiceTests : IDisposable
         var cache = serviceProvider.GetRequiredService<IMemoryCache>();
         var logger = serviceProvider.GetRequiredService<ILogger<ShopCacheService>>();
         
-        // 创建配置（禁用缓存以便测试）
-        var configBuilder = new ConfigurationBuilder();
-        configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            { "Shop:EnableCaching", "false" }
-        });
-        var configuration = configBuilder.Build();
-        
         _cacheService = new ShopCacheService(cache, logger, configuration);
-        _shopService = new ShopService(_context, _validator, _cacheService);
+        _shopService = new ShopService(_context, _validator, _cacheService, configuration);
 
         // 设置测试数据
         _testCharacterId = Guid.NewGuid();

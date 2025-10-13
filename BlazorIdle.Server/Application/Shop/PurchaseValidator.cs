@@ -1,6 +1,7 @@
 using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Shop;
+using BlazorIdle.Server.Domain.Shop.Configuration;
 using BlazorIdle.Server.Domain.Shop.ValueObjects;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -13,10 +14,12 @@ namespace BlazorIdle.Server.Application.Shop;
 public class PurchaseValidator : IPurchaseValidator
 {
     private readonly GameDbContext _context;
+    private readonly IConfiguration _configuration;
 
-    public PurchaseValidator(GameDbContext context)
+    public PurchaseValidator(GameDbContext context, IConfiguration configuration)
     {
         _context = context;
+        _configuration = configuration;
     }
 
     public async Task<(bool isValid, string? errorMessage)> ValidatePurchaseAsync(
@@ -99,11 +102,14 @@ public class PurchaseValidator : IPurchaseValidator
         }
 
         // 检查是否需要重置
-        if (limit.Type == LimitType.Daily && counter.ShouldReset(86400))
+        var dailyResetSeconds = _configuration.GetValue<int>("Shop:DailyResetSeconds", ShopSystemConfig.PurchaseLimitConfig.DailyResetSeconds);
+        var weeklyResetSeconds = _configuration.GetValue<int>("Shop:WeeklyResetSeconds", ShopSystemConfig.PurchaseLimitConfig.WeeklyResetSeconds);
+        
+        if (limit.Type == LimitType.Daily && counter.ShouldReset(dailyResetSeconds))
         {
             return 0;
         }
-        if (limit.Type == LimitType.Weekly && counter.ShouldReset(604800))
+        if (limit.Type == LimitType.Weekly && counter.ShouldReset(weeklyResetSeconds))
         {
             return 0;
         }

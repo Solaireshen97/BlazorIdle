@@ -89,17 +89,21 @@ public class ShopFilteringTests : IDisposable
         var configBuilder = new Microsoft.Extensions.Configuration.ConfigurationBuilder();
         configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
         {
-            { "Shop:EnableCaching", "false" }
+            { "Shop:EnableCaching", "false" },
+            { "Shop:DefaultPageSize", "20" },
+            { "Shop:MaxPageSize", "100" },
+            { "Shop:DailyResetSeconds", "86400" },
+            { "Shop:WeeklyResetSeconds", "604800" }
         });
         var configuration = configBuilder.Build();
         
         var cacheService = new ShopCacheService(cache, logger, configuration);
 
         // 创建验证器
-        var validator = new PurchaseValidator(_context);
+        var validator = new PurchaseValidator(_context, configuration);
 
         // 创建商店服务
-        _shopService = new ShopService(_context, validator, cacheService);
+        _shopService = new ShopService(_context, validator, cacheService, configuration);
     }
 
     private ShopItem CreateTestItem(
