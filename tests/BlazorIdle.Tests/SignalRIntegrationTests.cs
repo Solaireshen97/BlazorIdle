@@ -142,4 +142,37 @@ public sealed class SignalRIntegrationTests
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
+
+    [Fact]
+    public void BattleContext_WithNotificationService_IsInjected()
+    {
+        // Arrange
+        var clientProxyMock = new Mock<IClientProxy>();
+        var groupManagerMock = new Mock<IHubClients>();
+        groupManagerMock.Setup(x => x.Group(It.IsAny<string>())).Returns(clientProxyMock.Object);
+        
+        var hubContextMock = new Mock<IHubContext<BattleNotificationHub>>();
+        hubContextMock.Setup(x => x.Clients).Returns(groupManagerMock.Object);
+        
+        var loggerMock = new Mock<ILogger<BattleNotificationService>>();
+        var options = Options.Create(new SignalROptions { EnableSignalR = true });
+        
+        var notificationService = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, options);
+        
+        // Act
+        var context = new BlazorIdle.Server.Domain.Combat.BattleContext(
+            battle: new BlazorIdle.Server.Domain.Combat.Battle { Id = Guid.NewGuid(), CharacterId = Guid.NewGuid() },
+            clock: new BlazorWebGame.Domain.Combat.GameClock(),
+            scheduler: new BlazorWebGame.Domain.Combat.EventScheduler(),
+            collector: new BlazorIdle.Server.Domain.Combat.SegmentCollector(),
+            professionModule: BlazorIdle.Server.Domain.Combat.Professions.ProfessionRegistry.Resolve(BlazorIdle.Shared.Models.Profession.Warrior),
+            profession: BlazorIdle.Shared.Models.Profession.Warrior,
+            rng: new BlazorIdle.Server.Domain.Combat.Rng.RngContext(12345),
+            notificationService: notificationService
+        );
+
+        // Assert
+        Assert.NotNull(context.NotificationService);
+        Assert.True(context.NotificationService.IsAvailable);
+    }
 }

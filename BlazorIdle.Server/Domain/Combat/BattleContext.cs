@@ -1,4 +1,5 @@
-﻿using BlazorIdle.Server.Domain.Characters;
+﻿using BlazorIdle.Server.Application.Abstractions;
+using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Buffs;
 using BlazorIdle.Server.Domain.Combat.Combatants;
 using BlazorIdle.Server.Domain.Combat.Damage;
@@ -46,6 +47,9 @@ public class BattleContext
     
     /// <summary>Phase 6: 当前副本定义（如果有）</summary>
     public DungeonDefinition? CurrentDungeon { get; private set; }
+    
+    /// <summary>SignalR Phase 2: 战斗通知服务（可选，用于实时通知前端）</summary>
+    public IBattleNotificationService? NotificationService { get; private set; }
 
     public BattleContext(
         Battle battle,
@@ -61,7 +65,8 @@ public class BattleContext
         int stamina = 10,
         string? characterId = null,
         string? characterName = null,
-        DungeonDefinition? dungeon = null)
+        DungeonDefinition? dungeon = null,
+        IBattleNotificationService? notificationService = null)
     {
         Battle = battle;
         Clock = clock;
@@ -71,6 +76,7 @@ public class BattleContext
         Profession = profession;
         Rng = rng;
         Stats = stats ?? new CharacterStats();
+        NotificationService = notificationService;
 
         EncounterGroup = encounterGroup ?? (encounter != null ? Enemies.EncounterGroup.FromSingle(encounter) : null);
         Encounter = EncounterGroup?.PrimaryAlive() ?? encounter;

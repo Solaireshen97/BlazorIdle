@@ -114,33 +114,44 @@
 
 ---
 
-### ⏳ Phase 2: 进度条精准同步（第 3-4 周）
+### ✅ Phase 2: 进度条精准同步（第 3-4 周）- 服务端集成完成
 
-**预计开始**: 2025-10-14  
-**状态**: 待开始  
-**优先级**: 高
+**完成日期**: 2025-10-13  
+**状态**: 🟢 服务端完成，🔵 前端待实施  
+**完成度**: 60%
+
+#### 已完成任务
+
+##### 2.1 事件埋点（已完成） ✅
+- [x] 在 `PlayerDeathEvent.Execute()` 中调用 `NotifyStateChangeAsync("PlayerDeath")`
+- [x] 在 `BattleEngine.CaptureNewDeaths()` 中调用 `NotifyStateChangeAsync("EnemyKilled")`  
+- [x] 在 `BattleEngine.TryRetargetPrimaryIfDead()` 中调用 `NotifyStateChangeAsync("TargetSwitched")`
+- [x] 在 `PlayerReviveEvent.Execute()` 中调用 `NotifyStateChangeAsync("PlayerRevive")`
+
+##### 2.3 应用层集成（已完成） ✅
+- [x] 在 BattleContext 中添加 NotificationService 属性
+- [x] 在 BattleEngine 中添加 notificationService 参数传递
+- [x] 在 RunningBattle 中添加 notificationService 参数
+- [x] 在 StepBattleCoordinator 中通过 IServiceScopeFactory 注入服务
+- [x] 创建集成测试验证服务注入
+- [x] 所有测试通过（9/9）
 
 #### 待实施任务
-
-##### 2.1 事件埋点（高优先级）
-- [ ] 在 `PlayerDeathEvent.Execute()` 中调用 `NotifyStateChangeAsync("PlayerDeath")`
-- [ ] 在 `BattleEngine.CaptureNewDeaths()` 中调用 `NotifyStateChangeAsync("EnemyKilled")`  
-- [ ] 在 `BattleEngine.TryRetargetPrimaryIfDead()` 中调用 `NotifyStateChangeAsync("TargetSwitched")`
-- [ ] 在 `PlayerReviveEvent.Execute()` 中调用 `NotifyStateChangeAsync("PlayerRevive")`
 
 ##### 2.2 前端集成（高优先级）
 - [ ] 查找或创建战斗页面组件
 - [ ] 在组件初始化时连接 SignalR
 - [ ] 注册 `StateChanged` 事件处理器
 - [ ] 收到通知后立即触发轮询
-- [ ] 实现进度条状态机（Idle → Simulating → Interrupted）
+- [ ] 实现降级策略（SignalR 不可用时纯轮询）
 
-##### 2.3 进度条优化（中优先级）
+##### 2.4 进度条优化（中优先级）
+- [ ] 实现进度条状态机（Idle → Simulating → Interrupted）
 - [ ] 基于 `NextSignificantEventAt` 计算进度
 - [ ] 实现进度条中断逻辑
 - [ ] 平滑过渡动画（避免视觉跳变）
 
-##### 2.4 测试验证
+##### 2.5 测试验证
 - [ ] 端到端测试（服务器→客户端）
 - [ ] 通知延迟测试（目标 <1s）
 - [ ] 重连机制测试
@@ -149,12 +160,37 @@
 
 #### 验收标准
 
-| 验收项 | 标准 |
-|-------|------|
-| 通知延迟 | <1s (P99) |
-| 进度条误差 | <5% |
-| 重连成功率 | >95% |
-| 降级功能 | SignalR 不可用时正常轮询 |
+| 验收项 | 标准 | 当前状态 |
+|-------|------|---------|
+| 事件埋点 | 4种事件全覆盖 | ✅ 完成 |
+| 服务注入 | 应用层集成 | ✅ 完成 |
+| 单元测试 | ≥9个测试通过 | ✅ 9/9 通过 |
+| 通知延迟 | <1s (P99) | ⏳ 待前端测试 |
+| 进度条误差 | <5% | ⏳ 待实施 |
+| 重连成功率 | >95% | ⏳ 待测试 |
+| 降级功能 | SignalR 不可用时正常轮询 | ⏳ 待前端实施 |
+
+#### 技术亮点
+
+1. **Fire-and-Forget 通知模式**
+   - 使用 `_ = ` 语法异步发送通知
+   - 不阻塞战斗逻辑
+   - 通知失败不影响战斗结果
+
+2. **安全的可空调用链**
+   - `context.NotificationService?.IsAvailable == true`
+   - 双重检查保证安全
+   - 优雅降级
+
+3. **动态服务获取**
+   - 通过 IServiceScopeFactory 获取服务
+   - 避免循环依赖
+   - 获取失败时静默处理
+
+4. **完全向后兼容**
+   - 所有参数都是可选的
+   - 不影响现有代码
+   - 测试全部通过
 
 ---
 
@@ -218,17 +254,17 @@
 ### 总体完成度
 
 ```
-████████████░░░░░░░░░░░░░░░░░░░░░░░░ 20% (Phase 1 完成)
+████████████████████████░░░░░░░░░░░░ 40% (Phase 1-2 服务端完成)
 ```
 
 ### 工作量统计
 
 | 类别 | 已完成 | 计划中 | 总计 |
 |------|--------|--------|------|
-| 代码文件 | 8 | 预计10+ | 18+ |
+| 代码文件 | 12 | 预计8+ | 20+ |
 | 配置文件 | 2 | 0 | 2 |
-| 测试用例 | 8 | 预计15+ | 23+ |
-| 文档文件 | 2 | 预计3+ | 5+ |
+| 测试用例 | 9 | 预计15+ | 24+ |
+| 文档文件 | 4 | 预计2+ | 6+ |
 
 ---
 
@@ -238,10 +274,13 @@
 - [x] ✅ 完成 Phase 1 基础架构（已完成）
 - [x] ✅ 完成单元测试（已完成）
 - [x] ✅ 编写实施文档（已完成）
+- [x] ✅ 完成 Phase 2.1 事件埋点（已完成）
+- [x] ✅ 完成 Phase 2.3 应用层集成（已完成）
+- [x] ✅ 编写 Phase 2 实施文档（已完成）
 
 ### 下周计划（Week 2）
-- [ ] 实施 Phase 2.1 事件埋点
 - [ ] 实施 Phase 2.2 前端集成
+- [ ] 实施 Phase 2.4 进度条优化
 - [ ] 编写端到端测试
 
 ---
@@ -293,6 +332,7 @@
 
 ### 实施文档
 - [SignalR_Phase1_实施总结.md](./SignalR_Phase1_实施总结.md) - Phase 1 详细总结
+- [SignalR_Phase2_服务端集成完成报告.md](./SignalR_Phase2_服务端集成完成报告.md) - Phase 2 服务端总结
 - [SignalR优化进度更新.md](./SignalR优化进度更新.md) - 本文档
 
 ### 参考文档

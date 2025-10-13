@@ -1,4 +1,5 @@
-﻿using BlazorIdle.Server.Domain.Characters;
+﻿using BlazorIdle.Server.Application.Abstractions;
+using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Buffs;
 using BlazorIdle.Server.Domain.Combat.Combatants;
 using BlazorIdle.Server.Domain.Combat.Damage;
@@ -59,12 +60,14 @@ public sealed class BattleEngine
         EnemyDefinition enemyDef,
         int enemyCount,
         IProfessionModule? module = null,
-        BattleMeta? meta = null)                                      // 新增 meta
+        BattleMeta? meta = null,
+        IBattleNotificationService? notificationService = null)       // SignalR Phase 2
         : this(battleId, characterId, profession, stats, rng,
                provider: null,
                initialGroup: new EncounterGroup(Enumerable.Range(0, Math.Max(1, enemyCount)).Select(_ => enemyDef).ToList()),
                module: module,
-               meta: meta)
+               meta: meta,
+               notificationService: notificationService)
     {
     }
 
@@ -76,12 +79,14 @@ public sealed class BattleEngine
         RngContext rng,
         IEncounterProvider provider,
         IProfessionModule? module = null,
-        BattleMeta? meta = null)                                      // 新增 meta
+        BattleMeta? meta = null,
+        IBattleNotificationService? notificationService = null)       // SignalR Phase 2
         : this(battleId, characterId, profession, stats, rng,
                provider: provider,
                initialGroup: provider.CurrentGroup,
                module: module,
-               meta: meta)
+               meta: meta,
+               notificationService: notificationService)
     {
     }
 
@@ -95,7 +100,8 @@ public sealed class BattleEngine
         IEncounterProvider? provider,
         EncounterGroup initialGroup,
         IProfessionModule? module,
-        BattleMeta? meta)                                             // 新增 meta
+        BattleMeta? meta,
+        IBattleNotificationService? notificationService)              // SignalR Phase 2
     {
         _provider = provider;
 
@@ -132,7 +138,8 @@ public sealed class BattleEngine
             encounter: null,
             encounterGroup: initialGroup,
             stats: stats,
-            dungeon: dungeonDef
+            dungeon: dungeonDef,
+            notificationService: notificationService
         );
 
         SeedIndexStart = rng.Index;
@@ -221,6 +228,12 @@ public sealed class BattleEngine
                 Context.RefreshPrimaryEncounter();
                 ResetAttackProgress(); // 切换目标时重置攻击进度
                 Collector.OnTag("retarget_primary", 1);
+                
+                // SignalR Phase 2: 发送目标切换通知
+                if (Context.NotificationService?.IsAvailable == true)
+                {
+                    _ = Context.NotificationService.NotifyStateChangeAsync(Battle.Id, "TargetSwitched");
+                }
             }
         }
     }
@@ -270,6 +283,12 @@ public sealed class BattleEngine
                 {
                     Collector.OnTag($"kill.{e.Enemy.Id}", 1);
                     _markedDead.Add(e);
+                    
+                    // SignalR Phase 2: 发送怪物死亡通知
+                    if (Context.NotificationService?.IsAvailable == true)
+                    {
+                        _ = Context.NotificationService.NotifyStateChangeAsync(Battle.Id, "EnemyKilled");
+                    }
                 }
             }
         }
@@ -278,6 +297,12 @@ public sealed class BattleEngine
             if (Context.Encounter is { IsDead: true } enc && !_markedDead.Contains(enc))
             {
                 Collector.OnTag($"kill.{enc.Enemy.Id}", 1);
+                
+                // SignalR Phase 2: 发送怪物死亡通知
+                if (Context.NotificationService?.IsAvailable == true)
+                {
+                    _ = Context.NotificationService.NotifyStateChangeAsync(Battle.Id, "EnemyKilled");
+                }
                 _markedDead.Add(enc);
             }
         }
