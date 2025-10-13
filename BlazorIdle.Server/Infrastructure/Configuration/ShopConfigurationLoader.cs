@@ -9,12 +9,46 @@ namespace BlazorIdle.Server.Infrastructure.Configuration;
 /// </summary>
 public class ShopOptions
 {
-    public bool EnableCaching { get; set; } = true;
-    public int ShopDefinitionCacheMinutes { get; set; } = 60;
-    public int ShopItemsCacheMinutes { get; set; } = 30;
+    // 文件路径配置
     public string ConfigPath { get; set; } = "Config/Shop";
     public string ShopDefinitionsFile { get; set; } = "ShopDefinitions.json";
     public string ShopItemsFile { get; set; } = "ShopItems.json";
+    
+    // 缓存配置
+    public bool EnableCaching { get; set; } = true;
+    public int ShopDefinitionCacheMinutes { get; set; } = 60;
+    public int ShopItemsCacheMinutes { get; set; } = 30;
+    
+    // 商店配置
+    public int DefaultRefreshIntervalSeconds { get; set; } = 3600;
+    public int MaxShopNameLength { get; set; } = 50;
+    public int MaxShopDescriptionLength { get; set; } = 200;
+    
+    // 商品配置
+    public int MaxItemNameLength { get; set; } = 100;
+    public int MaxItemDescriptionLength { get; set; } = 500;
+    public int UnlimitedStock { get; set; } = -1;
+    
+    // 购买限制配置
+    public int DailyResetSeconds { get; set; } = 86400;
+    public int WeeklyResetSeconds { get; set; } = 604800;
+    public int DefaultDailyLimit { get; set; } = 10;
+    public int DefaultWeeklyLimit { get; set; } = 5;
+    
+    // 价格配置
+    public int MinPriceAmount { get; set; } = 1;
+    public int MaxPriceAmount { get; set; } = 1000000;
+    
+    // 购买验证配置
+    public int MinLevelRequirement { get; set; } = 1;
+    public int MaxLevelRequirement { get; set; } = 100;
+    public int MinPurchaseQuantity { get; set; } = 1;
+    public int MaxPurchaseQuantity { get; set; } = 999;
+    
+    // 查询配置
+    public int DefaultPageSize { get; set; } = 20;
+    public int MaxPageSize { get; set; } = 100;
+    public int PurchaseHistoryDefaultDays { get; set; } = 30;
 }
 
 /// <summary>

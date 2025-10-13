@@ -1,8 +1,9 @@
 namespace BlazorIdle.Server.Domain.Shop.Configuration;
 
 /// <summary>
-/// 商店系统配置
-/// 集中管理商店系统的常量和配置参数
+/// 商店系统配置常量
+/// 注意: 这些是默认的后备值，实际配置应从 appsettings.json 的 Shop 节读取
+/// 优先级: appsettings.json > ShopOptions > ShopSystemConfig (fallback)
 /// </summary>
 public static class ShopSystemConfig
 {
