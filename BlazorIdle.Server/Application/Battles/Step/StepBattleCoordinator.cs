@@ -46,6 +46,18 @@ public sealed class StepBattleCoordinator
         var enemy = EnemyRegistry.Resolve(eid);
         var id = Guid.NewGuid();
 
+        // SignalR Phase 2: 获取通知服务
+        IBattleNotificationService? notificationService = null;
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            notificationService = scope.ServiceProvider.GetService<IBattleNotificationService>();
+        }
+        catch
+        {
+            // 服务不可用时静默失败，战斗仍可继续
+        }
+
         var rb = new RunningBattle(
             id: id,
             characterId: characterId,
@@ -60,7 +72,8 @@ public sealed class StepBattleCoordinator
             continuousRespawnDelaySeconds: continuousRespawnDelaySeconds,
             dungeonWaveDelaySeconds: dungeonWaveDelaySeconds,
             dungeonRunDelaySeconds: dungeonRunDelaySeconds,
-            stamina: stamina
+            stamina: stamina,
+            notificationService: notificationService
         );
 
         // 恢复战斗状态（如果有）

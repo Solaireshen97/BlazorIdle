@@ -1,4 +1,5 @@
-﻿using BlazorIdle.Server.Domain.Characters;
+﻿using BlazorIdle.Server.Application.Abstractions;
+using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat;
 using BlazorIdle.Server.Domain.Combat.Engine;
 using BlazorIdle.Server.Domain.Combat.Enemies;
@@ -81,7 +82,8 @@ public sealed class RunningBattle
         double? dungeonWaveDelaySeconds = null,
         double? dungeonRunDelaySeconds = null,
         IProfessionModule? module = null,
-        int stamina = 10)
+        int stamina = 10,
+        IBattleNotificationService? notificationService = null)      // SignalR Phase 2
     {
         Id = id;
         CharacterId = characterId;
@@ -142,7 +144,8 @@ public sealed class RunningBattle
                 rng: rng,
                 provider: provider,
                 module: module,
-                meta: meta)
+                meta: meta,
+                notificationService: notificationService)
             : new BattleEngine(
                 battleId: id,
                 characterId: characterId,
@@ -152,7 +155,8 @@ public sealed class RunningBattle
                 enemyDef: enemyDef,
                 enemyCount: EnemyCount,
                 module: module,
-                meta: meta);
+                meta: meta,
+                notificationService: notificationService);
 
         StartedWallUtc = DateTime.UtcNow;
         _lastAdvanceWallUtc = StartedWallUtc;
