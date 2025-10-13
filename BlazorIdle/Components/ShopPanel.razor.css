@@ -1,0 +1,201 @@
+.shop-panel {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    margin-bottom: 1rem;
+}
+
+.shop-panel h5 {
+    margin-bottom: 1rem;
+    color: #495057;
+}
+
+.shop-panel h6 {
+    margin-bottom: 0.75rem;
+    color: #6c757d;
+}
+
+/* 商店列表样式 */
+.shop-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1rem;
+    margin-top: 0.5rem;
+}
+
+.shop-card {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    background-color: white;
+    transition: all 0.2s;
+}
+
+.shop-card:hover:not(.locked) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-color: #0d6efd;
+}
+
+.shop-card.locked {
+    opacity: 0.6;
+    background-color: #f8f9fa;
+}
+
+.shop-icon {
+    font-size: 2rem;
+    margin-right: 1rem;
+}
+
+.shop-info {
+    flex: 1;
+}
+
+.shop-info strong {
+    display: block;
+    color: #212529;
+    margin-bottom: 0.25rem;
+}
+
+.shop-info small {
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.shop-meta {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+/* 商品列表样式 */
+.shop-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.items-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.item-card {
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    padding: 1rem;
+    background-color: white;
+    transition: all 0.2s;
+}
+
+.item-card:hover:not(.disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.item-card.disabled {
+    opacity: 0.6;
+    background-color: #f8f9fa;
+}
+
+/* 稀有度颜色 */
+.item-card.rarity-common {
+    border-color: #6c757d;
+}
+
+.item-card.rarity-uncommon {
+    border-color: #198754;
+}
+
+.item-card.rarity-rare {
+    border-color: #0d6efd;
+}
+
+.item-card.rarity-epic {
+    border-color: #9933ff;
+}
+
+.item-card.rarity-legendary {
+    border-color: #ff6600;
+}
+
+.item-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.item-icon {
+    font-size: 2rem;
+}
+
+.item-title {
+    flex: 1;
+}
+
+.item-title strong {
+    display: block;
+    color: #212529;
+    margin-bottom: 0.25rem;
+}
+
+.item-title small {
+    display: block;
+    color: #6c757d;
+}
+
+.item-details {
+    margin-bottom: 0.75rem;
+    padding: 0.5rem;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+}
+
+.item-price {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.1rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.price-icon {
+    font-size: 1.2rem;
+}
+
+.item-requirement {
+    font-size: 0.9rem;
+    color: #6c757d;
+    margin-bottom: 0.25rem;
+}
+
+.item-limit {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.item-actions {
+    margin-top: 0.75rem;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .shop-cards {
+        grid-template-columns: 1fr;
+    }
+
+    .items-grid {
+        grid-template-columns: 1fr;
+    }
+}

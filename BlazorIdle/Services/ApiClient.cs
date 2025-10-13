@@ -1,5 +1,6 @@
 ﻿using BlazorIdle.Services;
 using BlazorIdle.Shared.Models;
+using BlazorIdle.Shared.Models.Shop;
 using System.Net.Http.Json;
 using System.Text;
 
@@ -386,6 +387,33 @@ public class ApiClient
         var resp = await _http.PostAsync($"/api/characters/{characterId}/heartbeat", content, ct);
         resp.EnsureSuccessStatusCode();
         return await resp.Content.ReadFromJsonAsync<HeartbeatResponse>(cancellationToken: ct);
+    }
+
+    // ===== 商店系统 =====
+    public Task<ListShopsResponse?> GetShopsAsync(Guid characterId, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        return _http.GetFromJsonAsync<ListShopsResponse>($"/api/shop/list?characterId={characterId}", ct);
+    }
+
+    public Task<ListShopItemsResponse?> GetShopItemsAsync(string shopId, Guid characterId, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        return _http.GetFromJsonAsync<ListShopItemsResponse>($"/api/shop/{shopId}/items?characterId={characterId}", ct);
+    }
+
+    public async Task<PurchaseResponse?> PurchaseItemAsync(Guid characterId, PurchaseRequest request, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        var response = await _http.PostAsJsonAsync($"/api/shop/purchase?characterId={characterId}", request, ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<PurchaseResponse>(ct);
+    }
+
+    public Task<PurchaseHistoryResponse?> GetPurchaseHistoryAsync(Guid characterId, int days = 30, CancellationToken ct = default)
+    {
+        SetAuthHeader();
+        return _http.GetFromJsonAsync<PurchaseHistoryResponse>($"/api/shop/purchase-history?characterId={characterId}&days={days}", ct);
     }
 }
 

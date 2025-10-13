@@ -119,6 +119,18 @@ else
         OnItemsChanged="@RefreshEquipmentData" />
 }
 
+<!-- 1.8) 商店系统界面（商店系统优化） -->
+@if (lastCreated is not null && selectedCharacter is not null)
+{
+    <div class="panel">
+        <ShopPanel 
+            CharacterId="@lastCreated.Id"
+            CharacterName="@lastCreated.Name"
+            CharacterLevel="@selectedCharacter.Level"
+            OnPurchaseComplete="@RefreshCharacterAndInventory" />
+    </div>
+}
+
 <!-- 2) 同步战斗 -->
 @if (lastCreated is not null)
 {
@@ -1288,6 +1300,23 @@ else
     {
         await LoadEquipmentAsync();
         StateHasChanged();
+    }
+
+    /// <summary>
+    /// 刷新角色和背包数据（用于商店购买后的刷新）
+    /// </summary>
+    async Task RefreshCharacterAndInventory()
+    {
+        try
+        {
+            // 重新加载用户数据以刷新角色信息（包括金币）
+            await LoadUserDataAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            toastNotification?.ShowError($"刷新数据失败: {ex.Message}");
+        }
     }
 
     /// <summary>

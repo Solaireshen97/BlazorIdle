@@ -1,0 +1,322 @@
+@using BlazorIdle.Client.Services
+@using BlazorIdle.Shared.Models.Shop
+@inject ApiClient Api
+
+<div class="shop-panel">
+    <h5>🏪 商店系统</h5>
+    
+    @if (isLoading)
+    {
+        <p><em>加载中...</em></p>
+    }
+    else if (error is not null)
+    {
+        <div class="alert alert-danger">@error</div>
+        <button class="btn btn-sm btn-outline-primary" @onclick="LoadShopsAsync">重试</button>
+    }
+    else
+    {
+        <!-- 商店列表 -->
+        @if (selectedShop is null)
+        {
+            <div class="shops-list">
+                <h6>选择商店:</h6>
+                @if (shops is not null && shops.Count > 0)
+                {
+                    <div class="shop-cards">
+                        @foreach (var shop in shops)
+                        {
+                            <div class="shop-card @(shop.IsUnlocked ? "" : "locked")" 
+                                 @onclick="() => SelectShop(shop)"
+                                 style="cursor: @(shop.IsUnlocked ? "pointer" : "not-allowed");">
+                                <div class="shop-icon">@shop.Icon</div>
+                                <div class="shop-info">
+                                    <strong>@shop.Name</strong>
+                                    <small class="text-muted">@shop.Description</small>
+                                    <div class="shop-meta">
+                                        <span class="badge bg-secondary">@shop.ItemCount 件商品</span>
+                                        @if (!shop.IsUnlocked)
+                                        {
+                                            <span class="badge bg-warning">🔒 未解锁</span>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted">暂无可用商店</p>
+                }
+            </div>
+        }
+        else
+        {
+            <!-- 商品列表 -->
+            <div class="shop-items">
+                <div class="shop-header">
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="BackToShops">← 返回商店列表</button>
+                    <h6>@selectedShop.Icon @selectedShop.Name</h6>
+                </div>
+
+                @if (isLoadingItems)
+                {
+                    <p><em>加载商品中...</em></p>
+                }
+                else if (shopItems is not null && shopItems.Count > 0)
+                {
+                    <div class="items-grid">
+                        @foreach (var item in shopItems)
+                        {
+                            var canAfford = currentGold >= item.Price.Amount;
+                            var cardClass = $"item-card rarity-{item.Rarity?.ToLower() ?? "common"}";
+                            if (!item.CanPurchase) cardClass += " disabled";
+                            
+                            <div class="@cardClass">
+                                <div class="item-header">
+                                    <span class="item-icon">@item.ItemIcon</span>
+                                    <div class="item-title">
+                                        <strong>@item.ItemName</strong>
+                                        <small class="text-muted">@item.ItemCategory</small>
+                                    </div>
+                                </div>
+                                
+                                <div class="item-details">
+                                    <div class="item-price">
+                                        <span class="price-icon">💰</span>
+                                        <span class="@(canAfford ? "text-success" : "text-danger")">
+                                            @item.Price.Amount G
+                                        </span>
+                                    </div>
+                                    
+                                    @if (item.MinLevel > 1)
+                                    {
+                                        <div class="item-requirement">
+                                            <span>需要等级: @item.MinLevel</span>
+                                        </div>
+                                    }
+                                    
+                                    @if (item.PurchaseLimit.Type != "Unlimited")
+                                    {
+                                        <div class="item-limit">
+                                            <small>
+                                                限购: @item.CurrentPurchaseCount / @item.PurchaseLimit.MaxPurchases
+                                                (@GetLimitTypeText(item.PurchaseLimit.Type))
+                                            </small>
+                                        </div>
+                                    }
+                                </div>
+                                
+                                <div class="item-actions">
+                                    @if (item.CanPurchase && canAfford)
+                                    {
+                                        <button class="btn btn-sm btn-primary w-100" 
+                                                @onclick="() => PurchaseItem(item)"
+                                                disabled="@isPurchasing">
+                                            @(isPurchasing && purchasingItemId == item.Id ? "购买中..." : "购买")
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-sm btn-secondary w-100" disabled>
+                                            @(item.PurchaseBlockReason ?? (canAfford ? "不可购买" : "金币不足"))
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted">该商店暂无商品</p>
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid CharacterId { get; set; }
+
+    [Parameter]
+    public string CharacterName { get; set; } = "";
+
+    [Parameter]
+    public int CharacterLevel { get; set; } = 1;
+
+    [Parameter]
+    public EventCallback OnPurchaseComplete { get; set; }
+
+    private List<ShopDto>? shops;
+    private ShopDto? selectedShop;
+    private List<ShopItemDto>? shopItems;
+    private bool isLoading;
+    private bool isLoadingItems;
+    private bool isPurchasing;
+    private string? purchasingItemId;
+    private string? error;
+    private long currentGold;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (CharacterId != Guid.Empty)
+        {
+            await LoadGoldAsync();
+            
+            if (shops is null)
+            {
+                await LoadShopsAsync();
+            }
+        }
+    }
+
+    private async Task LoadGoldAsync()
+    {
+        try
+        {
+            var inventory = await Api.GetInventoryAsync(CharacterId);
+            if (inventory is not null)
+            {
+                currentGold = inventory.Gold;
+            }
+        }
+        catch
+        {
+            // Silently fail - gold will be 0
+        }
+    }
+
+    private async Task LoadShopsAsync()
+    {
+        try
+        {
+            isLoading = true;
+            error = null;
+            StateHasChanged();
+
+            var response = await Api.GetShopsAsync(CharacterId);
+            if (response is not null)
+            {
+                shops = response.Shops;
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"加载商店失败: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SelectShop(ShopDto shop)
+    {
+        if (!shop.IsUnlocked)
+        {
+            return;
+        }
+
+        selectedShop = shop;
+        await LoadShopItemsAsync(shop.Id);
+    }
+
+    private void BackToShops()
+    {
+        selectedShop = null;
+        shopItems = null;
+    }
+
+    private async Task LoadShopItemsAsync(string shopId)
+    {
+        try
+        {
+            isLoadingItems = true;
+            error = null;
+            StateHasChanged();
+
+            var response = await Api.GetShopItemsAsync(shopId, CharacterId);
+            if (response is not null)
+            {
+                shopItems = response.Items;
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"加载商品失败: {ex.Message}";
+        }
+        finally
+        {
+            isLoadingItems = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task PurchaseItem(ShopItemDto item)
+    {
+        if (isPurchasing || !item.CanPurchase || currentGold < item.Price.Amount)
+        {
+            return;
+        }
+
+        try
+        {
+            isPurchasing = true;
+            purchasingItemId = item.Id;
+            error = null;
+            StateHasChanged();
+
+            var request = new PurchaseRequest
+            {
+                ShopItemId = item.Id,
+                Quantity = 1
+            };
+
+            var response = await Api.PurchaseItemAsync(CharacterId, request);
+            
+            if (response is not null && response.Success)
+            {
+                // 重新加载金币
+                await LoadGoldAsync();
+                
+                // 重新加载商品列表以更新购买次数
+                if (selectedShop is not null)
+                {
+                    await LoadShopItemsAsync(selectedShop.Id);
+                }
+                
+                // 通知父组件刷新
+                await OnPurchaseComplete.InvokeAsync();
+            }
+            else
+            {
+                error = response?.Message ?? "购买失败";
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"购买失败: {ex.Message}";
+        }
+        finally
+        {
+            isPurchasing = false;
+            purchasingItemId = null;
+            StateHasChanged();
+        }
+    }
+
+    private string GetLimitTypeText(string limitType)
+    {
+        return limitType switch
+        {
+            "Daily" => "每日",
+            "Weekly" => "每周",
+            "PerCharacter" => "永久",
+            _ => ""
+        };
+    }
+}
