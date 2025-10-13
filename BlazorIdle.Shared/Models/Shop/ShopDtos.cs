@@ -29,6 +29,8 @@ public class ShopItemDto
     public PurchaseLimitDto PurchaseLimit { get; set; } = new();
     public int StockQuantity { get; set; }
     public int MinLevel { get; set; }
+    public string? ItemCategory { get; set; }
+    public string? Rarity { get; set; }
     public bool IsEnabled { get; set; }
     public int CurrentPurchaseCount { get; set; } = 0;
     public bool CanPurchase { get; set; } = true;
@@ -112,4 +114,55 @@ public class PurchaseHistoryResponse
 {
     public List<PurchaseRecordDto> Records { get; set; } = new();
     public int TotalCount { get; set; }
+}
+
+/// <summary>
+/// 商品过滤请求
+/// </summary>
+public class ShopItemFilterRequest
+{
+    /// <summary>
+    /// 商店ID（必填）
+    /// </summary>
+    public string ShopId { get; set; } = "";
+
+    /// <summary>
+    /// 物品类别过滤（可选）
+    /// </summary>
+    public string? ItemCategory { get; set; }
+
+    /// <summary>
+    /// 稀有度过滤（可选）
+    /// </summary>
+    public string? Rarity { get; set; }
+
+    /// <summary>
+    /// 最小价格（可选）
+    /// </summary>
+    public int? MinPrice { get; set; }
+
+    /// <summary>
+    /// 最大价格（可选）
+    /// </summary>
+    public int? MaxPrice { get; set; }
+
+    /// <summary>
+    /// 最小等级要求（可选）
+    /// </summary>
+    public int? MinLevel { get; set; }
+
+    /// <summary>
+    /// 最大等级要求（可选）
+    /// </summary>
+    public int? MaxLevel { get; set; }
+
+    /// <summary>
+    /// 排序字段："Price", "Level", "Name", "Rarity"
+    /// </summary>
+    public string? SortBy { get; set; }
+
+    /// <summary>
+    /// 排序方向："Asc", "Desc"
+    /// </summary>
+    public string? SortDirection { get; set; } = "Asc";
 }

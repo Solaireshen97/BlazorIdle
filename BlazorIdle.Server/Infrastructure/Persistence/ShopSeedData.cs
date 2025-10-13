@@ -49,7 +49,9 @@ public static class ShopSeedData
             minLevel: si.MinLevel,
             sortOrder: si.SortOrder,
             stockQuantity: si.StockQuantity,
-            createdAt: now
+            createdAt: now,
+            itemCategory: si.ItemCategory,
+            rarity: si.Rarity
         )).ToList();
 
         modelBuilder.Entity<ShopItem>().HasData(items);
@@ -66,7 +68,9 @@ public static class ShopSeedData
         int minLevel,
         int sortOrder,
         int stockQuantity,
-        DateTime createdAt)
+        DateTime createdAt,
+        string? itemCategory = null,
+        string? rarity = null)
     {
         return new ShopItem
         {
@@ -79,6 +83,8 @@ public static class ShopSeedData
             PurchaseLimitJson = JsonSerializer.Serialize(limit),
             StockQuantity = stockQuantity,
             MinLevel = minLevel,
+            ItemCategory = itemCategory,
+            Rarity = rarity,
             IsEnabled = true,
             SortOrder = sortOrder,
             CreatedAt = createdAt,

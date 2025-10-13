@@ -143,6 +143,138 @@ public class ShopService : IShopService
                 },
                 StockQuantity = item.StockQuantity,
                 MinLevel = item.MinLevel,
+                ItemCategory = item.ItemCategory,
+                Rarity = item.Rarity,
+                IsEnabled = item.IsEnabled,
+                CurrentPurchaseCount = currentCount,
+                CanPurchase = canPurchase,
+                PurchaseBlockReason = blockReason
+            });
+        }
+
+        return new ListShopItemsResponse { Items = itemDtos };
+    }
+
+    public async Task<ListShopItemsResponse> GetShopItemsWithFilterAsync(string characterId, ShopItemFilterRequest filter)
+    {
+        if (!Guid.TryParse(characterId, out var charGuid))
+        {
+            return new ListShopItemsResponse();
+        }
+
+        var character = await _context.Characters
+            .FirstOrDefaultAsync(c => c.Id == charGuid);
+
+        if (character == null)
+        {
+            return new ListShopItemsResponse();
+        }
+
+        // 尝试从缓存获取商品列表
+        var items = await _cacheService.GetShopItemsAsync(filter.ShopId);
+        
+        if (items == null)
+        {
+            // 缓存未命中，从数据库加载
+            items = await _context.ShopItems
+                .Where(i => i.ShopId == filter.ShopId && i.IsEnabled)
+                .OrderBy(i => i.SortOrder)
+                .ToListAsync();
+            
+            // 将结果缓存
+            _cacheService.SetShopItems(filter.ShopId, items);
+        }
+
+        // 应用过滤条件
+        var filteredItems = items.AsEnumerable();
+
+        // 按物品类别过滤
+        if (!string.IsNullOrWhiteSpace(filter.ItemCategory))
+        {
+            filteredItems = filteredItems.Where(i => 
+                i.ItemCategory != null && 
+                i.ItemCategory.Equals(filter.ItemCategory, StringComparison.OrdinalIgnoreCase));
+        }
+
+        // 按稀有度过滤
+        if (!string.IsNullOrWhiteSpace(filter.Rarity))
+        {
+            filteredItems = filteredItems.Where(i => 
+                i.Rarity != null && 
+                i.Rarity.Equals(filter.Rarity, StringComparison.OrdinalIgnoreCase));
+        }
+
+        // 按价格范围过滤
+        if (filter.MinPrice.HasValue || filter.MaxPrice.HasValue)
+        {
+            filteredItems = filteredItems.Where(i =>
+            {
+                var price = i.GetPrice();
+                var amount = price.Amount;
+                if (filter.MinPrice.HasValue && amount < filter.MinPrice.Value)
+                    return false;
+                if (filter.MaxPrice.HasValue && amount > filter.MaxPrice.Value)
+                    return false;
+                return true;
+            });
+        }
+
+        // 按等级要求范围过滤
+        if (filter.MinLevel.HasValue)
+        {
+            filteredItems = filteredItems.Where(i => i.MinLevel >= filter.MinLevel.Value);
+        }
+        if (filter.MaxLevel.HasValue)
+        {
+            filteredItems = filteredItems.Where(i => i.MinLevel <= filter.MaxLevel.Value);
+        }
+
+        // 应用排序
+        filteredItems = ApplySorting(filteredItems, filter.SortBy, filter.SortDirection);
+
+        // 转换为 DTO
+        var itemDtos = new List<ShopItemDto>();
+        foreach (var item in filteredItems)
+        {
+            var price = item.GetPrice();
+            var limit = item.GetPurchaseLimit();
+            
+            var currentCount = 0;
+            if (!limit.IsUnlimited())
+            {
+                currentCount = await GetCurrentPurchaseCountAsync(charGuid, item.Id, limit);
+            }
+
+            var canPurchase = character.Level >= item.MinLevel;
+            string? blockReason = null;
+            if (!canPurchase)
+            {
+                blockReason = $"需要等级 {item.MinLevel}";
+            }
+
+            itemDtos.Add(new ShopItemDto
+            {
+                Id = item.Id,
+                ShopId = item.ShopId,
+                ItemDefinitionId = item.ItemDefinitionId,
+                ItemName = item.ItemName,
+                ItemIcon = item.ItemIcon,
+                Price = new PriceDto
+                {
+                    CurrencyType = price.CurrencyType.ToString(),
+                    CurrencyId = price.CurrencyId,
+                    Amount = price.Amount
+                },
+                PurchaseLimit = new PurchaseLimitDto
+                {
+                    Type = limit.Type.ToString(),
+                    MaxPurchases = limit.MaxPurchases,
+                    ResetPeriodSeconds = limit.ResetPeriodSeconds
+                },
+                StockQuantity = item.StockQuantity,
+                MinLevel = item.MinLevel,
+                ItemCategory = item.ItemCategory,
+                Rarity = item.Rarity,
                 IsEnabled = item.IsEnabled,
                 CurrentPurchaseCount = currentCount,
                 CanPurchase = canPurchase,
@@ -315,6 +447,62 @@ public class ShopService : IShopService
         {
             Records = recordDtos,
             TotalCount = totalCount
+        };
+    }
+
+    /// <summary>
+    /// 应用排序规则到商品集合
+    /// </summary>
+    private IEnumerable<ShopItem> ApplySorting(IEnumerable<ShopItem> items, string? sortBy, string? sortDirection)
+    {
+        if (string.IsNullOrWhiteSpace(sortBy))
+        {
+            return items;
+        }
+
+        var isAscending = string.IsNullOrWhiteSpace(sortDirection) || 
+                         sortDirection.Equals("Asc", StringComparison.OrdinalIgnoreCase);
+
+        return sortBy.ToLower() switch
+        {
+            "price" => isAscending 
+                ? items.OrderBy(i => i.GetPrice().Amount) 
+                : items.OrderByDescending(i => i.GetPrice().Amount),
+            
+            "level" => isAscending 
+                ? items.OrderBy(i => i.MinLevel) 
+                : items.OrderByDescending(i => i.MinLevel),
+            
+            "name" => isAscending 
+                ? items.OrderBy(i => i.ItemName) 
+                : items.OrderByDescending(i => i.ItemName),
+            
+            "rarity" => isAscending 
+                ? items.OrderBy(i => GetRarityOrder(i.Rarity)) 
+                : items.OrderByDescending(i => GetRarityOrder(i.Rarity)),
+            
+            _ => items
+        };
+    }
+
+    /// <summary>
+    /// 获取稀有度排序权重
+    /// </summary>
+    private int GetRarityOrder(string? rarity)
+    {
+        if (string.IsNullOrWhiteSpace(rarity))
+        {
+            return 0;
+        }
+
+        return rarity.ToLower() switch
+        {
+            "common" => 1,
+            "uncommon" => 2,
+            "rare" => 3,
+            "epic" => 4,
+            "legendary" => 5,
+            _ => 0
         };
     }
 

@@ -47,6 +47,8 @@ public class ShopItemData
     public PurchaseLimitData PurchaseLimit { get; set; } = new();
     public int StockQuantity { get; set; }
     public int MinLevel { get; set; }
+    public string? ItemCategory { get; set; }
+    public string? Rarity { get; set; }
     public bool IsEnabled { get; set; }
     public int SortOrder { get; set; }
 }
