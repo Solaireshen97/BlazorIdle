@@ -69,7 +69,12 @@ public class ShopServiceTests : IDisposable
         var configuration = configBuilder.Build();
         
         _cacheService = new ShopCacheService(cache, logger, configuration);
-        _shopService = new ShopService(_context, _validator, _cacheService, shopOptions);
+        
+        // 创建库存服务
+        var inventoryLogger = serviceProvider.GetRequiredService<ILogger<BlazorIdle.Server.Application.Inventory.InventoryService>>();
+        var inventoryService = new BlazorIdle.Server.Application.Inventory.InventoryService(_context, inventoryLogger);
+        
+        _shopService = new ShopService(_context, _validator, _cacheService, inventoryService, shopOptions);
 
         // 设置测试数据
         _testCharacterId = Guid.NewGuid();

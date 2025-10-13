@@ -85,6 +85,9 @@ public static class DependencyInjection
         // 商店系统缓存
         services.AddMemoryCache();
         services.AddSingleton<BlazorIdle.Server.Application.Shop.IShopCacheService, BlazorIdle.Server.Application.Shop.ShopCacheService>();
+        
+        // 库存系统服务
+        services.AddScoped<BlazorIdle.Server.Application.Abstractions.IInventoryService, BlazorIdle.Server.Application.Inventory.InventoryService>();
 
         return services;
     }

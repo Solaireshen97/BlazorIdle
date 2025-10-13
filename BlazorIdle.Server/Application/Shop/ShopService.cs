@@ -16,17 +16,20 @@ public class ShopService : IShopService
     private readonly GameDbContext _context;
     private readonly IPurchaseValidator _validator;
     private readonly IShopCacheService _cacheService;
+    private readonly IInventoryService _inventoryService;
     private readonly Infrastructure.Configuration.ShopOptions _shopOptions;
 
     public ShopService(
         GameDbContext context, 
         IPurchaseValidator validator,
         IShopCacheService cacheService,
+        IInventoryService inventoryService,
         Microsoft.Extensions.Options.IOptions<Infrastructure.Configuration.ShopOptions> shopOptions)
     {
         _context = context;
         _validator = validator;
         _cacheService = cacheService;
+        _inventoryService = inventoryService;
         _shopOptions = shopOptions.Value;
     }
 
@@ -377,9 +380,19 @@ public class ShopService : IShopService
 
         _context.PurchaseRecords.Add(record);
 
-        // TODO: 实际发放物品到库存（需要库存系统支持）
-        // await _inventoryService.AddItemAsync(characterId, shopItem.ItemDefinitionId, request.Quantity);
+        // 发放物品到库存（在同一事务中）
+        var itemAdded = await _inventoryService.AddItemAsync(charGuid, shopItem.ItemDefinitionId, request.Quantity);
+        if (!itemAdded)
+        {
+            // 如果发放物品失败，不保存任何更改（自动回滚）
+            return new PurchaseResponse
+            {
+                Success = false,
+                Message = "发放物品到背包失败，购买已取消"
+            };
+        }
 
+        // 所有操作成功，保存到数据库（原子性操作）
         await _context.SaveChangesAsync();
 
         return new PurchaseResponse
