@@ -1,0 +1,8 @@
+{
+  "$schema": "./signalr-config.schema.json",
+  "EnableDetailedLogging": false,
+  "Performance": {
+    "EnableThrottling": true,
+    "ThrottleWindowMs": 1000
+  }
+}

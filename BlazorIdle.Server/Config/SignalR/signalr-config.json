@@ -1,0 +1,28 @@
+{
+  "$schema": "./signalr-config.schema.json",
+  "HubEndpoint": "/hubs/battle",
+  "EnableSignalR": true,
+  "MaxReconnectAttempts": 5,
+  "ReconnectBaseDelayMs": 1000,
+  "MaxReconnectDelayMs": 30000,
+  "EnableDetailedLogging": false,
+  "ConnectionTimeoutSeconds": 30,
+  "KeepAliveIntervalSeconds": 15,
+  "ServerTimeoutSeconds": 30,
+  "Notification": {
+    "EnablePlayerDeathNotification": true,
+    "EnablePlayerReviveNotification": true,
+    "EnableEnemyKilledNotification": true,
+    "EnableTargetSwitchedNotification": true,
+    "EnableWaveSpawnNotification": false,
+    "EnableSkillCastNotification": false,
+    "EnableBuffChangeNotification": false
+  },
+  "Performance": {
+    "EnableThrottling": false,
+    "ThrottleWindowMs": 1000,
+    "EnableBatching": false,
+    "BatchDelayMs": 100,
+    "AutoDegradeOnMobile": false
+  }
+}

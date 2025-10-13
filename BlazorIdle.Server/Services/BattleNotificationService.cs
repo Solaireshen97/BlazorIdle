@@ -16,15 +16,18 @@ public sealed class BattleNotificationService : IBattleNotificationService
     private readonly ILogger<BattleNotificationService> _logger;
     private readonly SignalROptions _options;
     private readonly NotificationThrottler? _throttler;
+    private readonly SignalRMetricsCollector? _metricsCollector;
 
     public BattleNotificationService(
         IHubContext<BattleNotificationHub> hubContext,
         ILogger<BattleNotificationService> logger,
-        IOptions<SignalROptions> options)
+        IOptions<SignalROptions> options,
+        SignalRMetricsCollector? metricsCollector = null)
     {
         _hubContext = hubContext;
         _logger = logger;
         _options = options.Value;
+        _metricsCollector = metricsCollector;
         
         // 如果启用节流，创建节流器
         if (_options.Performance.EnableThrottling)
@@ -69,6 +72,8 @@ public sealed class BattleNotificationService : IBattleNotificationService
             var throttleKey = $"battle_{battleId}_{eventType}";
             if (!_throttler.ShouldSend(throttleKey))
             {
+                _metricsCollector?.RecordNotificationSent(eventType, throttled: true);
+                
                 if (_options.EnableDetailedLogging)
                 {
                     _logger.LogDebug(
@@ -96,6 +101,8 @@ public sealed class BattleNotificationService : IBattleNotificationService
                 .Group(groupName)
                 .SendAsync("StateChanged", notification);
 
+            _metricsCollector?.RecordNotificationSent(eventType, throttled: false);
+
             if (_options.EnableDetailedLogging)
             {
                 _logger.LogDebug(
@@ -107,6 +114,8 @@ public sealed class BattleNotificationService : IBattleNotificationService
         }
         catch (Exception ex)
         {
+            _metricsCollector?.RecordNotificationFailed(eventType, ex);
+            
             _logger.LogError(
                 ex,
                 "Failed to send SignalR notification for battle {BattleId}, eventType {EventType}",
