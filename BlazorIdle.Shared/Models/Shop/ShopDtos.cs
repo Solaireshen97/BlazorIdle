@@ -74,6 +74,16 @@ public class PurchaseResponse
     public bool Success { get; set; }
     public string? Message { get; set; }
     public PurchaseRecordDto? Record { get; set; }
+    
+    /// <summary>
+    /// 错误码（Phase 6.2 新增）
+    /// </summary>
+    public ShopErrorCode ErrorCode { get; set; } = ShopErrorCode.None;
+    
+    /// <summary>
+    /// 错误详情（Phase 6.2 新增）
+    /// </summary>
+    public ShopErrorResponse? Error { get; set; }
 }
 
 /// <summary>
