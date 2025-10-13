@@ -22,15 +22,34 @@ public sealed class SignalRIntegrationTests
         // Arrange & Act
         var options = new SignalROptions();
 
-        // Assert
+        // Assert - 基础配置
         Assert.Equal("/hubs/battle", options.HubEndpoint);
         Assert.True(options.EnableSignalR);
         Assert.Equal(5, options.MaxReconnectAttempts);
         Assert.Equal(1000, options.ReconnectBaseDelayMs);
+        Assert.Equal(30000, options.MaxReconnectDelayMs);
         Assert.False(options.EnableDetailedLogging);
         Assert.Equal(30, options.ConnectionTimeoutSeconds);
         Assert.Equal(15, options.KeepAliveIntervalSeconds);
         Assert.Equal(30, options.ServerTimeoutSeconds);
+        
+        // Assert - 通知配置
+        Assert.NotNull(options.Notification);
+        Assert.True(options.Notification.EnablePlayerDeathNotification);
+        Assert.True(options.Notification.EnablePlayerReviveNotification);
+        Assert.True(options.Notification.EnableEnemyKilledNotification);
+        Assert.True(options.Notification.EnableTargetSwitchedNotification);
+        Assert.False(options.Notification.EnableWaveSpawnNotification);
+        Assert.False(options.Notification.EnableSkillCastNotification);
+        Assert.False(options.Notification.EnableBuffChangeNotification);
+        
+        // Assert - 性能配置
+        Assert.NotNull(options.Performance);
+        Assert.False(options.Performance.EnableThrottling);
+        Assert.Equal(1000, options.Performance.ThrottleWindowMs);
+        Assert.False(options.Performance.EnableBatching);
+        Assert.Equal(100, options.Performance.BatchDelayMs);
+        Assert.False(options.Performance.AutoDegradeOnMobile);
     }
 
     [Fact]
@@ -174,5 +193,48 @@ public sealed class SignalRIntegrationTests
         // Assert
         Assert.NotNull(context.NotificationService);
         Assert.True(context.NotificationService.IsAvailable);
+    }
+
+    [Fact]
+    public async Task BattleNotificationService_WithDisabledEventType_DoesNotSendNotification()
+    {
+        // Arrange
+        var clientProxyMock = new Mock<IClientProxy>();
+        var groupManagerMock = new Mock<IHubClients>();
+        groupManagerMock.Setup(x => x.Group(It.IsAny<string>())).Returns(clientProxyMock.Object);
+        
+        var hubContextMock = new Mock<IHubContext<BattleNotificationHub>>();
+        hubContextMock.Setup(x => x.Clients).Returns(groupManagerMock.Object);
+        
+        var loggerMock = new Mock<ILogger<BattleNotificationService>>();
+        var options = Options.Create(new SignalROptions 
+        { 
+            EnableSignalR = true,
+            Notification = new NotificationOptions
+            {
+                EnablePlayerDeathNotification = false // 禁用玩家死亡通知
+            }
+        });
+        
+        var service = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, options);
+        var battleId = Guid.NewGuid();
+
+        // Act
+        await service.NotifyStateChangeAsync(battleId, "PlayerDeath");
+
+        // Assert - 不应发送通知
+        clientProxyMock.Verify(
+            x => x.SendCoreAsync(
+                It.IsAny<string>(),
+                It.IsAny<object[]>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public void SignalROptions_SectionName_IsCorrect()
+    {
+        // Assert
+        Assert.Equal("SignalR", SignalROptions.SectionName);
     }
 }

@@ -42,6 +42,20 @@ public sealed class BattleNotificationService : IBattleNotificationService
             return;
         }
 
+        // 检查特定事件类型是否启用
+        if (!IsEventTypeEnabled(eventType))
+        {
+            if (_options.EnableDetailedLogging)
+            {
+                _logger.LogDebug(
+                    "Event type {EventType} is disabled in configuration, skipping notification for battle {BattleId}",
+                    eventType,
+                    battleId
+                );
+            }
+            return;
+        }
+
         try
         {
             var groupName = $"battle_{battleId}";
@@ -74,6 +88,24 @@ public sealed class BattleNotificationService : IBattleNotificationService
                 eventType
             );
         }
+    }
+
+    /// <summary>
+    /// 检查事件类型是否启用
+    /// </summary>
+    private bool IsEventTypeEnabled(string eventType)
+    {
+        return eventType switch
+        {
+            "PlayerDeath" => _options.Notification.EnablePlayerDeathNotification,
+            "PlayerRevive" => _options.Notification.EnablePlayerReviveNotification,
+            "EnemyKilled" => _options.Notification.EnableEnemyKilledNotification,
+            "TargetSwitched" => _options.Notification.EnableTargetSwitchedNotification,
+            "WaveSpawn" => _options.Notification.EnableWaveSpawnNotification,
+            "SkillCast" => _options.Notification.EnableSkillCastNotification,
+            "BuffChange" => _options.Notification.EnableBuffChangeNotification,
+            _ => true // 默认启用未知类型
+        };
     }
 
     /// <summary>
