@@ -68,7 +68,7 @@
       "itemIcon": "⚔️",
       "price": {
         "currencyType": "Gold",
-        "amount": 5
+        "amount": 500
       },
       "purchaseLimit": {
         "type": "Unlimited"
@@ -202,6 +202,148 @@
       "rarity": "Rare",
       "isEnabled": true,
       "sortOrder": 4
+    },
+    {
+      "id": "general_shop_bandage",
+      "shopId": "general_shop",
+      "itemDefinitionId": "bandage",
+      "itemName": "绷带",
+      "itemIcon": "🩹",
+      "price": {
+        "currencyType": "Gold",
+        "amount": 25
+      },
+      "purchaseLimit": {
+        "type": "Unlimited"
+      },
+      "stockQuantity": -1,
+      "minLevel": 1,
+      "itemCategory": "Consumable",
+      "rarity": "Common",
+      "isEnabled": true,
+      "sortOrder": 4
+    },
+    {
+      "id": "general_shop_water",
+      "shopId": "general_shop",
+      "itemDefinitionId": "water_bottle",
+      "itemName": "清水",
+      "itemIcon": "💧",
+      "price": {
+        "currencyType": "Gold",
+        "amount": 5
+      },
+      "purchaseLimit": {
+        "type": "Unlimited"
+      },
+      "stockQuantity": -1,
+      "minLevel": 1,
+      "itemCategory": "Consumable",
+      "rarity": "Common",
+      "isEnabled": true,
+      "sortOrder": 5
+    },
+    {
+      "id": "weapon_shop_bronze_dagger",
+      "shopId": "weapon_shop",
+      "itemDefinitionId": "bronze_dagger",
+      "itemName": "青铜匕首",
+      "itemIcon": "🗡️",
+      "price": {
+        "currencyType": "Gold",
+        "amount": 150
+      },
+      "purchaseLimit": {
+        "type": "Unlimited"
+      },
+      "stockQuantity": -1,
+      "minLevel": 1,
+      "itemCategory": "Equipment",
+      "rarity": "Common",
+      "isEnabled": true,
+      "sortOrder": 4
+    },
+    {
+      "id": "weapon_shop_leather_armor",
+      "shopId": "weapon_shop",
+      "itemDefinitionId": "leather_armor",
+      "itemName": "皮甲",
+      "itemIcon": "🎽",
+      "price": {
+        "currencyType": "Gold",
+        "amount": 400
+      },
+      "purchaseLimit": {
+        "type": "Unlimited"
+      },
+      "stockQuantity": -1,
+      "minLevel": 1,
+      "itemCategory": "Equipment",
+      "rarity": "Common",
+      "isEnabled": true,
+      "sortOrder": 5
+    },
+    {
+      "id": "weapon_shop_iron_helmet",
+      "shopId": "weapon_shop",
+      "itemDefinitionId": "iron_helmet",
+      "itemName": "铁盔",
+      "itemIcon": "⛑️",
+      "price": {
+        "currencyType": "Gold",
+        "amount": 600
+      },
+      "purchaseLimit": {
+        "type": "Unlimited"
+      },
+      "stockQuantity": -1,
+      "minLevel": 3,
+      "itemCategory": "Equipment",
+      "rarity": "Common",
+      "isEnabled": true,
+      "sortOrder": 6
+    },
+    {
+      "id": "alchemist_shop_mana_crystal",
+      "shopId": "alchemist_shop",
+      "itemDefinitionId": "mana_crystal",
+      "itemName": "魔法水晶",
+      "itemIcon": "💎",
+      "price": {
+        "currencyType": "Gold",
+        "amount": 2000
+      },
+      "purchaseLimit": {
+        "type": "Weekly",
+        "maxPurchases": 2
+      },
+      "stockQuantity": -1,
+      "minLevel": 12,
+      "itemCategory": "Material",
+      "rarity": "Rare",
+      "isEnabled": true,
+      "sortOrder": 5
+    },
+    {
+      "id": "alchemist_shop_phoenix_feather",
+      "shopId": "alchemist_shop",
+      "itemDefinitionId": "phoenix_feather",
+      "itemName": "凤凰羽毛",
+      "itemIcon": "🪶",
+      "price": {
+        "currencyType": "Gold",
+        "amount": 8000
+      },
+      "purchaseLimit": {
+        "type": "PerCharacter",
+        "maxPurchases": 2
+      },
+      "stockQuantity": -1,
+      "minLevel": 25,
+      "itemCategory": "Material",
+      "rarity": "Legendary",
+      "isEnabled": true,
+      "sortOrder": 6
     }
   ]
 }
