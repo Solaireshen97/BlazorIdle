@@ -15,6 +15,7 @@ public sealed class BattleNotificationService : IBattleNotificationService
     private readonly IHubContext<BattleNotificationHub> _hubContext;
     private readonly ILogger<BattleNotificationService> _logger;
     private readonly SignalROptions _options;
+    private readonly NotificationThrottler? _throttler;
 
     public BattleNotificationService(
         IHubContext<BattleNotificationHub> hubContext,
@@ -24,6 +25,12 @@ public sealed class BattleNotificationService : IBattleNotificationService
         _hubContext = hubContext;
         _logger = logger;
         _options = options.Value;
+        
+        // 如果启用节流，创建节流器
+        if (_options.Performance.EnableThrottling)
+        {
+            _throttler = new NotificationThrottler(_options.Performance.ThrottleWindowMs);
+        }
     }
 
     public bool IsAvailable => _options.EnableSignalR;
@@ -54,6 +61,25 @@ public sealed class BattleNotificationService : IBattleNotificationService
                 );
             }
             return;
+        }
+
+        // 检查节流
+        if (_throttler != null)
+        {
+            var throttleKey = $"battle_{battleId}_{eventType}";
+            if (!_throttler.ShouldSend(throttleKey))
+            {
+                if (_options.EnableDetailedLogging)
+                {
+                    _logger.LogDebug(
+                        "Notification throttled: Battle={BattleId}, EventType={EventType}, SuppressedCount={Count}",
+                        battleId,
+                        eventType,
+                        _throttler.GetSuppressedCount(throttleKey)
+                    );
+                }
+                return;
+            }
         }
 
         try

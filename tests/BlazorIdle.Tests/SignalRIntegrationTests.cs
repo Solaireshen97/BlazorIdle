@@ -237,4 +237,83 @@ public sealed class SignalRIntegrationTests
         // Assert
         Assert.Equal("SignalR", SignalROptions.SectionName);
     }
+
+    [Fact]
+    public async Task BattleNotificationService_WithThrottlingEnabled_SuppressesFrequentNotifications()
+    {
+        // Arrange
+        var clientProxyMock = new Mock<IClientProxy>();
+        var groupManagerMock = new Mock<IHubClients>();
+        groupManagerMock.Setup(x => x.Group(It.IsAny<string>())).Returns(clientProxyMock.Object);
+        
+        var hubContextMock = new Mock<IHubContext<BattleNotificationHub>>();
+        hubContextMock.Setup(x => x.Clients).Returns(groupManagerMock.Object);
+        
+        var loggerMock = new Mock<ILogger<BattleNotificationService>>();
+        var options = Options.Create(new SignalROptions 
+        { 
+            EnableSignalR = true,
+            Performance = new PerformanceOptions
+            {
+                EnableThrottling = true,
+                ThrottleWindowMs = 1000
+            }
+        });
+        
+        var service = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, options);
+        var battleId = Guid.NewGuid();
+
+        // Act - 快速发送 5 次相同通知
+        await service.NotifyStateChangeAsync(battleId, "EnemyKilled");
+        await service.NotifyStateChangeAsync(battleId, "EnemyKilled");
+        await service.NotifyStateChangeAsync(battleId, "EnemyKilled");
+        await service.NotifyStateChangeAsync(battleId, "EnemyKilled");
+        await service.NotifyStateChangeAsync(battleId, "EnemyKilled");
+
+        // Assert - 由于节流，应该只发送一次
+        clientProxyMock.Verify(
+            x => x.SendCoreAsync(
+                "StateChanged",
+                It.IsAny<object[]>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task BattleNotificationService_WithThrottlingDisabled_SendsAllNotifications()
+    {
+        // Arrange
+        var clientProxyMock = new Mock<IClientProxy>();
+        var groupManagerMock = new Mock<IHubClients>();
+        groupManagerMock.Setup(x => x.Group(It.IsAny<string>())).Returns(clientProxyMock.Object);
+        
+        var hubContextMock = new Mock<IHubContext<BattleNotificationHub>>();
+        hubContextMock.Setup(x => x.Clients).Returns(groupManagerMock.Object);
+        
+        var loggerMock = new Mock<ILogger<BattleNotificationService>>();
+        var options = Options.Create(new SignalROptions 
+        { 
+            EnableSignalR = true,
+            Performance = new PerformanceOptions
+            {
+                EnableThrottling = false
+            }
+        });
+        
+        var service = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, options);
+        var battleId = Guid.NewGuid();
+
+        // Act - 快速发送 3 次通知
+        await service.NotifyStateChangeAsync(battleId, "EnemyKilled");
+        await service.NotifyStateChangeAsync(battleId, "EnemyKilled");
+        await service.NotifyStateChangeAsync(battleId, "EnemyKilled");
+
+        // Assert - 没有节流，应该发送 3 次
+        clientProxyMock.Verify(
+            x => x.SendCoreAsync(
+                "StateChanged",
+                It.IsAny<object[]>(),
+                It.IsAny<CancellationToken>()),
+            Times.Exactly(3));
+    }
 }
