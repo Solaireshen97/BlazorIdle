@@ -19,6 +19,8 @@ public sealed class BattleSignalRService : IAsyncDisposable
     private readonly bool _enableSignalR;
     private readonly int _maxReconnectAttempts;
     private readonly int _reconnectBaseDelayMs;
+    private readonly int _maxReconnectDelayMs;
+    private readonly bool _enableDetailedLogging;
     
     // 事件处理器
     private readonly List<Action<StateChangedEvent>> _stateChangedHandlers = new();
@@ -36,6 +38,8 @@ public sealed class BattleSignalRService : IAsyncDisposable
         _enableSignalR = signalRConfig.GetValue<bool>("EnableSignalR", true);
         _maxReconnectAttempts = signalRConfig.GetValue<int>("MaxReconnectAttempts", 5);
         _reconnectBaseDelayMs = signalRConfig.GetValue<int>("ReconnectBaseDelayMs", 1000);
+        _maxReconnectDelayMs = signalRConfig.GetValue<int>("MaxReconnectDelayMs", 30000);
+        _enableDetailedLogging = signalRConfig.GetValue<bool>("EnableDetailedLogging", false);
         
         // 构建 Hub URL
         var apiBaseUrl = configuration["ApiBaseUrl"] ?? "https://localhost:7001";
@@ -94,11 +98,19 @@ public sealed class BattleSignalRService : IAsyncDisposable
                 {
                     options.AccessTokenProvider = () => Task.FromResult<string?>(token);
                 })
-                .WithAutomaticReconnect(new SignalRRetryPolicy(_maxReconnectAttempts, _reconnectBaseDelayMs))
+                .WithAutomaticReconnect(new SignalRRetryPolicy(_maxReconnectAttempts, _reconnectBaseDelayMs, _maxReconnectDelayMs))
                 .ConfigureLogging(logging =>
                 {
-                    logging.AddFilter("Microsoft.AspNetCore.SignalR", LogLevel.Information);
-                    logging.SetMinimumLevel(LogLevel.Debug);
+                    if (_enableDetailedLogging)
+                    {
+                        logging.AddFilter("Microsoft.AspNetCore.SignalR", LogLevel.Debug);
+                        logging.SetMinimumLevel(LogLevel.Debug);
+                    }
+                    else
+                    {
+                        logging.AddFilter("Microsoft.AspNetCore.SignalR", LogLevel.Information);
+                        logging.SetMinimumLevel(LogLevel.Information);
+                    }
                 })
                 .Build();
 
@@ -249,11 +261,13 @@ internal sealed class SignalRRetryPolicy : IRetryPolicy
 {
     private readonly int _maxAttempts;
     private readonly int _baseDelayMs;
+    private readonly int _maxDelayMs;
 
-    public SignalRRetryPolicy(int maxAttempts, int baseDelayMs)
+    public SignalRRetryPolicy(int maxAttempts, int baseDelayMs, int maxDelayMs)
     {
         _maxAttempts = maxAttempts;
         _baseDelayMs = baseDelayMs;
+        _maxDelayMs = maxDelayMs;
     }
 
     public TimeSpan? NextRetryDelay(RetryContext retryContext)
@@ -264,8 +278,8 @@ internal sealed class SignalRRetryPolicy : IRetryPolicy
             return null; // 停止重连
         }
 
-        // 指数退避：1s, 2s, 4s, 8s, 16s
+        // 指数退避：1s, 2s, 4s, 8s, 16s...
         var delayMs = _baseDelayMs * Math.Pow(2, retryContext.PreviousRetryCount);
-        return TimeSpan.FromMilliseconds(Math.Min(delayMs, 30000)); // 最多 30 秒
+        return TimeSpan.FromMilliseconds(Math.Min(delayMs, _maxDelayMs));
     }
 }
