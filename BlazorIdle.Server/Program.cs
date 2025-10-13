@@ -1,5 +1,8 @@
 using BlazorIdle.Server.Application;
+using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Application.Auth;
+using BlazorIdle.Server.Config;
+using BlazorIdle.Server.Hubs;
 using BlazorIdle.Server.Infrastructure;
 using BlazorIdle.Server.Services;
 using Microsoft.EntityFrameworkCore;
@@ -67,15 +70,32 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<JwtTokenService>();
 
-// 4. ҵ��ֲ�ע��
+// 4. SignalR ����
+var signalROptions = builder.Configuration.GetSection(SignalROptions.SectionName).Get<SignalROptions>() ?? new SignalROptions();
+builder.Services.Configure<SignalROptions>(builder.Configuration.GetSection(SignalROptions.SectionName));
+
+if (signalROptions.Enabled)
+{
+    var signalRBuilder = builder.Services.AddSignalR(options =>
+    {
+        options.EnableDetailedErrors = signalROptions.EnableDetailedErrors;
+        options.KeepAliveInterval = TimeSpan.FromSeconds(signalROptions.KeepAliveIntervalSeconds);
+        options.ClientTimeoutInterval = TimeSpan.FromSeconds(signalROptions.ConnectionTimeoutSeconds);
+    });
+}
+
+// ע�����֪ͨ����
+builder.Services.AddSingleton<IBattleNotificationService, BattleNotificationService>();
+
+// 5. ҵ��ֲ�ע��
 builder.Services
     .AddInfrastructure(builder.Configuration)   // ע�������ʩ��DbContext / �ִ����ڲ��ѵ��� AddRepositories��
     .AddApplication();                          // ע��Ӧ�ò�����������Command/Query Handler �ȣ�
 
-// 5. ע�����߼�⺧̨����
+// 6. ע�����߼�⺧̨����
 builder.Services.AddHostedService<OfflineDetectionService>();
 
-// 6. CORS������
+// 7. CORS������
 // Ŀ�ģ�����ǰ�� Blazor WebAssembly�����ؿ����˿ڣ����ʱ� API��
 // ע�⣺�����ɸ�Ϊ��ȷ��Դ������ö�ȡ������ƾ�����ټ� AllowCredentials().
 builder.Services.AddCors(options =>
@@ -95,7 +115,7 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// 6. �Զ�Ǩ�ƣ���������
+// 8. �Զ�Ǩ�ƣ���������
 // - ����һ����ʱ Scope ȡ�� DbContext �뻷��
 // - Development �����Զ�ִ�� Migrate() ���ڿ��ٵ���
 // - ����������ã�Ԥ��Ǩ�ƣ�CI/CD�����˹���˺�ִ��
@@ -120,7 +140,7 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// 7. �м������
+// 9. �м������
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();    // /swagger/v1/swagger.json
@@ -137,4 +157,10 @@ app.UseAuthorization();  // ��Ȩ�м��
 app.MapControllers(); // ӳ��������˵㵽·�ɱ�
 
 // TODO����ѡ��չ����app.MapHealthChecks("/health"); app.MapGet("/version", ...);
+// 10. SignalR Hub 映射
+if (signalROptions.Enabled)
+{
+    app.MapHub<BattleNotificationHub>(signalROptions.HubPath);
+}
+
 app.Run(); // ������������ͬ��������ֱ������ֹͣ��
