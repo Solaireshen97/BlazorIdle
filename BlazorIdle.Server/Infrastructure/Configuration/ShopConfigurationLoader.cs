@@ -49,6 +49,16 @@ public class ShopOptions
     public int DefaultPageSize { get; set; } = 20;
     public int MaxPageSize { get; set; } = 100;
     public int PurchaseHistoryDefaultDays { get; set; } = 30;
+    
+    // 稀有度排序权重配置
+    public Dictionary<string, int> RarityOrderWeights { get; set; } = new()
+    {
+        { "common", 1 },
+        { "uncommon", 2 },
+        { "rare", 3 },
+        { "epic", 4 },
+        { "legendary", 5 }
+    };
 }
 
 /// <summary>

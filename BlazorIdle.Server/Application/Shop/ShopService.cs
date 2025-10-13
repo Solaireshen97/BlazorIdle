@@ -547,8 +547,17 @@ public class ShopService : IShopService
     }
 
     /// <summary>
-    /// 获取稀有度排序权重
+    /// 获取稀有度的排序权重
     /// </summary>
+    /// <param name="rarity">稀有度名称（不区分大小写）。支持：common, uncommon, rare, epic, legendary</param>
+    /// <returns>
+    /// 稀有度权重值。权重越高，排序越靠后。
+    /// 如果稀有度未配置或为空，返回 0。
+    /// </returns>
+    /// <remarks>
+    /// 稀有度权重从配置文件的 Shop:RarityOrderWeights 读取，
+    /// 支持运行时动态调整而无需重新编译代码。
+    /// </remarks>
     private int GetRarityOrder(string? rarity)
     {
         if (string.IsNullOrWhiteSpace(rarity))
@@ -556,20 +565,28 @@ public class ShopService : IShopService
             return 0;
         }
 
-        return rarity.ToLower() switch
-        {
-            "common" => 1,
-            "uncommon" => 2,
-            "rare" => 3,
-            "epic" => 4,
-            "legendary" => 5,
-            _ => 0
-        };
+        var key = rarity.ToLower();
+        return _shopOptions.RarityOrderWeights.TryGetValue(key, out var weight) 
+            ? weight 
+            : 0;
     }
 
     /// <summary>
-    /// 检查解锁条件（简单实现：仅支持等级检查）
+    /// 检查商店解锁条件
     /// </summary>
+    /// <param name="condition">解锁条件字符串。支持格式：
+    /// - null 或空字符串：无条件，直接解锁
+    /// - "level>=N"：角色等级需要达到 N
+    /// </param>
+    /// <param name="characterLevel">角色当前等级</param>
+    /// <returns>
+    /// 如果满足解锁条件返回 true，否则返回 false。
+    /// 空条件或无法解析的条件默认返回 true（解锁）。
+    /// </returns>
+    /// <remarks>
+    /// 这是一个简化实现，仅支持等级检查。
+    /// 未来可扩展支持更复杂的条件表达式（DSL）。
+    /// </remarks>
     private bool CheckUnlockCondition(string? condition, int characterLevel)
     {
         if (string.IsNullOrWhiteSpace(condition))
@@ -589,8 +606,21 @@ public class ShopService : IShopService
     }
 
     /// <summary>
-    /// 获取当前购买次数
+    /// 获取角色对特定商品的当前购买次数
     /// </summary>
+    /// <param name="characterId">角色ID</param>
+    /// <param name="shopItemId">商品ID</param>
+    /// <param name="limit">购买限制配置，用于判断是否需要重置计数器</param>
+    /// <returns>
+    /// 返回当前有效的购买次数。如果计数器不存在或已过期，返回 0。
+    /// </returns>
+    /// <remarks>
+    /// 此方法会检查购买计数器是否需要重置：
+    /// - 每日限制：超过 DailyResetSeconds 后重置
+    /// - 每周限制：超过 WeeklyResetSeconds 后重置
+    /// - 自定义周期：超过 ResetPeriodSeconds 后重置
+    /// 如果计数器已过期但未重置，此方法返回 0 但不修改数据库。
+    /// </remarks>
     private async Task<int> GetCurrentPurchaseCountAsync(Guid characterId, string shopItemId, PurchaseLimit limit)
     {
         var counterId = PurchaseCounter.GenerateId(characterId, shopItemId);
@@ -623,8 +653,21 @@ public class ShopService : IShopService
     }
 
     /// <summary>
-    /// 更新购买计数器
+    /// 更新购买计数器，记录购买次数
     /// </summary>
+    /// <param name="characterId">角色ID</param>
+    /// <param name="shopItemId">商品ID</param>
+    /// <param name="quantity">本次购买数量</param>
+    /// <param name="limit">购买限制配置</param>
+    /// <remarks>
+    /// 更新流程：
+    /// 1. 查找或创建购买计数器
+    /// 2. 检查是否需要重置（根据限制类型和时间周期）
+    /// 3. 如需重置，先重置计数器再累加
+    /// 4. 增加购买计数
+    /// 
+    /// 注意：此方法不保存到数据库，调用方需要在事务中调用 SaveChangesAsync。
+    /// </remarks>
     private async Task UpdatePurchaseCounterAsync(Guid characterId, string shopItemId, int quantity, PurchaseLimit limit)
     {
         var counterId = PurchaseCounter.GenerateId(characterId, shopItemId);

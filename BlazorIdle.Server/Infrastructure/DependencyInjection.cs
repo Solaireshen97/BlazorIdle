@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Infrastructure.Persistence.Repositories;
@@ -80,6 +81,7 @@ public static class DependencyInjection
         
         // 商店系统配置
         services.Configure<ShopOptions>(configuration.GetSection("Shop"));
+        services.AddSingleton<IValidateOptions<ShopOptions>, ShopOptionsValidator>();
         services.AddSingleton<IShopConfigurationLoader, ShopConfigurationLoader>();
         
         // 商店系统缓存
