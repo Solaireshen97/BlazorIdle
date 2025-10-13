@@ -329,7 +329,7 @@ public sealed class SignalRIntegrationTests
     }
     
     [Fact]
-    public void BattleGroupPrefix_IsConfigurable()
+    public async Task BattleGroupPrefix_IsConfigurable()
     {
         // Arrange
         var clientProxyMock = new Mock<IClientProxy>();
@@ -353,8 +353,7 @@ public sealed class SignalRIntegrationTests
         var battleId = Guid.Parse("12345678-1234-1234-1234-123456789012");
         
         // Act
-        var task = service.NotifyStateChangeAsync(battleId, "TestEvent");
-        task.Wait();
+        await service.NotifyStateChangeAsync(battleId, "TestEvent");
         
         // Assert
         Assert.Equal("custom_prefix_12345678-1234-1234-1234-123456789012", capturedGroupName);
