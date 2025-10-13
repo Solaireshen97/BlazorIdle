@@ -11,4 +11,5 @@ var apiBase = builder.Configuration["ApiBaseUrl"] ?? "https://localhost:7056";
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiBase) });
 builder.Services.AddScoped<BlazorIdle.Client.Services.AuthService>();
 builder.Services.AddScoped<BlazorIdle.Client.Services.ApiClient>();
+builder.Services.AddScoped<BlazorIdle.Services.IShopService, BlazorIdle.Services.ShopService>();
 await builder.Build().RunAsync();

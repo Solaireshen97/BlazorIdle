@@ -119,6 +119,14 @@ else
         OnItemsChanged="@RefreshEquipmentData" />
 }
 
+<!-- 1.8) 商店系统界面（Phase 5: 商店前端集成） -->
+@if (lastCreated is not null)
+{
+    <ShopPanel 
+        CharacterId="@lastCreated.Id.ToString()"
+        OnPurchaseSuccess="@OnShopPurchaseSuccess" />
+}
+
 <!-- 2) 同步战斗 -->
 @if (lastCreated is not null)
 {
@@ -1288,6 +1296,24 @@ else
     {
         await LoadEquipmentAsync();
         StateHasChanged();
+    }
+
+    /// <summary>
+    /// 商店购买成功后的回调（刷新角色金币和背包）
+    /// </summary>
+    async Task OnShopPurchaseSuccess()
+    {
+        if (lastCreated is not null)
+        {
+            // 刷新装备数据（会同时刷新背包和角色信息）
+            await RefreshEquipmentData();
+            
+            // 显示成功提示
+            if (toastNotification is not null)
+            {
+                toastNotification.ShowSuccess("购买成功！");
+            }
+        }
     }
 
     /// <summary>

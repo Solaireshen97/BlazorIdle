@@ -1,0 +1,245 @@
+.shop-panel {
+    margin: 1rem 0;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.error-message {
+    padding: 1rem;
+    background: #fee;
+    border: 1px solid #fcc;
+    border-radius: 4px;
+    color: #c00;
+    margin-bottom: 1rem;
+}
+
+.no-data {
+    text-align: center;
+    color: #666;
+    padding: 2rem;
+}
+
+/* 商店列表 */
+.shops-container {
+    padding: 1rem 0;
+}
+
+.shop-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.shop-card {
+    background: white;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    padding: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    gap: 1rem;
+}
+
+.shop-card:hover {
+    border-color: #007bff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.shop-icon {
+    font-size: 3rem;
+    line-height: 1;
+}
+
+.shop-info {
+    flex: 1;
+}
+
+.shop-info h6 {
+    margin: 0 0 0.5rem 0;
+    color: #333;
+    font-size: 1.1rem;
+}
+
+.shop-type {
+    margin: 0.25rem 0;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.shop-description {
+    margin: 0.5rem 0;
+    color: #888;
+    font-size: 0.85rem;
+}
+
+/* 商品列表 */
+.shop-items-container {
+    padding: 1rem 0;
+}
+
+.shop-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #ddd;
+}
+
+.shop-header h5 {
+    margin: 0;
+    flex: 1;
+}
+
+.items-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1rem;
+}
+
+.item-card {
+    background: white;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    transition: all 0.2s;
+}
+
+.item-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* 稀有度颜色 */
+.rarity-common {
+    border-color: #9e9e9e;
+}
+
+.rarity-uncommon {
+    border-color: #4caf50;
+}
+
+.rarity-rare {
+    border-color: #2196f3;
+}
+
+.rarity-epic {
+    border-color: #9c27b0;
+}
+
+.rarity-legendary {
+    border-color: #ff9800;
+}
+
+.item-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.item-icon {
+    font-size: 1.5rem;
+}
+
+.item-name {
+    font-weight: bold;
+    font-size: 1rem;
+    color: #333;
+}
+
+.item-info {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.item-category,
+.item-rarity {
+    padding: 0.15rem 0.5rem;
+    background: #e3f2fd;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: #1976d2;
+}
+
+.item-rarity {
+    background: #f3e5f5;
+    color: #7b1fa2;
+}
+
+.item-details {
+    font-size: 0.875rem;
+    color: #666;
+}
+
+.item-price {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem;
+    background: #f5f5f5;
+    border-radius: 4px;
+    margin: 0.25rem 0;
+}
+
+.price-label {
+    color: #666;
+}
+
+.price-value {
+    font-weight: bold;
+    color: #ff9800;
+}
+
+.item-level-req,
+.item-limit,
+.item-stock {
+    margin: 0.25rem 0;
+    font-size: 0.8rem;
+}
+
+.item-actions {
+    margin-top: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: #007bff;
+    color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: #0056b3;
+}
+
+.btn-primary:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.btn-sm {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+}
+
+.text-danger {
+    color: #dc3545;
+    font-size: 0.75rem;
+}
