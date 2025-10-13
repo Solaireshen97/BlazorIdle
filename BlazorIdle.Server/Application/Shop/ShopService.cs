@@ -201,6 +201,18 @@ public class ShopService : IShopService
         // 应用过滤条件
         var filteredItems = items.AsEnumerable();
 
+        // 按搜索关键字过滤（模糊匹配商品名称）
+        if (!string.IsNullOrWhiteSpace(filter.SearchText))
+        {
+            var searchLower = filter.SearchText.ToLower();
+            filteredItems = filteredItems.Where(i => 
+                i.ItemName.ToLower().Contains(searchLower) ||
+                (i.ItemDefinitionId != null && i.ItemDefinitionId.ToLower().Contains(searchLower)));
+            
+            _logger.LogDebug("搜索关键字过滤: '{SearchText}', 结果数量: {Count}", 
+                filter.SearchText, filteredItems.Count());
+        }
+
         // 按物品类别过滤
         if (!string.IsNullOrWhiteSpace(filter.ItemCategory))
         {

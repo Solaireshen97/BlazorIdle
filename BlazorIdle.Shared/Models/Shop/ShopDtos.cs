@@ -127,6 +127,11 @@ public class ShopItemFilterRequest
     public string ShopId { get; set; } = "";
 
     /// <summary>
+    /// 搜索关键字（可选，匹配商品名称或描述）
+    /// </summary>
+    public string? SearchText { get; set; }
+
+    /// <summary>
     /// 物品类别过滤（可选）
     /// </summary>
     public string? ItemCategory { get; set; }

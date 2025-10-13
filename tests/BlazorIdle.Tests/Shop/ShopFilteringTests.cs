@@ -446,6 +446,71 @@ public class ShopFilteringTests : IDisposable
         Assert.Empty(response.Items);
     }
 
+    [Fact]
+    public async Task GetShopItemsWithFilter_SearchByName_ReturnsMatchingItems()
+    {
+        // Arrange
+        var filter = new ShopItemFilterRequest
+        {
+            ShopId = "test_shop",
+            SearchText = "药水"  // 搜索包含"药水"的商品
+        };
+
+        // Act
+        var response = await _shopService.GetShopItemsWithFilterAsync(_testCharacter.Id.ToString(), filter);
+
+        // Assert
+        Assert.NotNull(response);
+        Assert.NotEmpty(response.Items);
+        Assert.All(response.Items, item =>
+        {
+            Assert.Contains("药水", item.ItemName.ToLower() + item.ItemDefinitionId.ToLower());
+        });
+    }
+
+    [Fact]
+    public async Task GetShopItemsWithFilter_SearchNonExistent_ReturnsEmpty()
+    {
+        // Arrange
+        var filter = new ShopItemFilterRequest
+        {
+            ShopId = "test_shop",
+            SearchText = "不存在的商品xyz123"
+        };
+
+        // Act
+        var response = await _shopService.GetShopItemsWithFilterAsync(_testCharacter.Id.ToString(), filter);
+
+        // Assert
+        Assert.NotNull(response);
+        Assert.Empty(response.Items);
+    }
+
+    [Fact]
+    public async Task GetShopItemsWithFilter_SearchWithOtherFilters_ReturnsCombinedResults()
+    {
+        // Arrange - 组合搜索和其他过滤条件
+        var filter = new ShopItemFilterRequest
+        {
+            ShopId = "test_shop",
+            SearchText = "potion",
+            ItemCategory = "Consumable",
+            MaxPrice = 200
+        };
+
+        // Act
+        var response = await _shopService.GetShopItemsWithFilterAsync(_testCharacter.Id.ToString(), filter);
+
+        // Assert
+        Assert.NotNull(response);
+        // 所有结果应该同时满足搜索词、类别和价格条件
+        Assert.All(response.Items, item =>
+        {
+            Assert.Equal("Consumable", item.ItemCategory);
+            Assert.True(item.Price.Amount <= 200);
+        });
+    }
+
     public void Dispose()
     {
         _context.Dispose();
