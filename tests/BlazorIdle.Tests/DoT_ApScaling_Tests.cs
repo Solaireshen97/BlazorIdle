@@ -17,6 +17,11 @@ public class DoT_ApScaling_Tests
         public string Id => "test-ap-dot";
         public double BaseAttackInterval => 999; // 避免普攻干扰
         public double BaseSpecialInterval => 999;
+        
+        // 默认测试行为
+        public bool PauseSpecialWhenNoEnemies => true;
+        public bool SpecialStartsImmediately => false;
+        public bool SpecialStartsImmediatelyAfterRevive => false;
 
         public void RegisterBuffDefinitions(BattleContext context)
         {

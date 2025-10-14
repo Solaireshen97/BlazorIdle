@@ -10,6 +10,24 @@ public class WarriorProfession : IProfessionModule
     public string Id => "warrior";
     public double BaseAttackInterval => 2.5;
     public double BaseSpecialInterval => 5.0;
+    
+    /// <summary>
+    /// 战士的特殊轨道（怒气积累机制）在无怪物时持续触发
+    /// 体现战士"战斗专注"的职业特性，即使在等待刷新期间也会维持战斗状态
+    /// </summary>
+    public virtual bool PauseSpecialWhenNoEnemies => false;
+    
+    /// <summary>
+    /// 战士的特殊轨道战斗开始时立即触发
+    /// 快速进入战斗节奏，符合战士的主动战斗风格
+    /// </summary>
+    public virtual bool SpecialStartsImmediately => true;
+    
+    /// <summary>
+    /// 战士复活后特殊轨道立即触发
+    /// 快速重建怒气资源，提高战斗效率
+    /// </summary>
+    public virtual bool SpecialStartsImmediatelyAfterRevive => true;
 
     public virtual void RegisterBuffDefinitions(BattleContext context)
     {

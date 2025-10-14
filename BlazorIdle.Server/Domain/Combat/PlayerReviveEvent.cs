@@ -20,10 +20,25 @@ public record PlayerReviveEvent(double ExecuteAt) : IGameEvent
         player.Revive(ExecuteAt);
         
         // 恢复所有玩家轨道：重新开始攻击循环
-        // 设置 NextTriggerAt 为当前时间 + 完整间隔
+        // 战斗循环优化 Task 2.5: 考虑职业配置决定恢复延迟
         foreach (var track in context.Tracks)
         {
-            track.NextTriggerAt = ExecuteAt + track.CurrentInterval;
+            // 根据轨道类型和职业配置决定恢复延迟
+            double resumeDelay;
+            
+            if (track.TrackType == TrackType.Special && 
+                context.ProfessionModule.SpecialStartsImmediatelyAfterRevive)
+            {
+                // 特殊轨道：如果职业配置为复活后立即触发，则延迟为0
+                resumeDelay = 0.0;
+            }
+            else
+            {
+                // 默认：从完整间隔开始（攻击轨道或未配置立即触发的特殊轨道）
+                resumeDelay = track.CurrentInterval;
+            }
+            
+            track.NextTriggerAt = ExecuteAt + resumeDelay;
             
             // 重新调度对应的事件
             if (track.TrackType == TrackType.Attack)

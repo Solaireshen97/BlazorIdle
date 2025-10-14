@@ -214,6 +214,11 @@ public class CombatLoopOptimizationTests
         public string Id => "test_profession";
         public double BaseAttackInterval => 2.0;
         public double BaseSpecialInterval => 5.0;
+        
+        // 默认测试行为：使用常规暂停和延迟
+        public bool PauseSpecialWhenNoEnemies => true;
+        public bool SpecialStartsImmediately => false;
+        public bool SpecialStartsImmediatelyAfterRevive => false;
 
         public void RegisterBuffDefinitions(BattleContext ctx) { }
         public void OnBattleStart(BattleContext ctx) { }
@@ -221,6 +226,104 @@ public class CombatLoopOptimizationTests
         public void OnAttackTick(BattleContext ctx, AttackTickEvent evt) { }
         public void OnSpecialPulse(BattleContext ctx, SpecialPulseEvent evt) { }
         public void OnSkillCast(BattleContext ctx, Server.Domain.Combat.Skills.SkillDefinition def) { }
+    }
+    
+    /// <summary>
+    /// 战斗循环优化 Task 2.x: 测试职业特定配置
+    /// 验证战士和猎人的特殊轨道配置差异
+    /// </summary>
+    [Fact]
+    public void Task2x_ProfessionSpecificConfig_WarriorVsRanger()
+    {
+        // Arrange - 创建战士和猎人的引擎
+        var warriorModule = new Server.Domain.Combat.Professions.WarriorProfession();
+        var rangerModule = new Server.Domain.Combat.Professions.RangerProfession();
+        
+        // Act - 检查配置差异
+        var warriorPauseSpecial = warriorModule.PauseSpecialWhenNoEnemies;
+        var warriorSpecialStartsImmediate = warriorModule.SpecialStartsImmediately;
+        var warriorSpecialAfterRevive = warriorModule.SpecialStartsImmediatelyAfterRevive;
+        
+        var rangerPauseSpecial = rangerModule.PauseSpecialWhenNoEnemies;
+        var rangerSpecialStartsImmediate = rangerModule.SpecialStartsImmediately;
+        var rangerSpecialAfterRevive = rangerModule.SpecialStartsImmediatelyAfterRevive;
+        
+        // Assert - 验证战士配置（战斗专注，持续积累怒气）
+        Assert.False(warriorPauseSpecial, "战士特殊轨道应在无怪物时持续触发");
+        Assert.True(warriorSpecialStartsImmediate, "战士特殊轨道应立即开始");
+        Assert.True(warriorSpecialAfterRevive, "战士复活后特殊轨道应立即触发");
+        
+        // Assert - 验证猎人配置（需要目标，常规节奏）
+        Assert.True(rangerPauseSpecial, "猎人特殊轨道应在无怪物时暂停");
+        Assert.False(rangerSpecialStartsImmediate, "猎人特殊轨道应等待间隔");
+        Assert.False(rangerSpecialAfterRevive, "猎人复活后特殊轨道应等待间隔");
+    }
+    
+    /// <summary>
+    /// 战斗循环优化 Task 2.3: 测试特殊轨道初始延迟使用职业配置
+    /// 验证战士的特殊轨道立即开始，而测试模块等待间隔
+    /// </summary>
+    [Fact]
+    public void Task23_SpecialTrackInitialDelay_WarriorStartsImmediately()
+    {
+        // Arrange - 使用战士职业模块
+        var warriorModule = new Server.Domain.Combat.Professions.WarriorProfession();
+        var battleId = Guid.NewGuid();
+        var characterId = Guid.NewGuid();
+        var stats = new CharacterStats { AttackPower = 100 };
+        var rng = new RngContext(12345);
+        
+        var enemyDef = new EnemyDefinition(
+            id: "test_enemy",
+            name: "Test Enemy",
+            level: 5,
+            maxHp: 1000,
+            baseDamage: 0,
+            attackDamageType: DamageType.Physical,
+            attackIntervalSeconds: 3.0
+        );
+        
+        var meta = new BattleMeta
+        {
+            ModeTag = "test",
+            EnemyId = enemyDef.Id,
+            EnemyCount = 1
+        };
+        
+        var options = new CombatLoopOptions
+        {
+            SpecialStartsWithFullInterval = true // 全局配置为等待间隔
+        };
+        
+        // Act - 创建战斗引擎，战士模块应覆盖全局配置
+        var engine = new BattleEngine(
+            battleId: battleId,
+            characterId: characterId,
+            profession: Profession.Warrior,
+            stats: stats,
+            rng: rng,
+            enemyDef: enemyDef,
+            enemyCount: 1,
+            module: warriorModule,
+            meta: meta,
+            loopOptions: options
+        );
+        
+        // Assert - 验证特殊轨道立即开始（NextTriggerAt == 0）
+        var specialTrack = engine.Context.Tracks.FirstOrDefault(t => t.TrackType == TrackType.Special);
+        Assert.NotNull(specialTrack);
+        Assert.Equal(0.0, specialTrack.NextTriggerAt);
+        
+        // 对比：创建使用默认测试模块的引擎（应等待间隔）
+        var testModuleEngine = CreateTestBattleEngine(
+            enemyDef: enemyDef,
+            enemyCount: 1,
+            loopOptions: options
+        );
+        
+        var testSpecialTrack = testModuleEngine.Context.Tracks.FirstOrDefault(t => t.TrackType == TrackType.Special);
+        Assert.NotNull(testSpecialTrack);
+        Assert.Equal(warriorModule.BaseSpecialInterval, testSpecialTrack.NextTriggerAt);
     }
     
     #endregion

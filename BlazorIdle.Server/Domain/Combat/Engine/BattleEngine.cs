@@ -172,10 +172,13 @@ public sealed class BattleEngine
             : 0;
         var attackTrack = new TrackState(TrackType.Attack, Battle.AttackIntervalSeconds, attackStartDelay);
         
-        // 特殊轨道同样根据配置决定初始延迟
-        var specialStartDelay = _loopOptions.SpecialStartsWithFullInterval 
-            ? Battle.SpecialIntervalSeconds 
-            : 0;
+        // 战斗循环优化 Task 2.3: 特殊轨道根据职业配置决定初始延迟
+        // 优先使用职业模块配置，如果职业配置为立即触发则从0开始，否则根据全局配置决定
+        var specialStartDelay = professionModule.SpecialStartsImmediately 
+            ? 0
+            : (_loopOptions.SpecialStartsWithFullInterval 
+                ? Battle.SpecialIntervalSeconds 
+                : 0);
         var specialTrack = new TrackState(TrackType.Special, Battle.SpecialIntervalSeconds, specialStartDelay);
         
         Context.Tracks.Add(attackTrack);
@@ -263,16 +266,16 @@ public sealed class BattleEngine
         {
             bool shouldPause = false;
             
-            // 攻击轨道：根据配置决定是否暂停
+            // 攻击轨道：根据全局配置决定是否暂停
             if (track.TrackType == TrackType.Attack)
             {
                 shouldPause = _loopOptions.PauseAttackWhenNoEnemies;
             }
-            // 特殊轨道：根据职业模块配置或默认配置决定是否暂停
+            // 特殊轨道：优先使用职业模块配置，如果配置未覆盖则使用全局默认
             else if (track.TrackType == TrackType.Special)
             {
-                // 优先使用职业模块的配置（如果实现了），否则使用全局默认配置
-                shouldPause = _loopOptions.PauseSpecialWhenNoEnemiesByDefault;
+                // 战斗循环优化 Task 2.3: 使用职业模块的配置
+                shouldPause = Context.ProfessionModule.PauseSpecialWhenNoEnemies;
             }
             
             if (shouldPause && track.NextTriggerAt < FAR_FUTURE)
@@ -305,14 +308,13 @@ public sealed class BattleEngine
             if (track.NextTriggerAt > FAR_FUTURE / 2)
             {
                 // 根据配置决定恢复延迟
-                // 攻击轨道：从完整间隔开始（符合"从0开始计算进度"的需求）
-                // 特殊轨道：根据配置决定是否立即触发
                 double resumeDelay = track.CurrentInterval; // 默认从完整间隔开始
                 
+                // 战斗循环优化 Task 2.3: 特殊轨道根据职业配置决定是否立即触发
                 if (track.TrackType == TrackType.Special && 
-                    _loopOptions.SpecialStartsImmediatelyAfterReviveByDefault)
+                    Context.ProfessionModule.SpecialStartsImmediately)
                 {
-                    resumeDelay = 0.0; // 特殊轨道可配置为立即触发
+                    resumeDelay = 0.0; // 特殊轨道根据职业配置立即触发
                 }
                 
                 track.NextTriggerAt = resumeTime + resumeDelay;

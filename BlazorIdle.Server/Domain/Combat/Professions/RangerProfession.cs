@@ -10,6 +10,24 @@ public class RangerProfession : IProfessionModule
     public string Id => "ranger";
     public double BaseAttackInterval => 1.4;
     public double BaseSpecialInterval => 4.0;
+    
+    /// <summary>
+    /// 猎人的特殊轨道（集中值积累）在无怪物时暂停（默认行为）
+    /// 体现猎人需要"目标"来施展战斗技巧的职业特性
+    /// </summary>
+    public virtual bool PauseSpecialWhenNoEnemies => true;
+    
+    /// <summary>
+    /// 猎人的特殊轨道等待间隔后触发（默认行为）
+    /// 符合猎人需要观察和准备的战斗风格
+    /// </summary>
+    public virtual bool SpecialStartsImmediately => false;
+    
+    /// <summary>
+    /// 猎人复活后特殊轨道等待间隔（默认行为）
+    /// 体现猎人需要重新观察战场的特性
+    /// </summary>
+    public virtual bool SpecialStartsImmediatelyAfterRevive => false;
 
     public virtual void RegisterBuffDefinitions(BattleContext context)
     {
