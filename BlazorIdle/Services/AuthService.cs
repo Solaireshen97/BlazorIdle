@@ -24,6 +24,9 @@ public class AuthService
 
     // 新增：认证状态变更事件
     public event Action? AuthStateChanged;
+    public event Func<Task>? OnAuthenticated;  // 登录成功后触发
+    public event Func<Task>? OnUnauthenticated;  // 登出后触发
+    
     private void NotifyAuthStateChanged() => AuthStateChanged?.Invoke();
 
     /// <summary>
@@ -134,6 +137,12 @@ public class AuthService
             // localStorage 可能不可用
         }
 
+        // 触发登出事件（用于断开 SignalR 等）
+        if (OnUnauthenticated != null)
+        {
+            await OnUnauthenticated.Invoke();
+        }
+
         // 通知 UI 刷新
         NotifyAuthStateChanged();
     }
@@ -158,6 +167,12 @@ public class AuthService
         catch
         {
             // localStorage 可能不可用
+        }
+
+        // 触发登录事件（用于建立 SignalR 连接等）
+        if (OnAuthenticated != null)
+        {
+            await OnAuthenticated.Invoke();
         }
 
         // 通知 UI 刷新

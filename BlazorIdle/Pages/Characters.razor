@@ -969,6 +969,10 @@ else
 
             isAuthenticated = true;
 
+            // 注册认证事件处理器（用于后续登录/登出时的 SignalR 连接管理）
+            AuthService.OnAuthenticated += HandleAuthenticatedAsync;
+            AuthService.OnUnauthenticated += HandleUnauthenticatedAsync;
+
             // 加载当前用户信息和角色列表
             await LoadUserDataAsync();
 
@@ -981,7 +985,7 @@ else
             }
             catch { enemies = new(); }
             
-            // 初始化 SignalR 连接
+            // 登录后立即初始化 SignalR 连接（保持连接）
             await InitializeSignalRAsync();
         }
         catch (Exception ex)
@@ -991,12 +995,19 @@ else
     }
     
     /// <summary>
-    /// 初始化 SignalR 连接和事件处理器
+    /// 初始化 SignalR 连接和事件处理器（登录后自动调用）
     /// </summary>
     private async Task InitializeSignalRAsync()
     {
         try
         {
+            // 确保已认证
+            if (!AuthService.IsAuthenticated)
+            {
+                Console.WriteLine("[SignalR] 未认证，跳过连接");
+                return;
+            }
+
             // 尝试连接到 SignalR Hub
             _isSignalRConnected = await SignalRService.ConnectAsync();
             
@@ -1004,21 +1015,44 @@ else
             {
                 // 注册 SignalR 事件处理器
                 SignalRService.OnStateChanged(HandleSignalRStateChanged);
-                toastNotification?.ShowSuccess("实时通知已启用", "", 2000);
+                Console.WriteLine("[SignalR] 连接成功，实时通知已启用");
+                toastNotification?.ShowSuccess("✅ 实时通知已启用", "", 2000);
             }
             else
             {
                 // SignalR 连接失败，降级到纯轮询模式
                 _isSignalREnabled = false;
-                toastNotification?.ShowWarning("实时通知不可用，使用轮询模式", "", 3000);
+                Console.WriteLine("[SignalR] 连接失败，使用轮询模式");
+                toastNotification?.ShowInfo("ℹ️ 使用轮询模式", "", 2000);
             }
         }
         catch (Exception ex)
         {
             // SignalR 连接异常，不影响主功能
             _isSignalREnabled = false;
-            toastNotification?.ShowWarning($"实时通知初始化失败: {ex.Message}", "", 3000);
+            Console.WriteLine($"[SignalR] 初始化失败: {ex.Message}");
+            toastNotification?.ShowWarning($"⚠️ 实时通知不可用: {ex.Message}", "", 3000);
         }
+    }
+    
+    /// <summary>
+    /// 处理认证成功事件（用于后续登录时重新连接 SignalR）
+    /// </summary>
+    private async Task HandleAuthenticatedAsync()
+    {
+        Console.WriteLine("[SignalR] 认证成功，正在连接...");
+        await InitializeSignalRAsync();
+    }
+    
+    /// <summary>
+    /// 处理登出事件（断开 SignalR 连接）
+    /// </summary>
+    private async Task HandleUnauthenticatedAsync()
+    {
+        Console.WriteLine("[SignalR] 登出，断开连接");
+        _isSignalRConnected = false;
+        _isSignalREnabled = false;
+        await SignalRService.DisposeAsync();
     }
     
     /// <summary>
@@ -1805,6 +1839,13 @@ else
         StopDebugAutoPolling(); 
         StopPlanPolling();
         _pollingCoordinator?.Dispose();
+        
+        // 清理认证事件处理器
+        if (AuthService != null)
+        {
+            AuthService.OnAuthenticated -= HandleAuthenticatedAsync;
+            AuthService.OnUnauthenticated -= HandleUnauthenticatedAsync;
+        }
         
         // 清理 SignalR 连接
         Task.Run(async () => await SignalRService.DisposeAsync()).Wait(TimeSpan.FromSeconds(5));
