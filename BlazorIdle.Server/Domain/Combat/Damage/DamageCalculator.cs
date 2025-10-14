@@ -28,6 +28,25 @@ public static class DamageCalculator
         int dealt = ComputeDealt(baseDamage, type, target.Enemy, agg, context);
         var applied = target.ApplyDamage(dealt, context.Clock.CurrentTime);
         context.SegmentCollector.OnDamage(sourceId, applied, type);
+        
+        // SignalR Phase 2.5: 发送伤害应用轻量通知，用于前端血量即时更新
+        if (context.NotificationService?.IsAvailable == true && applied > 0)
+        {
+            var damageDto = new BlazorIdle.Shared.Models.DamageAppliedEventDto
+            {
+                BattleId = context.Battle.Id,
+                EventTime = context.Clock.CurrentTime,
+                EventType = "DamageApplied",
+                SourceId = sourceId,
+                DamageAmount = applied,
+                DamageType = type.ToString(),
+                TargetCurrentHp = target.CurrentHp,
+                TargetMaxHp = target.Enemy.MaxHp,
+                TargetDied = target.CurrentHp <= 0
+            };
+            _ = context.NotificationService.NotifyEventAsync(context.Battle.Id, damageDto);
+        }
+        
         return applied;
     }
 

@@ -133,6 +133,24 @@ public class AutoCastEngine
 
         context.Scheduler.Schedule(new SkillCastCompleteEvent(CastingUntil, slot, _currentCastId.Value));
         context.SegmentCollector.OnTag("skill_cast_start:" + def.Id, 1);
+        
+        // SignalR Phase 2.5: 发送技能施放开始通知
+        if (context.NotificationService?.IsAvailable == true)
+        {
+            var skillCastDto = new BlazorIdle.Shared.Models.SkillCastEventDto
+            {
+                BattleId = context.Battle.Id,
+                EventTime = now,
+                EventType = "SkillCast",
+                SkillId = def.Id,
+                SkillName = def.Name,
+                IsCastStart = true,
+                CastDuration = effCast,
+                CooldownDuration = def.CooldownSeconds,
+                CooldownReadyAt = now + def.CooldownSeconds
+            };
+            _ = context.NotificationService.NotifyEventAsync(context.Battle.Id, skillCastDto);
+        }
     }
 
     internal void ClearCasting()
@@ -175,6 +193,24 @@ public class AutoCastEngine
         DoSkillDamage(slot, context, def, now);
 
         if (_queuedSlot == slot) _queuedSlot = null;
+        
+        // SignalR Phase 2.5: 发送瞬发技能施放通知
+        if (context.NotificationService?.IsAvailable == true)
+        {
+            var skillCastDto = new BlazorIdle.Shared.Models.SkillCastEventDto
+            {
+                BattleId = context.Battle.Id,
+                EventTime = now,
+                EventType = "SkillCast",
+                SkillId = def.Id,
+                SkillName = def.Name,
+                IsCastStart = false,
+                CastDuration = 0,
+                CooldownDuration = def.CooldownSeconds,
+                CooldownReadyAt = now + def.CooldownSeconds
+            };
+            _ = context.NotificationService.NotifyEventAsync(context.Battle.Id, skillCastDto);
+        }
     }
 
     private void DoSkillDamage(SkillSlot slot, BattleContext context, SkillDefinition def, double now)

@@ -102,6 +102,23 @@ public record SkillCastCompleteEvent(double ExecuteAt, SkillSlot Slot, long Cast
         context.ProfessionModule.OnSkillCast(context, def);
         context.Procs.OnDirectHit(context, "skill:" + def.Id, type, isCrit, isDot: false, DirectSourceKind.Skill, ExecuteAt);
 
+        // SignalR Phase 2.5: 发送施放技能完成通知
+        if (context.NotificationService?.IsAvailable == true)
+        {
+            var skillCastDto = new BlazorIdle.Shared.Models.SkillCastEventDto
+            {
+                BattleId = context.Battle.Id,
+                EventTime = ExecuteAt,
+                EventType = "SkillCast",
+                SkillId = def.Id,
+                SkillName = def.Name,
+                IsCastStart = false,
+                CastDuration = 0,
+                CooldownDuration = def.CooldownSeconds,
+                CooldownReadyAt = ExecuteAt + def.CooldownSeconds
+            };
+            _ = context.NotificationService.NotifyEventAsync(context.Battle.Id, skillCastDto);
+        }
 
         context.AutoCaster.ClearCasting();
         context.AutoCaster.TryAutoCast(context, ExecuteAt);

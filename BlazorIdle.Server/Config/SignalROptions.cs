@@ -97,14 +97,24 @@ public sealed class NotificationOptions
     public bool EnableWaveSpawnNotification { get; set; } = false;
     
     /// <summary>
-    /// 启用技能施放通知（预留给 Phase 3）
+    /// 启用技能施放通知（Phase 2.5 轻量事件，用于进度条和技能状态同步）
     /// </summary>
-    public bool EnableSkillCastNotification { get; set; } = false;
+    public bool EnableSkillCastNotification { get; set; } = true;
     
     /// <summary>
     /// 启用 Buff 变化通知（预留给 Phase 3）
     /// </summary>
     public bool EnableBuffChangeNotification { get; set; } = false;
+    
+    /// <summary>
+    /// 启用攻击触发通知（Phase 2.5 轻量事件，用于进度条精准同步）
+    /// </summary>
+    public bool EnableAttackTickNotification { get; set; } = true;
+    
+    /// <summary>
+    /// 启用伤害应用通知（Phase 2.5 轻量事件，用于血量即时更新）
+    /// </summary>
+    public bool EnableDamageAppliedNotification { get; set; } = true;
 }
 
 /// <summary>

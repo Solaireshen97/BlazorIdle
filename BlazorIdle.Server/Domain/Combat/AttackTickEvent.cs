@@ -96,5 +96,20 @@ public record AttackTickEvent(double ExecuteAt, TrackState Track) : IGameEvent
 
         Track.NextTriggerAt = ExecuteAt + Track.CurrentInterval;
         context.Scheduler.Schedule(new AttackTickEvent(Track.NextTriggerAt, Track));
+        
+        // SignalR Phase 2.5: 发送攻击触发轻量通知，用于前端进度条精准同步
+        if (context.NotificationService?.IsAvailable == true)
+        {
+            var attackTickDto = new BlazorIdle.Shared.Models.AttackTickEventDto
+            {
+                BattleId = context.Battle.Id,
+                EventTime = ExecuteAt,
+                EventType = "AttackTick",
+                NextAttackAt = Track.NextTriggerAt,
+                AttackInterval = Track.CurrentInterval,
+                IsCrit = isCrit
+            };
+            _ = context.NotificationService.NotifyEventAsync(context.Battle.Id, attackTickDto);
+        }
     }
 }
