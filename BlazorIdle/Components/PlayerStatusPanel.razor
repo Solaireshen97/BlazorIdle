@@ -22,7 +22,7 @@
         <div style="display: flex; align-items: center; margin-bottom: 4px;">
             <span style="min-width: 60px; font-size: 13px;"><b>HP:</b></span>
             <div style="flex: 1; background: #e0e0e0; height: 24px; border-radius: 4px; overflow: hidden; position: relative;">
-                <div style="background: linear-gradient(90deg, #4caf50, #81c784); height: 100%; width: @(HpPercent * 100)%; transition: width 0.3s;"></div>
+                <div style="background: linear-gradient(90deg, #4caf50, #81c784); height: 100%; width: @(HpPercent * 100)%; transition: width 0.12s linear;"></div>
                 <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-weight: bold; font-size: 12px;">
                     @CurrentHp / @MaxHp (@((HpPercent * 100).ToString("0"))%)
                 </span>

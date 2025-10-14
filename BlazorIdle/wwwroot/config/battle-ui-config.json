@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Battle UI Configuration - Controls client-side battle UI behavior including progress bars, polling, and animations",
+  
+  "progressBar": {
+    "enableCycling": true,
+    "minIntervalSeconds": 0.1,
+    "maxIntervalSeconds": 100.0
+  },
+  
+  "polling": {
+    "step": {
+      "normalIntervalMs": 500,
+      "slowIntervalMs": 2000,
+      "fastIntervalMs": 200,
+      "minIntervalMs": 100,
+      "maxIntervalMs": 5000
+    },
+    "plan": {
+      "normalIntervalMs": 2000,
+      "slowIntervalMs": 5000,
+      "fastIntervalMs": 500,
+      "minIntervalMs": 200,
+      "maxIntervalMs": 10000
+    },
+    "adaptive": {
+      "enabled": true,
+      "triggerLeadTimeMs": 150,
+      "minLeadTimeMs": 50,
+      "maxLeadTimeMs": 500,
+      "cooldownAfterTriggerMs": 300,
+      "maxJitPollsPerSecond": 5
+    }
+  },
+  
+  "animation": {
+    "progressBarUpdateIntervalMs": 100,
+    "hpBarTransitionMs": 120,
+    "attackProgressTransitionMs": 100
+  },
+  
+  "debug": {
+    "enableLogging": false,
+    "logProgressCalculations": false,
+    "logPollingEvents": false,
+    "logJitPolls": false
+  }
+}

@@ -16,4 +16,7 @@ builder.Services.AddScoped<BlazorIdle.Services.IShopService, BlazorIdle.Services
 // SignalR ����
 builder.Services.AddScoped<BlazorIdle.Client.Services.BattleSignalRService>();
 
+// Battle UI Configuration Service
+builder.Services.AddScoped<BlazorIdle.Services.BattleUIConfigService>();
+
 await builder.Build().RunAsync();

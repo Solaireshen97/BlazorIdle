@@ -2,12 +2,14 @@
 @using BlazorIdle.Services
 @using BlazorIdle.Shared.Models
 @using BlazorIdle.Client.Services
+@using BlazorIdle.Client.Config
 @using BlazorIdle.Components
 @inject ApiClient Api
 @inject AuthService AuthService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject BattleSignalRService SignalRService
+@inject BattleUIConfigService ConfigService
 @implements IDisposable
 
 <!-- 离线结算弹窗 -->
@@ -937,6 +939,9 @@ else
     private bool _isSignalRConnected = false;
     private bool _isSignalREnabled = true;
     
+    // ====== Battle UI Configuration ======
+    private BattleUIConfig? _battleUIConfig;
+    
     // ====== 确认对话框 ======
     private bool showConfirmDialog = false;
     private string confirmDialogTitle = "";
@@ -968,6 +973,9 @@ else
             }
 
             isAuthenticated = true;
+
+            // 加载 Battle UI 配置
+            _battleUIConfig = await ConfigService.GetConfigAsync();
 
             // 注册认证事件处理器（用于后续登录/登出时的 SignalR 连接管理）
             AuthService.OnAuthenticated += HandleAuthenticatedAsync;
@@ -2260,7 +2268,7 @@ else
     }
 
     /// <summary>
-    /// 计算平滑的攻击进度百分比
+    /// 计算平滑的攻击进度百分比（支持取模循环）
     /// </summary>
     /// <param name="currentTime">服务器当前战斗时间</param>
     /// <param name="nextTriggerAt">下次触发时间</param>
@@ -2285,8 +2293,38 @@ else
         double clientElapsedSeconds = (DateTime.UtcNow - lastUpdateTime).TotalSeconds;
         double interpolatedProgress = serverProgress + (clientElapsedSeconds / interval);
 
-        // 限制在 0 到 1 之间
-        return Math.Clamp(interpolatedProgress, 0.0, 1.0);
+        // JIT 轮询预测：当接近触发点时，调度一次即时轮询
+        if (_battleUIConfig?.Polling.Adaptive.Enabled == true && _pollingCoordinator != null)
+        {
+            double rawProgress = interpolatedProgress;
+            // 计算到下一个触发点的时间（秒）
+            double timeToNextTrigger = interval * (1.0 - (rawProgress % 1.0));
+            
+            // 如果即将触发（在预测窗口内），调度 JIT 轮询
+            double triggerLeadTimeSeconds = _battleUIConfig.Polling.Adaptive.TriggerLeadTimeMs / 1000.0;
+            if (timeToNextTrigger > 0 && timeToNextTrigger <= triggerLeadTimeSeconds + 0.1)
+            {
+                // 判断是 Step 还是 Plan 战斗
+                bool isStepBattle = stepIsPolling;
+                _pollingCoordinator.ScheduleJitPoll(isStepBattle, timeToNextTrigger);
+            }
+        }
+
+        // 支持取模循环：当进度超过 1.0 时，使用取模继续"滚动下一轮"
+        // 这样即使未拿到服务端新状态，进度条也能持续前进
+        if (_battleUIConfig?.ProgressBar.EnableCycling ?? true)
+        {
+            // 取模后返回 0.0 到 1.0 的循环进度
+            interpolatedProgress = interpolatedProgress % 1.0;
+            // 处理负数情况（虽然理论上不应该出现）
+            if (interpolatedProgress < 0) interpolatedProgress += 1.0;
+            return interpolatedProgress;
+        }
+        else
+        {
+            // 不启用循环时，限制在 0 到 1 之间
+            return Math.Clamp(interpolatedProgress, 0.0, 1.0);
+        }
     }
 
     // ====== 统一轮询协调器 (BattlePollingCoordinator) ======
@@ -2314,6 +2352,12 @@ else
         private int _planPollInterval = 2000;
         private int _debugPollInterval = 1000;
         private const int AnimationInterval = 100;
+        
+        // JIT (Just-in-time) 轮询跟踪
+        private DateTime _lastStepJitPoll = DateTime.MinValue;
+        private DateTime _lastPlanJitPoll = DateTime.MinValue;
+        private int _jitPollsThisSecond = 0;
+        private DateTime _jitPollSecondStart = DateTime.UtcNow;
 
         public BattlePollingCoordinator(Characters parent)
         {
@@ -2375,6 +2419,74 @@ else
         {
             _debugPollingActive = false;
             CheckStopPolling();
+        }
+        
+        /// <summary>
+        /// 调度一次 JIT (Just-in-time) 轮询
+        /// 在预测到即将触发攻击时调用，用于快速同步血量
+        /// </summary>
+        public void ScheduleJitPoll(bool isStepBattle, double predictedTriggerTimeSeconds)
+        {
+            var config = _parent._battleUIConfig?.Polling.Adaptive;
+            if (config?.Enabled != true) return;
+            
+            var now = DateTime.UtcNow;
+            
+            // 重置每秒计数器
+            if ((now - _jitPollSecondStart).TotalSeconds >= 1.0)
+            {
+                _jitPollsThisSecond = 0;
+                _jitPollSecondStart = now;
+            }
+            
+            // 检查频率限制
+            if (_jitPollsThisSecond >= config.MaxJitPollsPerSecond)
+                return;
+            
+            // 检查冷却时间
+            var lastJitPoll = isStepBattle ? _lastStepJitPoll : _lastPlanJitPoll;
+            if ((now - lastJitPoll).TotalMilliseconds < config.CooldownAfterTriggerMs)
+                return;
+            
+            // 计算延迟：提前触发
+            var leadTimeMs = Math.Clamp(config.TriggerLeadTimeMs, config.MinLeadTimeMs, config.MaxLeadTimeMs);
+            var delayMs = Math.Max(0, (int)((predictedTriggerTimeSeconds * 1000) - leadTimeMs));
+            
+            // 调度 JIT 轮询
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(delayMs);
+                
+                try
+                {
+                    if (isStepBattle)
+                    {
+                        _lastStepJitPoll = DateTime.UtcNow;
+                        await _parent.PollStepOnceAsync(CancellationToken.None);
+                    }
+                    else
+                    {
+                        _lastPlanJitPoll = DateTime.UtcNow;
+                        await _parent.PollPlanBattleOnceAsync(CancellationToken.None);
+                    }
+                    
+                    _jitPollsThisSecond++;
+                    
+                    if (_parent._battleUIConfig?.Debug.LogJitPolls == true)
+                    {
+                        Console.WriteLine($"JIT Poll executed for {(isStepBattle ? "Step" : "Plan")} battle at predicted trigger {predictedTriggerTimeSeconds:F2}s");
+                    }
+                    
+                    await _parent.InvokeAsync(_parent.StateHasChanged);
+                }
+                catch (Exception ex)
+                {
+                    if (_parent._battleUIConfig?.Debug.EnableLogging == true)
+                    {
+                        Console.WriteLine($"JIT Poll failed: {ex.Message}");
+                    }
+                }
+            });
         }
 
         /// <summary>
