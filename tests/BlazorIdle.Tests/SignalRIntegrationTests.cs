@@ -316,4 +316,134 @@ public sealed class SignalRIntegrationTests
                 It.IsAny<CancellationToken>()),
             Times.Exactly(3));
     }
+
+    [Fact]
+    public async Task BattleNotificationService_NotifyEventAsync_WithEnabledDamageApplied_SendsEvent()
+    {
+        // Arrange
+        var clientProxyMock = new Mock<IClientProxy>();
+        var groupManagerMock = new Mock<IHubClients>();
+        groupManagerMock.Setup(x => x.Group(It.IsAny<string>())).Returns(clientProxyMock.Object);
+        
+        var hubContextMock = new Mock<IHubContext<BattleNotificationHub>>();
+        hubContextMock.Setup(x => x.Clients).Returns(groupManagerMock.Object);
+        
+        var loggerMock = new Mock<ILogger<BattleNotificationService>>();
+        var options = Options.Create(new SignalROptions 
+        { 
+            EnableSignalR = true,
+            Notification = new NotificationOptions
+            {
+                EnableDamageAppliedNotification = true // 启用伤害应用通知
+            }
+        });
+        
+        var service = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, options);
+        var battleId = Guid.NewGuid();
+
+        var damageEvent = new BlazorIdle.Shared.Models.DamageAppliedEventDto
+        {
+            BattleId = battleId,
+            EventType = "DamageApplied",
+            Source = "basic_attack",
+            Damage = 100,
+            IsCrit = false,
+            AttackerName = "Player",
+            TargetName = "Enemy",
+            Message = "Player dealt 100 damage to Enemy"
+        };
+
+        // Act
+        await service.NotifyEventAsync(battleId, damageEvent);
+
+        // Assert - 应该发送事件
+        clientProxyMock.Verify(
+            x => x.SendCoreAsync(
+                "BattleEvent",
+                It.IsAny<object[]>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task BattleNotificationService_NotifyEventAsync_WithDisabledDamageApplied_DoesNotSendEvent()
+    {
+        // Arrange
+        var clientProxyMock = new Mock<IClientProxy>();
+        var groupManagerMock = new Mock<IHubClients>();
+        groupManagerMock.Setup(x => x.Group(It.IsAny<string>())).Returns(clientProxyMock.Object);
+        
+        var hubContextMock = new Mock<IHubContext<BattleNotificationHub>>();
+        hubContextMock.Setup(x => x.Clients).Returns(groupManagerMock.Object);
+        
+        var loggerMock = new Mock<ILogger<BattleNotificationService>>();
+        var options = Options.Create(new SignalROptions 
+        { 
+            EnableSignalR = true,
+            Notification = new NotificationOptions
+            {
+                EnableDamageAppliedNotification = false // 禁用伤害应用通知
+            }
+        });
+        
+        var service = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, options);
+        var battleId = Guid.NewGuid();
+
+        var damageEvent = new BlazorIdle.Shared.Models.DamageAppliedEventDto
+        {
+            BattleId = battleId,
+            EventType = "DamageApplied",
+            Source = "basic_attack",
+            Damage = 100,
+            IsCrit = false,
+            AttackerName = "Player",
+            TargetName = "Enemy",
+            Message = "Player dealt 100 damage to Enemy"
+        };
+
+        // Act
+        await service.NotifyEventAsync(battleId, damageEvent);
+
+        // Assert - 不应发送事件
+        clientProxyMock.Verify(
+            x => x.SendCoreAsync(
+                It.IsAny<string>(),
+                It.IsAny<object[]>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task BattleNotificationService_NotifyEventAsync_WithNonBattleEventDto_SendsEvent()
+    {
+        // Arrange
+        var clientProxyMock = new Mock<IClientProxy>();
+        var groupManagerMock = new Mock<IHubClients>();
+        groupManagerMock.Setup(x => x.Group(It.IsAny<string>())).Returns(clientProxyMock.Object);
+        
+        var hubContextMock = new Mock<IHubContext<BattleNotificationHub>>();
+        hubContextMock.Setup(x => x.Clients).Returns(groupManagerMock.Object);
+        
+        var loggerMock = new Mock<ILogger<BattleNotificationService>>();
+        var options = Options.Create(new SignalROptions 
+        { 
+            EnableSignalR = true
+        });
+        
+        var service = new BattleNotificationService(hubContextMock.Object, loggerMock.Object, options);
+        var battleId = Guid.NewGuid();
+
+        var customEvent = new { Message = "Custom event" };
+
+        // Act
+        await service.NotifyEventAsync(battleId, customEvent);
+
+        // Assert - 应该发送事件（不会被过滤）
+        clientProxyMock.Verify(
+            x => x.SendCoreAsync(
+                "BattleEvent",
+                It.IsAny<object[]>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
 }
