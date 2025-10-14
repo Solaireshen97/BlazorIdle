@@ -21,9 +21,12 @@ public sealed class BattleSignalRService : IAsyncDisposable
     private readonly int _reconnectBaseDelayMs;
     private readonly int _maxReconnectDelayMs;
     private readonly bool _enableDetailedLogging;
+    private readonly bool _autoReconnect;
+    private readonly bool _connectionStatusNotifications;
     
     // 事件处理器
     private readonly List<Action<StateChangedEvent>> _stateChangedHandlers = new();
+    private readonly List<Action<string>> _connectionStateHandlers = new();
 
     public BattleSignalRService(
         ILogger<BattleSignalRService> logger,
@@ -40,6 +43,8 @@ public sealed class BattleSignalRService : IAsyncDisposable
         _reconnectBaseDelayMs = signalRConfig.GetValue<int>("ReconnectBaseDelayMs", 1000);
         _maxReconnectDelayMs = signalRConfig.GetValue<int>("MaxReconnectDelayMs", 30000);
         _enableDetailedLogging = signalRConfig.GetValue<bool>("EnableDetailedLogging", false);
+        _autoReconnect = signalRConfig.GetValue<bool>("AutoReconnect", true);
+        _connectionStatusNotifications = signalRConfig.GetValue<bool>("ConnectionStatusNotifications", true);
         
         // 构建 Hub URL
         var apiBaseUrl = configuration["ApiBaseUrl"] ?? "https://localhost:7001";
@@ -195,6 +200,30 @@ public sealed class BattleSignalRService : IAsyncDisposable
     }
 
     /// <summary>
+    /// 注册连接状态变更事件处理器
+    /// </summary>
+    public void OnConnectionStateChanged(Action<string> handler)
+    {
+        _connectionStateHandlers.Add(handler);
+    }
+
+    /// <summary>
+    /// 获取当前连接状态
+    /// </summary>
+    public string GetConnectionState()
+    {
+        if (_connection == null) return "未初始化";
+        return _connection.State switch
+        {
+            HubConnectionState.Disconnected => "已断开",
+            HubConnectionState.Connected => "已连接",
+            HubConnectionState.Connecting => "连接中",
+            HubConnectionState.Reconnecting => "重连中",
+            _ => "未知"
+        };
+    }
+
+    /// <summary>
     /// 断开连接
     /// </summary>
     public async ValueTask DisposeAsync()
@@ -238,19 +267,40 @@ public sealed class BattleSignalRService : IAsyncDisposable
         {
             _logger.LogInformation("SignalR connection closed");
         }
+        
+        NotifyConnectionStateChanged("已断开");
         return Task.CompletedTask;
     }
 
     private Task OnReconnecting(Exception? exception)
     {
         _logger.LogWarning(exception, "SignalR reconnecting...");
+        NotifyConnectionStateChanged("重连中");
         return Task.CompletedTask;
     }
 
     private Task OnReconnected(string? connectionId)
     {
         _logger.LogInformation("SignalR reconnected: {ConnectionId}", connectionId);
+        NotifyConnectionStateChanged("已连接");
         return Task.CompletedTask;
+    }
+
+    private void NotifyConnectionStateChanged(string state)
+    {
+        if (!_connectionStatusNotifications) return;
+        
+        foreach (var handler in _connectionStateHandlers)
+        {
+            try
+            {
+                handler(state);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in connection state handler");
+            }
+        }
     }
 }
 

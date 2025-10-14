@@ -936,6 +936,7 @@ else
     // ====== SignalR 状态 ======
     private bool _isSignalRConnected = false;
     private bool _isSignalREnabled = true;
+    private string _signalRConnectionStatus = "未连接";
     
     // ====== 确认对话框 ======
     private bool showConfirmDialog = false;
@@ -997,6 +998,9 @@ else
     {
         try
         {
+            // 注册连接状态变更处理器（在连接前注册）
+            SignalRService.OnConnectionStateChanged(HandleConnectionStateChanged);
+            
             // 尝试连接到 SignalR Hub
             _isSignalRConnected = await SignalRService.ConnectAsync();
             
@@ -1004,20 +1008,58 @@ else
             {
                 // 注册 SignalR 事件处理器
                 SignalRService.OnStateChanged(HandleSignalRStateChanged);
-                toastNotification?.ShowSuccess("实时通知已启用", "", 2000);
+                _signalRConnectionStatus = "已连接";
+                toastNotification?.ShowSuccess("✅ 实时通知已启用", "", 2000);
             }
             else
             {
                 // SignalR 连接失败，降级到纯轮询模式
                 _isSignalREnabled = false;
-                toastNotification?.ShowWarning("实时通知不可用，使用轮询模式", "", 3000);
+                _signalRConnectionStatus = "已断开";
+                toastNotification?.ShowWarning("⚠️ 实时通知不可用，使用轮询模式", "", 3000);
             }
         }
         catch (Exception ex)
         {
             // SignalR 连接异常，不影响主功能
             _isSignalREnabled = false;
-            toastNotification?.ShowWarning($"实时通知初始化失败: {ex.Message}", "", 3000);
+            _signalRConnectionStatus = "错误";
+            toastNotification?.ShowWarning($"⚠️ 实时通知初始化失败: {ex.Message}", "", 3000);
+        }
+    }
+    
+    /// <summary>
+    /// 处理连接状态变更
+    /// </summary>
+    private async void HandleConnectionStateChanged(string state)
+    {
+        try
+        {
+            _signalRConnectionStatus = state;
+            
+            // 根据状态更新连接标志
+            _isSignalRConnected = state == "已连接";
+            
+            // 显示状态通知（仅在特定状态下）
+            switch (state)
+            {
+                case "已连接":
+                    toastNotification?.ShowSuccess("✅ SignalR 已连接", "", 2000);
+                    break;
+                case "已断开":
+                    toastNotification?.ShowWarning("⚠️ SignalR 已断开", "", 2000);
+                    break;
+                case "重连中":
+                    toastNotification?.ShowInfo("🔄 SignalR 重连中...", "", 2000);
+                    break;
+            }
+            
+            // 刷新 UI
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[SignalR] 处理连接状态变更失败: {ex.Message}");
         }
     }
     

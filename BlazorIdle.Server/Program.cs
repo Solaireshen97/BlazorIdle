@@ -65,6 +65,23 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = jwtAudience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecretKey))
         };
+        
+        // SignalR JWT ��֤֧��
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                
+                // �����ǵ� SignalR Hub ����������ȡ token
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.AddAuthorization();
@@ -103,7 +120,7 @@ builder.Services.AddHostedService<OfflineDetectionService>();
 
 // 6. CORS������
 // Ŀ�ģ�����ǰ�� Blazor WebAssembly�����ؿ����˿ڣ����ʱ� API��
-// ע�⣺�����ɸ�Ϊ��ȷ��Դ������ö�ȡ������ƾ�����ټ� AllowCredentials().
+// ע�⣺SignalR ��Ҫ AllowCredentials() ���� JWT ��֤
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowBlazorClient", policy =>
@@ -114,8 +131,8 @@ builder.Services.AddCors(options =>
                 "http://localhost:5001",  // HTTP �汾
                 "http://localhost:5000")  // HTTP �汾
             .AllowAnyHeader()
-            .AllowAnyMethod();
-        // .AllowCredentials(); // ��δ��ʹ�� Cookie/��Ȩͷ����ҪЯ��ƾ��
+            .AllowAnyMethod()
+            .AllowCredentials(); // SignalR JWT ��֤����
     });
 });
 

@@ -1,5 +1,4 @@
 {
-  "ApiBaseUrl": "https://localhost:7056",
   "SignalR": {
     "HubEndpoint": "/hubs/battle",
     "EnableSignalR": true,
