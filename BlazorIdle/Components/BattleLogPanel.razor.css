@@ -1,0 +1,147 @@
+.battle-log-panel {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 12px;
+    margin-top: 16px;
+    max-height: 400px;
+    display: flex;
+    flex-direction: column;
+}
+
+.battle-log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.battle-log-header h5 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: #495057;
+}
+
+.btn-clear {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.btn-clear:hover {
+    background-color: #e9ecef;
+}
+
+.battle-log-content {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 200px;
+    max-height: 320px;
+    padding: 8px;
+    background-color: white;
+    border-radius: 4px;
+}
+
+.empty-message {
+    text-align: center;
+    color: #adb5bd;
+    padding: 40px 20px;
+    font-style: italic;
+}
+
+.log-entry {
+    padding: 6px 8px;
+    margin-bottom: 4px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    transition: background-color 0.1s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.log-entry:hover {
+    background-color: #f8f9fa;
+}
+
+.log-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.log-time {
+    color: #6c757d;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+    font-family: monospace;
+}
+
+.log-text {
+    flex: 1;
+    color: #212529;
+}
+
+.log-attack {
+    border-left: 3px solid #0d6efd;
+    background-color: #e7f1ff;
+}
+
+.log-damage {
+    border-left: 3px solid #198754;
+    background-color: #d1e7dd;
+}
+
+.log-damage-crit {
+    border-left: 3px solid #ffc107;
+    background-color: #fff3cd;
+    font-weight: 600;
+}
+
+.log-damage-crit .log-text {
+    color: #664d03;
+}
+
+.log-damage-received {
+    border-left: 3px solid #dc3545;
+    background-color: #f8d7da;
+}
+
+.log-enemy-attack {
+    border-left: 3px solid #6f42c1;
+    background-color: #e0cffc;
+}
+
+.battle-log-footer {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #dee2e6;
+    text-align: center;
+    font-size: 0.85rem;
+    color: #6c757d;
+}
+
+/* 滚动条样式 */
+.battle-log-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.battle-log-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.battle-log-content::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.battle-log-content::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}

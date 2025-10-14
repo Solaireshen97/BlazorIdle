@@ -1,0 +1,84 @@
+@using BlazorIdle.Shared.Models
+@using BlazorIdle.Models
+
+<div class="battle-log-panel">
+    <div class="battle-log-header">
+        <h5>⚔️ 战斗日志</h5>
+        @if (Messages.Count > 0)
+        {
+            <button class="btn-clear" @onclick="ClearMessages" title="清空日志">
+                <span>🗑️</span>
+            </button>
+        }
+    </div>
+    
+    <div class="battle-log-content" @ref="_logContainer">
+        @if (Messages.Count == 0)
+        {
+            <div class="empty-message">暂无战斗消息</div>
+        }
+        else
+        {
+            @foreach (var message in Messages.TakeLast(DisplayLimit).Reverse())
+            {
+                <div class="log-entry @GetMessageClass(message)" @key="message.Timestamp">
+                    <span class="log-icon">@GetMessageIcon(message)</span>
+                    <span class="log-time">[@message.Timestamp.ToString("HH:mm:ss")]</span>
+                    <span class="log-text">@message.Text</span>
+                </div>
+            }
+        }
+    </div>
+    
+    @if (Messages.Count > DisplayLimit)
+    {
+        <div class="battle-log-footer">
+            显示最近 @DisplayLimit 条，共 @Messages.Count 条消息
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public List<BattleLogMessage> Messages { get; set; } = new();
+    
+    [Parameter]
+    public int DisplayLimit { get; set; } = 50;
+    
+    [Parameter]
+    public EventCallback OnClear { get; set; }
+    
+    private ElementReference _logContainer;
+    
+    private async Task ClearMessages()
+    {
+        if (OnClear.HasDelegate)
+        {
+            await OnClear.InvokeAsync();
+        }
+    }
+    
+    private string GetMessageClass(BattleLogMessage message)
+    {
+        return message.Type switch
+        {
+            BattleLogMessageType.AttackStarted => "log-attack",
+            BattleLogMessageType.DamageDealt => message.IsCrit ? "log-damage-crit" : "log-damage",
+            BattleLogMessageType.DamageReceived => "log-damage-received",
+            BattleLogMessageType.EnemyAttackStarted => "log-enemy-attack",
+            _ => ""
+        };
+    }
+    
+    private string GetMessageIcon(BattleLogMessage message)
+    {
+        return message.Type switch
+        {
+            BattleLogMessageType.AttackStarted => "⚔️",
+            BattleLogMessageType.DamageDealt => message.IsCrit ? "💥" : "🗡️",
+            BattleLogMessageType.DamageReceived => "🛡️",
+            BattleLogMessageType.EnemyAttackStarted => "👹",
+            _ => "📝"
+        };
+    }
+}
