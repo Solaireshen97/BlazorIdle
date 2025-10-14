@@ -1,0 +1,33 @@
+{
+  "$schema": "./battle-log-config.schema.json",
+  "battleLog": {
+    "enabled": true,
+    "maxMessages": 50,
+    "displayLatestCount": 20,
+    "autoScroll": true,
+    "showTimestamps": true,
+    "timestampFormat": "HH:mm:ss",
+    "animateNewMessages": true,
+    "eventTypes": {
+      "enableAttackStarted": true,
+      "enableDamageApplied": true,
+      "enableDamageReceived": true,
+      "enableEnemyAttackStarted": true
+    },
+    "ui": {
+      "panelHeight": "300px",
+      "fontSize": "14px",
+      "entryPadding": "4px 8px",
+      "backgroundColor": "#1a1a1a",
+      "textColor": "#e0e0e0",
+      "timestampColor": "#888888"
+    },
+    "colors": {
+      "attackStarted": "#4a9eff",
+      "damageDealt": "#ff6b6b",
+      "damageReceived": "#ffa94d",
+      "criticalHit": "#ffdd57",
+      "enemyAttack": "#ff4757"
+    }
+  }
+}

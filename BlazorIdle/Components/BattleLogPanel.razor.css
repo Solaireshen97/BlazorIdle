@@ -1,0 +1,86 @@
+.battle-log-panel {
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 12px;
+    margin: 16px 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.battle-log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #333;
+}
+
+.battle-log-header h5 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.battle-log-content {
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column-reverse;
+    scrollbar-width: thin;
+    scrollbar-color: #555 #1a1a1a;
+}
+
+.battle-log-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.battle-log-content::-webkit-scrollbar-track {
+    background: #1a1a1a;
+    border-radius: 4px;
+}
+
+.battle-log-content::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 4px;
+}
+
+.battle-log-content::-webkit-scrollbar-thumb:hover {
+    background: #777;
+}
+
+.battle-log-entry {
+    margin-bottom: 4px;
+    line-height: 1.5;
+    word-wrap: break-word;
+    border-left: 3px solid transparent;
+    transition: background-color 0.2s ease;
+}
+
+.battle-log-entry:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.battle-log-timestamp {
+    font-size: 0.85em;
+    margin-right: 8px;
+    opacity: 0.7;
+}
+
+.battle-log-message {
+    font-weight: 500;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease;
+}

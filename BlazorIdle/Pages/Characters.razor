@@ -10,6 +10,7 @@
 @inject IJSRuntime JS
 @inject BattleSignalRService SignalRService
 @inject ProgressBarConfigService ConfigService
+@inject BattleLogConfigService BattleLogConfigService
 @implements IDisposable
 
 <!-- 离线结算弹窗 -->
@@ -460,6 +461,9 @@ else
                                 BorderColor="#ffb74d" />
                         }
                         
+                        <!-- 战斗日志面板 -->
+                        <BattleLogPanel @ref="_planBattleLogPanel" />
+                        
                         <!-- 地下城进度面板（仅地下城模式） -->
                         @if (currentPlanBattle.Mode == "dungeonsingle" || currentPlanBattle.Mode == "dungeonloop")
                         {
@@ -650,6 +654,9 @@ else
                             BackgroundColor="#fff3e0"
                             BorderColor="#ffb74d" />
                     }
+                    
+                    <!-- 战斗日志面板 -->
+                    <BattleLogPanel @ref="_stepBattleLogPanel" />
                     
                     <!-- 地下城进度面板（仅地下城模式） -->
                     @if (stepStatus.Mode == "dungeonsingle" || stepStatus.Mode == "dungeonloop")
@@ -958,6 +965,11 @@ else
     
     // ====== 进度条配置 ======
     private ProgressBarConfig? _progressBarConfig;
+    
+    // ====== 战斗日志 ======
+    private BattleLogPanel? _stepBattleLogPanel;
+    private BattleLogPanel? _planBattleLogPanel;
+    private BattleLogConfig? _battleLogConfig;
 
     // ====== 创建/同步战斗 ======
     protected override async Task OnInitializedAsync()
@@ -980,6 +992,9 @@ else
 
             // 加载进度条配置
             _progressBarConfig = await ConfigService.GetConfigAsync();
+            
+            // 加载战斗日志配置
+            _battleLogConfig = await BattleLogConfigService.GetConfigAsync();
 
             // 加载当前用户信息和角色列表
             await LoadUserDataAsync();
@@ -1171,6 +1186,16 @@ else
                     {
                         await HandleDamageAppliedEvent(damageEvent);
                     }
+                    // 同时添加战斗日志
+                    await HandleBattleLogMessage(damageEvent);
+                    break;
+                    
+                case BlazorIdle.Shared.Models.AttackStartedEventDto attackStartedEvent:
+                    await HandleBattleLogMessage(attackStartedEvent);
+                    break;
+                    
+                case BlazorIdle.Shared.Models.DamageReceivedEventDto damageReceivedEvent:
+                    await HandleBattleLogMessage(damageReceivedEvent);
                     break;
             }
         }
@@ -1258,6 +1283,71 @@ else
         
         // 伤害事件可用于实时更新血量显示（如果需要）
         await Task.CompletedTask;
+    }
+    
+    /// <summary>
+    /// 处理战斗日志消息
+    /// </summary>
+    private async Task HandleBattleLogMessage(object eventData)
+    {
+        if (_battleLogConfig?.BattleLog.Enabled != true)
+            return;
+            
+        BattleLogPanel? targetPanel = null;
+        string? message = null;
+        BattleLogEntryType entryType = BattleLogEntryType.Other;
+        
+        // 根据事件类型确定目标面板和消息
+        switch (eventData)
+        {
+            case BlazorIdle.Shared.Models.AttackStartedEventDto attackStarted:
+                if (!_battleLogConfig.BattleLog.EventTypes.EnableAttackStarted)
+                    return;
+                    
+                message = attackStarted.Message;
+                entryType = attackStarted.EventType == "EnemyAttackStarted" 
+                    ? BattleLogEntryType.EnemyAttack 
+                    : BattleLogEntryType.AttackStarted;
+                    
+                // 判断是Step战斗还是Plan战斗
+                if (stepBattleId.HasValue && stepBattleId.Value == attackStarted.BattleId)
+                    targetPanel = _stepBattleLogPanel;
+                else if (currentPlanBattle?.Id == attackStarted.BattleId)
+                    targetPanel = _planBattleLogPanel;
+                break;
+                
+            case BlazorIdle.Shared.Models.DamageAppliedEventDto damageApplied:
+                if (!_battleLogConfig.BattleLog.EventTypes.EnableDamageApplied)
+                    return;
+                    
+                message = damageApplied.Message;
+                entryType = damageApplied.IsCrit ? BattleLogEntryType.CriticalHit : BattleLogEntryType.DamageDealt;
+                
+                if (stepBattleId.HasValue && stepBattleId.Value == damageApplied.BattleId)
+                    targetPanel = _stepBattleLogPanel;
+                else if (currentPlanBattle?.Id == damageApplied.BattleId)
+                    targetPanel = _planBattleLogPanel;
+                break;
+                
+            case BlazorIdle.Shared.Models.DamageReceivedEventDto damageReceived:
+                if (!_battleLogConfig.BattleLog.EventTypes.EnableDamageReceived)
+                    return;
+                    
+                message = damageReceived.Message;
+                entryType = BattleLogEntryType.DamageReceived;
+                
+                if (stepBattleId.HasValue && stepBattleId.Value == damageReceived.BattleId)
+                    targetPanel = _stepBattleLogPanel;
+                else if (currentPlanBattle?.Id == damageReceived.BattleId)
+                    targetPanel = _planBattleLogPanel;
+                break;
+        }
+        
+        // 添加消息到对应的面板
+        if (targetPanel != null && !string.IsNullOrEmpty(message))
+        {
+            await targetPanel.AddMessage(message, entryType);
+        }
     }
 
     async Task LoadUserDataAsync()

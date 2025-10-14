@@ -1,0 +1,154 @@
+@using BlazorIdle.Models
+@using BlazorIdle.Services
+@inject BattleLogConfigService ConfigService
+
+@if (_config?.BattleLog.Enabled == true && _messages.Count > 0)
+{
+    <div class="battle-log-panel" style="@GetPanelStyle()">
+        <div class="battle-log-header">
+            <h5>⚔️ 战斗日志</h5>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="ClearLog">清空</button>
+        </div>
+        <div class="battle-log-content" @ref="_logContent" style="@GetContentStyle()">
+            @foreach (var msg in GetDisplayMessages())
+            {
+                <div class="battle-log-entry @GetEntryClass(msg)" style="@GetEntryStyle(msg)" @key="msg.Id">
+                    @if (_config.BattleLog.ShowTimestamps)
+                    {
+                        <span class="battle-log-timestamp" style="color: @_config.BattleLog.UI.TimestampColor">
+                            [@msg.Timestamp.ToString(_config.BattleLog.TimestampFormat)]
+                        </span>
+                    }
+                    <span class="battle-log-message" style="color: @GetMessageColor(msg)">
+                        @msg.Message
+                    </span>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private BattleLogConfig? _config;
+    private List<BattleLogEntry> _messages = new();
+    private ElementReference _logContent;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _config = await ConfigService.GetConfigAsync();
+    }
+
+    /// <summary>
+    /// 添加战斗消息
+    /// </summary>
+    public async Task AddMessage(string message, BattleLogEntryType type)
+    {
+        if (_config?.BattleLog.Enabled != true)
+            return;
+
+        var entry = new BattleLogEntry
+        {
+            Id = Guid.NewGuid(),
+            Message = message,
+            Type = type,
+            Timestamp = DateTime.Now
+        };
+
+        _messages.Add(entry);
+
+        // 限制消息数量
+        if (_messages.Count > _config.BattleLog.MaxMessages)
+        {
+            _messages.RemoveAt(0);
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// 清空日志
+    /// </summary>
+    private void ClearLog()
+    {
+        _messages.Clear();
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// 获取要显示的消息列表
+    /// </summary>
+    private IEnumerable<BattleLogEntry> GetDisplayMessages()
+    {
+        if (_config == null)
+            return Enumerable.Empty<BattleLogEntry>();
+
+        return _messages
+            .TakeLast(_config.BattleLog.DisplayLatestCount)
+            .Reverse();
+    }
+
+    /// <summary>
+    /// 获取面板样式
+    /// </summary>
+    private string GetPanelStyle()
+    {
+        if (_config == null)
+            return "";
+
+        return $"background-color: {_config.BattleLog.UI.BackgroundColor}; color: {_config.BattleLog.UI.TextColor};";
+    }
+
+    /// <summary>
+    /// 获取内容区域样式
+    /// </summary>
+    private string GetContentStyle()
+    {
+        if (_config == null)
+            return "";
+
+        return $"height: {_config.BattleLog.UI.PanelHeight}; font-size: {_config.BattleLog.UI.FontSize};";
+    }
+
+    /// <summary>
+    /// 获取条目样式
+    /// </summary>
+    private string GetEntryStyle(BattleLogEntry entry)
+    {
+        if (_config == null)
+            return "";
+
+        return $"padding: {_config.BattleLog.UI.EntryPadding};";
+    }
+
+    /// <summary>
+    /// 获取条目CSS类
+    /// </summary>
+    private string GetEntryClass(BattleLogEntry entry)
+    {
+        var baseClass = "battle-log-entry";
+        if (_config?.BattleLog.AnimateNewMessages == true)
+        {
+            baseClass += " fade-in";
+        }
+        return baseClass;
+    }
+
+    /// <summary>
+    /// 获取消息颜色
+    /// </summary>
+    private string GetMessageColor(BattleLogEntry entry)
+    {
+        if (_config == null)
+            return "#e0e0e0";
+
+        return entry.Type switch
+        {
+            BattleLogEntryType.AttackStarted => _config.BattleLog.Colors.AttackStarted,
+            BattleLogEntryType.DamageDealt => _config.BattleLog.Colors.DamageDealt,
+            BattleLogEntryType.DamageReceived => _config.BattleLog.Colors.DamageReceived,
+            BattleLogEntryType.CriticalHit => _config.BattleLog.Colors.CriticalHit,
+            BattleLogEntryType.EnemyAttack => _config.BattleLog.Colors.EnemyAttack,
+            _ => _config.BattleLog.UI.TextColor
+        };
+    }
+}

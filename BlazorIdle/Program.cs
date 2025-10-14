@@ -19,4 +19,7 @@ builder.Services.AddScoped<BlazorIdle.Client.Services.BattleSignalRService>();
 // 进度条配置服务
 builder.Services.AddScoped<BlazorIdle.Services.ProgressBarConfigService>();
 
+// 战斗日志配置服务
+builder.Services.AddScoped<BlazorIdle.Services.BattleLogConfigService>();
+
 await builder.Build().RunAsync();
