@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
 using BlazorIdle.Shared.Models;
+using System.Text.Json;
 
 namespace BlazorIdle.Client.Services;
 
@@ -265,24 +266,72 @@ public sealed class BattleSignalRService : IAsyncDisposable
     
     private void OnBattleEvent(object eventData)
     {
-        if (_enableDetailedLogging)
+        try
         {
-            _logger.LogDebug(
-                "Received BattleEvent: {EventType}",
-                eventData.GetType().Name
-            );
-        }
+            // SignalR 将 JSON 反序列化为 JsonElement，需要转换为具体的 DTO 类型
+            object? typedEvent = null;
+            
+            if (eventData is JsonElement jsonElement)
+            {
+                // 获取 EventType 属性来确定具体类型
+                if (jsonElement.TryGetProperty("EventType", out var eventTypeProperty))
+                {
+                    var eventType = eventTypeProperty.GetString();
+                    
+                    // 根据 EventType 反序列化为具体的 DTO 类型
+                    typedEvent = eventType switch
+                    {
+                        "AttackTick" => jsonElement.Deserialize<AttackTickEventDto>(),
+                        "SkillCastComplete" => jsonElement.Deserialize<SkillCastCompleteEventDto>(),
+                        "DamageApplied" => jsonElement.Deserialize<DamageAppliedEventDto>(),
+                        "AttackStarted" => jsonElement.Deserialize<AttackStartedEventDto>(),
+                        "DamageReceived" => jsonElement.Deserialize<DamageReceivedEventDto>(),
+                        "EnemyAttackStarted" => jsonElement.Deserialize<AttackStartedEventDto>(),
+                        "PlayerDeath" => jsonElement.Deserialize<PlayerDeathEventDto>(),
+                        "EnemyKilled" => jsonElement.Deserialize<EnemyKilledEventDto>(),
+                        "TargetSwitched" => jsonElement.Deserialize<TargetSwitchedEventDto>(),
+                        _ => eventData // 未知类型，保持原样
+                    };
+                }
+                else
+                {
+                    // 没有 EventType 属性，保持原样
+                    typedEvent = eventData;
+                }
+            }
+            else
+            {
+                // 不是 JsonElement，直接使用
+                typedEvent = eventData;
+            }
 
-        foreach (var handler in _battleEventHandlers)
+            if (_enableDetailedLogging)
+            {
+                _logger.LogDebug(
+                    "Received BattleEvent: {EventType}",
+                    typedEvent?.GetType().Name ?? "null"
+                );
+            }
+
+            // 将类型化的事件传递给所有处理器
+            if (typedEvent != null)
+            {
+                foreach (var handler in _battleEventHandlers)
+                {
+                    try
+                    {
+                        handler(typedEvent);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error in BattleEvent handler");
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
         {
-            try
-            {
-                handler(eventData);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error in BattleEvent handler");
-            }
+            _logger.LogError(ex, "Error processing BattleEvent");
         }
     }
 }
