@@ -1,0 +1,16 @@
+{
+  "$schema": "./combat-loop-config.schema.json",
+  "AttackStartsImmediately": false,
+  "SpecialStartsImmediately": false,
+  "PauseAttackDuringSpawnWait": true,
+  "PauseSpecialDuringSpawnWait": true,
+  "MinimumSpawnDelayForPause": 0.001,
+  "EnableTargetConsistency": true,
+  "ProfessionOverrides": {
+    "Warrior": {
+      "Description": "战士的特殊轨道（怒气积累）持续触发，体现战斗专注特性",
+      "SpecialStartsImmediately": true,
+      "PauseSpecialDuringSpawnWait": false
+    }
+  }
+}

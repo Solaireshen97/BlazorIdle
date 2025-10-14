@@ -157,7 +157,13 @@ public sealed class BattleEngine
         // 攻击轨道从完整间隔开始，避免战斗开始时立即攻击
         // 这样玩家会有"读秒-攻击"的直观感受
         var attackTrack = new TrackState(TrackType.Attack, Battle.AttackIntervalSeconds, Battle.AttackIntervalSeconds);
-        var specialTrack = new TrackState(TrackType.Special, Battle.SpecialIntervalSeconds, Battle.SpecialIntervalSeconds);
+        
+        // 特殊轨道根据职业配置决定初始延迟
+        var specialInitialDelay = professionModule.SpecialStartsImmediately 
+            ? 0.0 
+            : Battle.SpecialIntervalSeconds;
+        var specialTrack = new TrackState(TrackType.Special, Battle.SpecialIntervalSeconds, specialInitialDelay);
+        
         Context.Tracks.Add(attackTrack);
         Context.Tracks.Add(specialTrack);
         
@@ -240,11 +246,18 @@ public sealed class BattleEngine
         
         foreach (var track in Context.Tracks)
         {
-            // 检查是否应该暂停此轨道
+            bool shouldPause = false;
+            
             // 攻击轨道总是暂停
-            // 特殊轨道在上篇也暂停，中篇会根据职业配置决定
-            bool shouldPause = track.TrackType == TrackType.Attack || 
-                              track.TrackType == TrackType.Special;
+            if (track.TrackType == TrackType.Attack)
+            {
+                shouldPause = true;
+            }
+            // 特殊轨道根据职业配置决定
+            else if (track.TrackType == TrackType.Special)
+            {
+                shouldPause = Context.ProfessionModule.PauseSpecialWhenNoEnemies;
+            }
             
             if (shouldPause && track.NextTriggerAt < FAR_FUTURE)
             {
@@ -270,8 +283,22 @@ public sealed class BattleEngine
             // 检查轨道是否处于暂停状态
             if (track.NextTriggerAt > FAR_FUTURE / 2)
             {
-                // 从完整间隔开始（符合"从0开始计算进度"的需求）
-                track.NextTriggerAt = resumeTime + track.CurrentInterval;
+                // 根据轨道类型和职业配置决定恢复策略
+                double resumeDelay;
+                
+                if (track.TrackType == TrackType.Special && 
+                    Context.ProfessionModule.SpecialStartsImmediately)
+                {
+                    // 特殊轨道如果配置为立即触发，恢复时也立即触发
+                    resumeDelay = 0.0;
+                }
+                else
+                {
+                    // 默认从完整间隔开始（符合"从0开始计算进度"的需求）
+                    resumeDelay = track.CurrentInterval;
+                }
+                
+                track.NextTriggerAt = resumeTime + resumeDelay;
                 
                 // 重新调度事件
                 if (track.TrackType == TrackType.Attack)

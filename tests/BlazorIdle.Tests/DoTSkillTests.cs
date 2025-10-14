@@ -47,6 +47,8 @@ public class DoTSkillTests
         public string Id => _base.Id;
         public double BaseAttackInterval => _base.BaseAttackInterval;
         public double BaseSpecialInterval => _base.BaseSpecialInterval;
+        public bool PauseSpecialWhenNoEnemies => _base.PauseSpecialWhenNoEnemies;
+        public bool SpecialStartsImmediately => _base.SpecialStartsImmediately;
         public void RegisterBuffDefinitions(BlazorIdle.Server.Domain.Combat.BattleContext context) => _base.RegisterBuffDefinitions(context);
         public void OnBattleStart(BlazorIdle.Server.Domain.Combat.BattleContext context) => _base.OnBattleStart(context);
         public void OnAttackTick(BlazorIdle.Server.Domain.Combat.BattleContext context, BlazorIdle.Server.Domain.Combat.AttackTickEvent evt) => _base.OnAttackTick(context, evt);

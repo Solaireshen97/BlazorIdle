@@ -10,6 +10,16 @@ public class RangerProfession : IProfessionModule
     public string Id => "ranger";
     public double BaseAttackInterval => 1.4;
     public double BaseSpecialInterval => 4.0;
+    
+    /// <summary>
+    /// 游侠的特殊轨道在无怪物时暂停（默认行为）
+    /// </summary>
+    public virtual bool PauseSpecialWhenNoEnemies => true;
+    
+    /// <summary>
+    /// 游侠的特殊轨道等待间隔后触发（默认行为）
+    /// </summary>
+    public virtual bool SpecialStartsImmediately => false;
 
     public virtual void RegisterBuffDefinitions(BattleContext context)
     {

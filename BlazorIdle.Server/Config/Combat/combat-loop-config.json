@@ -1,0 +1,21 @@
+{
+  "$schema": "./combat-loop-config.schema.json",
+  "AttackStartsImmediately": false,
+  "SpecialStartsImmediately": false,
+  "PauseAttackDuringSpawnWait": true,
+  "PauseSpecialDuringSpawnWait": true,
+  "MinimumSpawnDelayForPause": 0.001,
+  "EnableTargetConsistency": true,
+  "ProfessionOverrides": {
+    "Warrior": {
+      "Description": "战士的特殊轨道（怒气积累）持续触发，体现战斗专注特性",
+      "SpecialStartsImmediately": true,
+      "PauseSpecialDuringSpawnWait": false
+    },
+    "Mage": {
+      "Description": "法师的特殊轨道需要目标，跟随默认行为",
+      "SpecialStartsImmediately": false,
+      "PauseSpecialDuringSpawnWait": true
+    }
+  }
+}

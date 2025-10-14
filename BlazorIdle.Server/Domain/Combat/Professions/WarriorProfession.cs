@@ -10,6 +10,17 @@ public class WarriorProfession : IProfessionModule
     public string Id => "warrior";
     public double BaseAttackInterval => 2.5;
     public double BaseSpecialInterval => 5.0;
+    
+    /// <summary>
+    /// 战士的特殊轨道（怒气积累）在无怪物时也持续触发
+    /// 体现战士"战斗专注"的职业特性
+    /// </summary>
+    public virtual bool PauseSpecialWhenNoEnemies => false;
+    
+    /// <summary>
+    /// 战士的特殊轨道战斗开始时立即触发
+    /// </summary>
+    public virtual bool SpecialStartsImmediately => true;
 
     public virtual void RegisterBuffDefinitions(BattleContext context)
     {

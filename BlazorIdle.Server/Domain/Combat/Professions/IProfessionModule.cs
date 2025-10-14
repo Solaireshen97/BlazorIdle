@@ -21,4 +21,18 @@ public interface IProfessionModule
 
     void RegisterBuffDefinitions(BattleContext context);          // 新增：每个职业注册自己需要的 BuffDefinition
 
+    /// <summary>
+    /// 特殊轨道是否在无怪物（等待刷新）时暂停
+    /// true: 跟随攻击轨道暂停（默认行为）
+    /// false: 持续触发，不受怪物存在影响
+    /// </summary>
+    bool PauseSpecialWhenNoEnemies { get; }
+    
+    /// <summary>
+    /// 特殊轨道的初始延迟行为
+    /// true: 战斗开始后立即触发（从0开始）
+    /// false: 等待完整间隔后触发（从 specialInterval 开始，默认）
+    /// </summary>
+    bool SpecialStartsImmediately { get; }
+
 }

@@ -1,0 +1,9 @@
+{
+  "$schema": "./combat-loop-config.schema.json",
+  "AttackStartsImmediately": false,
+  "SpecialStartsImmediately": false,
+  "PauseAttackDuringSpawnWait": true,
+  "PauseSpecialDuringSpawnWait": true,
+  "MinimumSpawnDelayForPause": 0.001,
+  "EnableTargetConsistency": true
+}

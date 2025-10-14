@@ -290,6 +290,8 @@ public class Phase2IntegrationTests
         public string Id => "test_profession";
         public double BaseAttackInterval => 2.0;
         public double BaseSpecialInterval => 5.0;
+        public bool PauseSpecialWhenNoEnemies => true;
+        public bool SpecialStartsImmediately => false;
 
         public void RegisterBuffDefinitions(BattleContext ctx) { }
         public void OnBattleStart(BattleContext ctx) { }
