@@ -842,13 +842,14 @@ else
 }
 
 <!-- 战斗日志面板 -->
-@if (lastCreated is not null && _isSignalRConnected && _battleLogMessages.Count > 0)
-{
-    <BattleLogPanel 
-        Messages="@_battleLogMessages"
-        DisplayLimit="50"
-        OnClear="@ClearBattleLog" />
-}
+    @if (lastCreated is not null && _isSignalRConnected)
+    {
+        <div class="panel" style="margin-top: 18px;">
+            <BattleLogPanel Messages="@_battleLogMessages"
+                            DisplayLimit="@_maxBattleLogMessages"
+                            OnClear="@ClearBattleLog" />
+        </div>
+    }
 
 @if (lastCreated is not null)
 {
