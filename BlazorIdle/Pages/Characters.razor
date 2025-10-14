@@ -1193,6 +1193,11 @@ else
                         await HandleDamageAppliedEvent(damageEvent);
                     }
                     break;
+                    
+                // 战斗循环优化 Task 3.3: 处理轨道进度重置事件
+                case BlazorIdle.Shared.Models.TrackProgressResetEventDto resetEvent:
+                    await HandleTrackProgressResetEvent(resetEvent);
+                    break;
             }
         }
         catch (Exception ex)
@@ -1279,6 +1284,48 @@ else
         
         // 伤害事件可用于实时更新血量显示（如果需要）
         await Task.CompletedTask;
+    }
+    
+    /// <summary>
+    /// 战斗循环优化 Task 3.3: 处理轨道进度重置事件
+    /// 用于前端实时响应轨道暂停/恢复状态
+    /// </summary>
+    private async Task HandleTrackProgressResetEvent(BlazorIdle.Shared.Models.TrackProgressResetEventDto evt)
+    {
+        try
+        {
+            Console.WriteLine($"[SignalR] TrackProgressReset: Reason={evt.ResetReason}, Tracks={string.Join(",", evt.TrackTypes)}");
+            
+            // 根据重置原因更新UI状态
+            if (evt.ResetReason == "spawn_wait")
+            {
+                // 怪物全部死亡，进入等待刷新状态
+                // 前端可以显示"等待刷新"提示，进度条显示为0或暂停状态
+                Console.WriteLine("[CombatLoop] 轨道已暂停，等待怪物刷新");
+            }
+            else if (evt.ResetReason == "spawn_complete")
+            {
+                // 怪物刷新完成，轨道恢复
+                // 前端重新开始显示进度
+                Console.WriteLine("[CombatLoop] 轨道已恢复，怪物已刷新");
+                
+                // 如果提供了新的触发时间，更新追踪变量
+                if (evt.NewTriggerTimes != null)
+                {
+                    foreach (var kvp in evt.NewTriggerTimes)
+                    {
+                        Console.WriteLine($"[CombatLoop] {kvp.Key} 新触发时间: {kvp.Value:F2}s");
+                    }
+                }
+            }
+            
+            // 刷新UI显示
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[SignalR] 处理轨道重置事件失败: {ex.Message}");
+        }
     }
     
     /// <summary>
