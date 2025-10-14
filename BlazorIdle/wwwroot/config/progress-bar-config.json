@@ -27,9 +27,21 @@
     "PlayerHPTransitionMs": 120,
     "EnemyHPTransitionMs": 120
   },
+  "SignalRIncrementalUpdate": {
+    "EnableIncrementalUpdate": true,
+    "EnableAttackTickUpdate": true,
+    "EnableSkillCastUpdate": true,
+    "EnableDamageAppliedUpdate": false,
+    "ClientPredictionEnabled": true,
+    "MaxPredictionAheadMs": 500,
+    "SyncThresholdMs": 100,
+    "ResetProgressOnMismatch": true
+  },
   "Debug": {
     "LogProgressCalculations": false,
     "LogJITPollingEvents": false,
-    "ShowProgressDebugInfo": false
+    "ShowProgressDebugInfo": false,
+    "LogSignalREvents": false,
+    "LogIncrementalUpdates": false
   }
 }

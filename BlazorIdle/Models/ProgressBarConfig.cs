@@ -8,6 +8,7 @@ public class ProgressBarConfig
     public ProgressBarSettings ProgressBar { get; set; } = new();
     public JITPollingSettings JITPolling { get; set; } = new();
     public HPAnimationSettings HPAnimation { get; set; } = new();
+    public SignalRIncrementalUpdateSettings SignalRIncrementalUpdate { get; set; } = new();
     public DebugSettings Debug { get; set; } = new();
 }
 
@@ -93,6 +94,36 @@ public class HPAnimationSettings
 }
 
 /// <summary>
+/// SignalR 增量更新设置
+/// </summary>
+public class SignalRIncrementalUpdateSettings
+{
+    /// <summary>启用 SignalR 增量更新</summary>
+    public bool EnableIncrementalUpdate { get; set; } = true;
+    
+    /// <summary>启用攻击触发事件更新</summary>
+    public bool EnableAttackTickUpdate { get; set; } = true;
+    
+    /// <summary>启用技能施放事件更新</summary>
+    public bool EnableSkillCastUpdate { get; set; } = true;
+    
+    /// <summary>启用伤害应用事件更新</summary>
+    public bool EnableDamageAppliedUpdate { get; set; } = false;
+    
+    /// <summary>启用客户端预测</summary>
+    public bool ClientPredictionEnabled { get; set; } = true;
+    
+    /// <summary>最大预测提前时间（毫秒）</summary>
+    public int MaxPredictionAheadMs { get; set; } = 500;
+    
+    /// <summary>同步阈值（毫秒）</summary>
+    public int SyncThresholdMs { get; set; } = 100;
+    
+    /// <summary>当服务器数据不匹配时重置进度</summary>
+    public bool ResetProgressOnMismatch { get; set; } = true;
+}
+
+/// <summary>
 /// 调试设置
 /// </summary>
 public class DebugSettings
@@ -105,4 +136,10 @@ public class DebugSettings
     
     /// <summary>在UI中显示调试信息</summary>
     public bool ShowProgressDebugInfo { get; set; } = false;
+    
+    /// <summary>记录 SignalR 事件</summary>
+    public bool LogSignalREvents { get; set; } = false;
+    
+    /// <summary>记录增量更新</summary>
+    public bool LogIncrementalUpdates { get; set; } = false;
 }

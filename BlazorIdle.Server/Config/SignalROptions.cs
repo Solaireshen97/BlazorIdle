@@ -105,6 +105,21 @@ public sealed class NotificationOptions
     /// 启用 Buff 变化通知（预留给 Phase 3）
     /// </summary>
     public bool EnableBuffChangeNotification { get; set; } = false;
+    
+    /// <summary>
+    /// 启用攻击触发轻量事件通知（用于前端进度条增量更新）
+    /// </summary>
+    public bool EnableAttackTickNotification { get; set; } = true;
+    
+    /// <summary>
+    /// 启用技能施放完成轻量事件通知（用于前端进度条增量更新）
+    /// </summary>
+    public bool EnableSkillCastCompleteNotification { get; set; } = true;
+    
+    /// <summary>
+    /// 启用伤害应用轻量事件通知（用于前端实时反馈）
+    /// </summary>
+    public bool EnableDamageAppliedNotification { get; set; } = false;
 }
 
 /// <summary>

@@ -24,6 +24,7 @@ public sealed class BattleSignalRService : IAsyncDisposable
     
     // 事件处理器
     private readonly List<Action<StateChangedEvent>> _stateChangedHandlers = new();
+    private readonly List<Action<object>> _battleEventHandlers = new();
 
     public BattleSignalRService(
         ILogger<BattleSignalRService> logger,
@@ -116,6 +117,7 @@ public sealed class BattleSignalRService : IAsyncDisposable
 
             // 注册事件处理器
             _connection.On<StateChangedEvent>("StateChanged", OnStateChanged);
+            _connection.On<object>("BattleEvent", OnBattleEvent);
 
             // 连接管理事件
             _connection.Closed += OnConnectionClosed;
@@ -193,6 +195,14 @@ public sealed class BattleSignalRService : IAsyncDisposable
     {
         _stateChangedHandlers.Add(handler);
     }
+    
+    /// <summary>
+    /// 注册战斗事件处理器（用于轻量级增量事件）
+    /// </summary>
+    public void OnBattleEvent(Action<object> handler)
+    {
+        _battleEventHandlers.Add(handler);
+    }
 
     /// <summary>
     /// 断开连接
@@ -251,6 +261,29 @@ public sealed class BattleSignalRService : IAsyncDisposable
     {
         _logger.LogInformation("SignalR reconnected: {ConnectionId}", connectionId);
         return Task.CompletedTask;
+    }
+    
+    private void OnBattleEvent(object eventData)
+    {
+        if (_enableDetailedLogging)
+        {
+            _logger.LogDebug(
+                "Received BattleEvent: {EventType}",
+                eventData.GetType().Name
+            );
+        }
+
+        foreach (var handler in _battleEventHandlers)
+        {
+            try
+            {
+                handler(eventData);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in BattleEvent handler");
+            }
+        }
     }
 }
 

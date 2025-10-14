@@ -84,11 +84,24 @@ public class ProgressBarConfigService
                 PlayerHPTransitionMs = 120,
                 EnemyHPTransitionMs = 120
             },
+            SignalRIncrementalUpdate = new SignalRIncrementalUpdateSettings
+            {
+                EnableIncrementalUpdate = true,
+                EnableAttackTickUpdate = true,
+                EnableSkillCastUpdate = true,
+                EnableDamageAppliedUpdate = false,
+                ClientPredictionEnabled = true,
+                MaxPredictionAheadMs = 500,
+                SyncThresholdMs = 100,
+                ResetProgressOnMismatch = true
+            },
             Debug = new DebugSettings
             {
                 LogProgressCalculations = false,
                 LogJITPollingEvents = false,
-                ShowProgressDebugInfo = false
+                ShowProgressDebugInfo = false,
+                LogSignalREvents = false,
+                LogIncrementalUpdates = false
             }
         };
     }

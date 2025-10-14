@@ -61,3 +61,66 @@ public sealed class TargetSwitchedEventDto : BattleEventDto
     public int NewTargetMaxHp { get; set; }
     public double? NextAttackAt { get; set; }
 }
+
+/// <summary>
+/// 攻击触发轻量事件（用于前端进度条增量更新）
+/// </summary>
+public sealed class AttackTickEventDto : BattleEventDto
+{
+    /// <summary>
+    /// 下次攻击触发时间（战斗内时间）
+    /// </summary>
+    public double NextTriggerAt { get; set; }
+    
+    /// <summary>
+    /// 攻击间隔
+    /// </summary>
+    public double Interval { get; set; }
+}
+
+/// <summary>
+/// 技能施放完成轻量事件（用于前端进度条增量更新）
+/// </summary>
+public sealed class SkillCastCompleteEventDto : BattleEventDto
+{
+    /// <summary>
+    /// 技能 ID
+    /// </summary>
+    public string SkillId { get; set; } = "";
+    
+    /// <summary>
+    /// 技能施放完成时间（战斗内时间）
+    /// </summary>
+    public double CastCompleteAt { get; set; }
+}
+
+/// <summary>
+/// 伤害应用轻量事件（用于前端实时反馈）
+/// </summary>
+public sealed class DamageAppliedEventDto : BattleEventDto
+{
+    /// <summary>
+    /// 伤害来源（如 "basic_attack", "skill:fireball"）
+    /// </summary>
+    public string Source { get; set; } = "";
+    
+    /// <summary>
+    /// 伤害值
+    /// </summary>
+    public int Damage { get; set; }
+    
+    /// <summary>
+    /// 是否暴击
+    /// </summary>
+    public bool IsCrit { get; set; }
+    
+    /// <summary>
+    /// 目标当前血量
+    /// </summary>
+    public int TargetCurrentHp { get; set; }
+    
+    /// <summary>
+    /// 目标最大血量
+    /// </summary>
+    public int TargetMaxHp { get; set; }
+}

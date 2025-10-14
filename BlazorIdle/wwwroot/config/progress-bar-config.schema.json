@@ -106,6 +106,44 @@
         }
       }
     },
+    "SignalRIncrementalUpdate": {
+      "type": "object",
+      "description": "SignalR-based incremental update settings",
+      "properties": {
+        "EnableIncrementalUpdate": {
+          "type": "boolean",
+          "description": "Enable SignalR incremental updates for progress bar"
+        },
+        "EnableAttackTickUpdate": {
+          "type": "boolean",
+          "description": "Enable attack tick event updates"
+        },
+        "EnableSkillCastUpdate": {
+          "type": "boolean",
+          "description": "Enable skill cast event updates"
+        },
+        "EnableDamageAppliedUpdate": {
+          "type": "boolean",
+          "description": "Enable damage applied event updates"
+        },
+        "ClientPredictionEnabled": {
+          "type": "boolean",
+          "description": "Enable client-side prediction between events"
+        },
+        "MaxPredictionAheadMs": {
+          "type": "integer",
+          "description": "Maximum time to predict ahead in milliseconds"
+        },
+        "SyncThresholdMs": {
+          "type": "integer",
+          "description": "Threshold for syncing client prediction with server data"
+        },
+        "ResetProgressOnMismatch": {
+          "type": "boolean",
+          "description": "Reset progress bar when server data mismatches client prediction"
+        }
+      }
+    },
     "Debug": {
       "type": "object",
       "description": "Debug and logging settings",
@@ -121,6 +159,14 @@
         "ShowProgressDebugInfo": {
           "type": "boolean",
           "description": "Show debug info in UI"
+        },
+        "LogSignalREvents": {
+          "type": "boolean",
+          "description": "Log SignalR event reception"
+        },
+        "LogIncrementalUpdates": {
+          "type": "boolean",
+          "description": "Log incremental progress updates"
         }
       }
     }
