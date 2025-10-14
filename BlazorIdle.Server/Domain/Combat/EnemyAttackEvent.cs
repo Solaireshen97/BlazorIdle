@@ -37,6 +37,26 @@ public record EnemyAttackEvent(double ExecuteAt, EnemyCombatant Enemy) : IGameEv
             return;
         }
 
+        // 发送敌人攻击开始事件（用于显示战斗日志）
+        if (context.NotificationService?.IsAvailable == true && 
+            context.MessageFormatter?.IsEnemyAttackStartedEnabled == true)
+        {
+            var attackerName = Enemy.Encounter.Enemy.Name;
+            var targetName = context.MessageFormatter.GetPlayerName();
+            var message = context.MessageFormatter.FormatEnemyAttackStarted(attackerName, targetName);
+            
+            var attackStartedEvent = new BlazorIdle.Shared.Models.AttackStartedEventDto
+            {
+                BattleId = context.Battle.Id,
+                EventTime = ExecuteAt,
+                EventType = "EnemyAttackStarted",
+                AttackerName = attackerName,
+                TargetName = targetName,
+                Message = message
+            };
+            _ = context.NotificationService.NotifyEventAsync(context.Battle.Id, attackStartedEvent);
+        }
+        
         // 计算伤害（应用 Buff 加成）
         int baseDamage = Enemy.Encounter.Enemy.BaseDamage;
         var damageType = Enemy.Encounter.Enemy.AttackDamageType;
@@ -54,6 +74,29 @@ public record EnemyAttackEvent(double ExecuteAt, EnemyCombatant Enemy) : IGameEv
             // 记录统计
             context.SegmentCollector.OnTag("enemy_attack", 1);
             context.SegmentCollector.OnTag("damage_taken", actualDamage);
+            
+            // 发送玩家受到伤害事件（用于显示战斗日志）
+            if (context.NotificationService?.IsAvailable == true && 
+                context.MessageFormatter?.IsDamageReceivedEnabled == true)
+            {
+                var attackerName = Enemy.Encounter.Enemy.Name;
+                var targetName = context.MessageFormatter.GetPlayerName();
+                var message = context.MessageFormatter.FormatDamageReceived(targetName, attackerName, actualDamage);
+                
+                var damageReceivedEvent = new BlazorIdle.Shared.Models.DamageReceivedEventDto
+                {
+                    BattleId = context.Battle.Id,
+                    EventTime = ExecuteAt,
+                    EventType = "DamageReceived",
+                    AttackerName = attackerName,
+                    TargetName = targetName,
+                    Damage = actualDamage,
+                    TargetCurrentHp = context.Player.CurrentHp,
+                    TargetMaxHp = context.Player.MaxHp,
+                    Message = message
+                };
+                _ = context.NotificationService.NotifyEventAsync(context.Battle.Id, damageReceivedEvent);
+            }
             
             // 检查玩家是否刚刚死亡
             if (context.Player.ShouldTriggerDeathEvent())

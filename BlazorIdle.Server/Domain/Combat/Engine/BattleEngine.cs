@@ -61,13 +61,15 @@ public sealed class BattleEngine
         int enemyCount,
         IProfessionModule? module = null,
         BattleMeta? meta = null,
-        IBattleNotificationService? notificationService = null)       // SignalR Phase 2
+        IBattleNotificationService? notificationService = null,       // SignalR Phase 2
+        Services.BattleMessageFormatter? messageFormatter = null)
         : this(battleId, characterId, profession, stats, rng,
                provider: null,
                initialGroup: new EncounterGroup(Enumerable.Range(0, Math.Max(1, enemyCount)).Select(_ => enemyDef).ToList()),
                module: module,
                meta: meta,
-               notificationService: notificationService)
+               notificationService: notificationService,
+               messageFormatter: messageFormatter)
     {
     }
 
@@ -80,13 +82,15 @@ public sealed class BattleEngine
         IEncounterProvider provider,
         IProfessionModule? module = null,
         BattleMeta? meta = null,
-        IBattleNotificationService? notificationService = null)       // SignalR Phase 2
+        IBattleNotificationService? notificationService = null,       // SignalR Phase 2
+        Services.BattleMessageFormatter? messageFormatter = null)
         : this(battleId, characterId, profession, stats, rng,
                provider: provider,
                initialGroup: provider.CurrentGroup,
                module: module,
                meta: meta,
-               notificationService: notificationService)
+               notificationService: notificationService,
+               messageFormatter: messageFormatter)
     {
     }
 
@@ -101,7 +105,8 @@ public sealed class BattleEngine
         EncounterGroup initialGroup,
         IProfessionModule? module,
         BattleMeta? meta,
-        IBattleNotificationService? notificationService)              // SignalR Phase 2
+        IBattleNotificationService? notificationService,              // SignalR Phase 2
+        Services.BattleMessageFormatter? messageFormatter)
     {
         _provider = provider;
 
@@ -139,7 +144,8 @@ public sealed class BattleEngine
             encounterGroup: initialGroup,
             stats: stats,
             dungeon: dungeonDef,
-            notificationService: notificationService
+            notificationService: notificationService,
+            messageFormatter: messageFormatter
         );
 
         SeedIndexStart = rng.Index;

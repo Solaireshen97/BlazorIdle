@@ -79,7 +79,7 @@ public record AttackTickEvent(double ExecuteAt, TrackState Track) : IGameEvent
         // Phase 2: 对选中的目标应用伤害
         if (target is Combatants.EnemyCombatant enemyTarget)
         {
-            DamageCalculator.ApplyDamageToTarget(context, enemyTarget.Encounter, "basic_attack", finalDamage, DamageType.Physical);
+            DamageCalculator.ApplyDamageToTarget(context, enemyTarget.Encounter, "basic_attack", finalDamage, DamageType.Physical, isCrit);
         }
         else
         {
@@ -109,6 +109,27 @@ public record AttackTickEvent(double ExecuteAt, TrackState Track) : IGameEvent
                 Interval = Track.CurrentInterval
             };
             _ = context.NotificationService.NotifyEventAsync(context.Battle.Id, eventDto);
+        }
+        
+        // 发送攻击开始事件（用于显示战斗日志）
+        if (context.NotificationService?.IsAvailable == true && 
+            context.MessageFormatter?.IsAttackStartedEnabled == true &&
+            target != null)
+        {
+            var attackerName = context.MessageFormatter.GetPlayerName();
+            var targetName = target is Combatants.EnemyCombatant ec ? ec.Encounter.Enemy.Name : "敌人";
+            var message = context.MessageFormatter.FormatAttackStarted(attackerName, targetName);
+            
+            var attackStartedEvent = new BlazorIdle.Shared.Models.AttackStartedEventDto
+            {
+                BattleId = context.Battle.Id,
+                EventTime = ExecuteAt,
+                EventType = "AttackStarted",
+                AttackerName = attackerName,
+                TargetName = targetName,
+                Message = message
+            };
+            _ = context.NotificationService.NotifyEventAsync(context.Battle.Id, attackStartedEvent);
         }
     }
 }

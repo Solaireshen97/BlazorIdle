@@ -83,7 +83,8 @@ public sealed class RunningBattle
         double? dungeonRunDelaySeconds = null,
         IProfessionModule? module = null,
         int stamina = 10,
-        IBattleNotificationService? notificationService = null)      // SignalR Phase 2
+        IBattleNotificationService? notificationService = null,      // SignalR Phase 2
+        Services.BattleMessageFormatter? messageFormatter = null)
     {
         Id = id;
         CharacterId = characterId;
@@ -145,7 +146,8 @@ public sealed class RunningBattle
                 provider: provider,
                 module: module,
                 meta: meta,
-                notificationService: notificationService)
+                notificationService: notificationService,
+                messageFormatter: messageFormatter)
             : new BattleEngine(
                 battleId: id,
                 characterId: characterId,
@@ -156,7 +158,8 @@ public sealed class RunningBattle
                 enemyCount: EnemyCount,
                 module: module,
                 meta: meta,
-                notificationService: notificationService);
+                notificationService: notificationService,
+                messageFormatter: messageFormatter);
 
         StartedWallUtc = DateTime.UtcNow;
         _lastAdvanceWallUtc = StartedWallUtc;

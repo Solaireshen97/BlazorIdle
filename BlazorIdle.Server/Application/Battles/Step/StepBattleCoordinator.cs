@@ -46,12 +46,14 @@ public sealed class StepBattleCoordinator
         var enemy = EnemyRegistry.Resolve(eid);
         var id = Guid.NewGuid();
 
-        // SignalR Phase 2: 获取通知服务
+        // SignalR Phase 2: 获取通知服务和消息格式化服务
         IBattleNotificationService? notificationService = null;
+        Services.BattleMessageFormatter? messageFormatter = null;
         try
         {
             using var scope = _scopeFactory.CreateScope();
             notificationService = scope.ServiceProvider.GetService<IBattleNotificationService>();
+            messageFormatter = scope.ServiceProvider.GetService<Services.BattleMessageFormatter>();
         }
         catch
         {
@@ -73,7 +75,8 @@ public sealed class StepBattleCoordinator
             dungeonWaveDelaySeconds: dungeonWaveDelaySeconds,
             dungeonRunDelaySeconds: dungeonRunDelaySeconds,
             stamina: stamina,
-            notificationService: notificationService
+            notificationService: notificationService,
+            messageFormatter: messageFormatter
         );
 
         // 恢复战斗状态（如果有）

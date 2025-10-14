@@ -77,6 +77,7 @@ builder.Services
 
 // 4.5 SignalR ����
 builder.Services.Configure<SignalROptions>(builder.Configuration.GetSection("SignalR"));
+builder.Services.Configure<BattleMessageOptions>(builder.Configuration.GetSection("BattleMessages"));
 builder.Services.AddSignalR(options =>
 {
     var signalRConfig = builder.Configuration.GetSection("SignalR").Get<SignalROptions>() ?? new SignalROptions();
@@ -84,6 +85,7 @@ builder.Services.AddSignalR(options =>
     options.ClientTimeoutInterval = TimeSpan.FromSeconds(signalRConfig.ServerTimeoutSeconds);
 });
 builder.Services.AddSingleton<IBattleNotificationService, BattleNotificationService>();
+builder.Services.AddSingleton<BattleMessageFormatter>();
 
 // SignalR Stage 4 服务：配置管理与监控
 builder.Services.AddSingleton<SignalRConfigurationService>();

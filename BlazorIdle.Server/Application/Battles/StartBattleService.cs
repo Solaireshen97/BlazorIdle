@@ -19,6 +19,8 @@ public class StartBattleService
     private readonly BattleRunner _runner;
     private readonly BattleSimulator _simulator;
     private readonly EquipmentStatsIntegration _equipmentStats;
+    private readonly IBattleNotificationService _notificationService;
+    private readonly Services.BattleMessageFormatter _messageFormatter;
     private readonly string _defaultDropMode; // "expected" | "sampled"
 
     public StartBattleService(
@@ -27,6 +29,8 @@ public class StartBattleService
         BattleRunner runner, 
         BattleSimulator simulator, 
         EquipmentStatsIntegration equipmentStats,
+        IBattleNotificationService notificationService,
+        Services.BattleMessageFormatter messageFormatter,
         IConfiguration cfg)
     {
         _characters = characters;
@@ -34,6 +38,8 @@ public class StartBattleService
         _runner = runner;
         _simulator = simulator;
         _equipmentStats = equipmentStats;
+        _notificationService = notificationService;
+        _messageFormatter = messageFormatter;
         _defaultDropMode = cfg.GetValue<string>("Economy:DefaultDropMode")?.Trim().ToLowerInvariant() == "sampled"
             ? "sampled" : "expected";
     }
