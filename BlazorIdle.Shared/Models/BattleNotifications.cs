@@ -124,3 +124,111 @@ public sealed class DamageAppliedEventDto : BattleEventDto
     /// </summary>
     public int TargetMaxHp { get; set; }
 }
+
+/// <summary>
+/// 攻击开始事件（用于显示战斗消息）
+/// </summary>
+public sealed class AttackStartEventDto : BattleEventDto
+{
+    /// <summary>
+    /// 攻击者名称
+    /// </summary>
+    public string AttackerName { get; set; } = "";
+    
+    /// <summary>
+    /// 攻击者类型（Player/Enemy）
+    /// </summary>
+    public string AttackerType { get; set; } = "";
+    
+    /// <summary>
+    /// 目标名称
+    /// </summary>
+    public string TargetName { get; set; } = "";
+    
+    /// <summary>
+    /// 目标类型（Player/Enemy）
+    /// </summary>
+    public string TargetType { get; set; } = "";
+    
+    /// <summary>
+    /// 攻击类型（basic_attack/skill）
+    /// </summary>
+    public string AttackType { get; set; } = "";
+}
+
+/// <summary>
+/// 伤害造成事件（用于显示战斗消息）
+/// </summary>
+public sealed class DamageDealtEventDto : BattleEventDto
+{
+    /// <summary>
+    /// 攻击者名称
+    /// </summary>
+    public string AttackerName { get; set; } = "";
+    
+    /// <summary>
+    /// 目标名称
+    /// </summary>
+    public string TargetName { get; set; } = "";
+    
+    /// <summary>
+    /// 伤害值
+    /// </summary>
+    public int Damage { get; set; }
+    
+    /// <summary>
+    /// 是否暴击
+    /// </summary>
+    public bool IsCrit { get; set; }
+    
+    /// <summary>
+    /// 伤害类型（Physical/Magic/True）
+    /// </summary>
+    public string DamageType { get; set; } = "";
+    
+    /// <summary>
+    /// 目标剩余血量
+    /// </summary>
+    public int TargetCurrentHp { get; set; }
+    
+    /// <summary>
+    /// 目标最大血量
+    /// </summary>
+    public int TargetMaxHp { get; set; }
+}
+
+/// <summary>
+/// 受到伤害事件（用于显示战斗消息）
+/// </summary>
+public sealed class DamageReceivedEventDto : BattleEventDto
+{
+    /// <summary>
+    /// 接收者名称
+    /// </summary>
+    public string ReceiverName { get; set; } = "";
+    
+    /// <summary>
+    /// 攻击者名称
+    /// </summary>
+    public string AttackerName { get; set; } = "";
+    
+    /// <summary>
+    /// 受到的伤害值
+    /// </summary>
+    public int Damage { get; set; }
+    
+    /// <summary>
+    /// 伤害类型（Physical/Magic/True）
+    /// </summary>
+    public string DamageType { get; set; } = "";
+    
+    /// <summary>
+    /// 接收者剩余血量
+    /// </summary>
+    public int CurrentHp { get; set; }
+    
+    /// <summary>
+    /// 接收者最大血量
+    /// </summary>
+    public int MaxHp { get; set; }
+}

@@ -120,6 +120,21 @@ public sealed class NotificationOptions
     /// 启用伤害应用轻量事件通知（用于前端实时反馈）
     /// </summary>
     public bool EnableDamageAppliedNotification { get; set; } = false;
+    
+    /// <summary>
+    /// 启用攻击开始事件通知（用于前端战斗消息显示）
+    /// </summary>
+    public bool EnableAttackStartNotification { get; set; } = true;
+    
+    /// <summary>
+    /// 启用伤害造成事件通知（用于前端战斗消息显示）
+    /// </summary>
+    public bool EnableDamageDealtNotification { get; set; } = true;
+    
+    /// <summary>
+    /// 启用受到伤害事件通知（用于前端战斗消息显示）
+    /// </summary>
+    public bool EnableDamageReceivedNotification { get; set; } = true;
 }
 
 /// <summary>

@@ -19,7 +19,10 @@
     "EnableBuffChangeNotification": false,
     "EnableAttackTickNotification": true,
     "EnableSkillCastCompleteNotification": true,
-    "EnableDamageAppliedNotification": false
+    "EnableDamageAppliedNotification": false,
+    "EnableAttackStartNotification": true,
+    "EnableDamageDealtNotification": true,
+    "EnableDamageReceivedNotification": true
   },
   "Performance": {
     "EnableThrottling": false,

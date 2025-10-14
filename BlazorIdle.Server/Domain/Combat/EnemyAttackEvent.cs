@@ -37,6 +37,23 @@ public record EnemyAttackEvent(double ExecuteAt, EnemyCombatant Enemy) : IGameEv
             return;
         }
 
+        // SignalR: 发送攻击开始事件通知
+        if (context.NotificationService?.IsAvailable == true)
+        {
+            var attackStartDto = new BlazorIdle.Shared.Models.AttackStartEventDto
+            {
+                BattleId = context.Battle.Id,
+                EventTime = ExecuteAt,
+                EventType = "AttackStart",
+                AttackerName = Enemy.Name,
+                AttackerType = "Enemy",
+                TargetName = context.Player.Name,
+                TargetType = "Player",
+                AttackType = "basic_attack"
+            };
+            _ = context.NotificationService.NotifyEventAsync(context.Battle.Id, attackStartDto);
+        }
+
         // 计算伤害（应用 Buff 加成）
         int baseDamage = Enemy.Encounter.Enemy.BaseDamage;
         var damageType = Enemy.Encounter.Enemy.AttackDamageType;
@@ -44,12 +61,49 @@ public record EnemyAttackEvent(double ExecuteAt, EnemyCombatant Enemy) : IGameEv
         
         if (damage > 0)
         {
+            int playerHpBefore = context.Player.CurrentHp;
+            
             // 对玩家造成伤害
             var actualDamage = context.Player.ReceiveDamage(
                 damage, 
                 damageType, 
                 ExecuteAt
             );
+
+            // SignalR: 发送伤害造成和受到伤害事件通知
+            if (context.NotificationService?.IsAvailable == true)
+            {
+                // 伤害造成事件
+                var damageDealtDto = new BlazorIdle.Shared.Models.DamageDealtEventDto
+                {
+                    BattleId = context.Battle.Id,
+                    EventTime = ExecuteAt,
+                    EventType = "DamageDealt",
+                    AttackerName = Enemy.Name,
+                    TargetName = context.Player.Name,
+                    Damage = actualDamage,
+                    IsCrit = false, // 敌人攻击目前不支持暴击
+                    DamageType = damageType.ToString(),
+                    TargetCurrentHp = context.Player.CurrentHp,
+                    TargetMaxHp = context.Player.MaxHp
+                };
+                _ = context.NotificationService.NotifyEventAsync(context.Battle.Id, damageDealtDto);
+                
+                // 受到伤害事件
+                var damageReceivedDto = new BlazorIdle.Shared.Models.DamageReceivedEventDto
+                {
+                    BattleId = context.Battle.Id,
+                    EventTime = ExecuteAt,
+                    EventType = "DamageReceived",
+                    ReceiverName = context.Player.Name,
+                    AttackerName = Enemy.Name,
+                    Damage = actualDamage,
+                    DamageType = damageType.ToString(),
+                    CurrentHp = context.Player.CurrentHp,
+                    MaxHp = context.Player.MaxHp
+                };
+                _ = context.NotificationService.NotifyEventAsync(context.Battle.Id, damageReceivedDto);
+            }
 
             // 记录统计
             context.SegmentCollector.OnTag("enemy_attack", 1);

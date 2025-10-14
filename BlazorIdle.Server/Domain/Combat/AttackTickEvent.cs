@@ -76,10 +76,50 @@ public record AttackTickEvent(double ExecuteAt, TrackState Track) : IGameEvent
         int finalDamage = isCrit ? (int)Math.Round(preCritDamage * mult) : (int)Math.Round(preCritDamage);
         if (isCrit) context.SegmentCollector.OnTag("crit:basic_attack", 1);
 
+        // SignalR: 发送攻击开始事件通知
+        if (target != null && context.NotificationService?.IsAvailable == true)
+        {
+            var attackStartDto = new BlazorIdle.Shared.Models.AttackStartEventDto
+            {
+                BattleId = context.Battle.Id,
+                EventTime = ExecuteAt,
+                EventType = "AttackStart",
+                AttackerName = context.Player.Name,
+                AttackerType = "Player",
+                TargetName = target.Name,
+                TargetType = "Enemy",
+                AttackType = "basic_attack"
+            };
+            _ = context.NotificationService.NotifyEventAsync(context.Battle.Id, attackStartDto);
+        }
+
         // Phase 2: 对选中的目标应用伤害
+        int targetHpBefore = 0;
+        int targetMaxHp = 0;
         if (target is Combatants.EnemyCombatant enemyTarget)
         {
+            targetHpBefore = enemyTarget.CurrentHp;
+            targetMaxHp = enemyTarget.MaxHp;
             DamageCalculator.ApplyDamageToTarget(context, enemyTarget.Encounter, "basic_attack", finalDamage, DamageType.Physical);
+            
+            // SignalR: 发送伤害造成事件通知
+            if (context.NotificationService?.IsAvailable == true)
+            {
+                var damageDealtDto = new BlazorIdle.Shared.Models.DamageDealtEventDto
+                {
+                    BattleId = context.Battle.Id,
+                    EventTime = ExecuteAt,
+                    EventType = "DamageDealt",
+                    AttackerName = context.Player.Name,
+                    TargetName = enemyTarget.Name,
+                    Damage = finalDamage,
+                    IsCrit = isCrit,
+                    DamageType = "Physical",
+                    TargetCurrentHp = enemyTarget.CurrentHp,
+                    TargetMaxHp = enemyTarget.MaxHp
+                };
+                _ = context.NotificationService.NotifyEventAsync(context.Battle.Id, damageDealtDto);
+            }
         }
         else
         {

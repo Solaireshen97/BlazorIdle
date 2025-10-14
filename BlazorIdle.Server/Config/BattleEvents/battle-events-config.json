@@ -1,0 +1,26 @@
+{
+  "$schema": "./battle-events-config.schema.json",
+  "EnableBattleEventMessages": true,
+  "Messages": {
+    "AttackStart": {
+      "Enabled": true,
+      "PlayerAttacksEnemy": "{attacker} 开始攻击 {target}",
+      "EnemyAttacksPlayer": "{attacker} 向 {target} 发起攻击"
+    },
+    "DamageDealt": {
+      "Enabled": true,
+      "Normal": "{attacker} 对 {target} 造成 {damage} 点{damageType}伤害",
+      "Critical": "{attacker} 对 {target} 造成 {damage} 点{damageType}暴击伤害！"
+    },
+    "DamageReceived": {
+      "Enabled": true,
+      "Player": "{receiver} 受到 {attacker} 的 {damage} 点{damageType}伤害（剩余 {currentHp}/{maxHp}）",
+      "Enemy": "{receiver} 受到 {damage} 点{damageType}伤害（剩余 {currentHp}/{maxHp}）"
+    }
+  },
+  "DamageTypeNames": {
+    "Physical": "物理",
+    "Magic": "魔法",
+    "True": "真实"
+  }
+}
