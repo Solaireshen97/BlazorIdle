@@ -784,7 +784,32 @@ if (_isSignalRConnected)
 
 ## 🎉 最新更新（2025-10-14）
 
-### 前端集成完成
+### Phase 3: 连接优化与问题修复 ✅
+
+#### 关键问题修复
+1. **✅ CORS 认证问题** - 前端无法正常连接的根本原因
+   - 问题：CORS 策略缺少 `AllowCredentials()`
+   - 解决：添加 `.AllowCredentials()` 支持 JWT Token 传递
+   - 影响：SignalR 现在可以正常携带认证信息连接
+
+2. **✅ JWT 认证增强**
+   - 问题：SignalR 无法从查询字符串获取 Token
+   - 解决：添加 `OnMessageReceived` 事件处理器
+   - 实现：支持 `/hubs` 路径下从 `access_token` 查询参数获取 Token
+
+3. **✅ 配置文件分离**
+   - 创建独立的 SignalR 配置目录：`wwwroot/config/`
+   - 基础配置：`signalr.json`
+   - 环境配置：`signalr.Development.json`, `signalr.Production.json`
+   - 配置文档：`README.md`
+
+4. **✅ 连接状态监控**
+   - 新增 `OnConnectionStateChanged` 事件处理
+   - 实时显示连接状态（已连接、已断开、重连中）
+   - 自动通知用户连接状态变化
+   - 新增配置项：`ConnectionStatusNotifications`
+
+#### 前端集成完成
 
 **完成内容**:
 1. ✅ 在 Characters.razor 中集成 SignalRService
@@ -793,20 +818,24 @@ if (_isSignalRConnected)
 4. ✅ 实现战斗订阅/取消订阅自动管理
 5. ✅ 实现降级策略和错误处理
 6. ✅ 实现资源清理
+7. ✅ 修复 CORS 和 JWT 认证问题
+8. ✅ 添加连接状态监控和通知
 
 **技术实现**:
 - 注入 BattleSignalRService
-- OnInitializedAsync 中连接
+- OnInitializedAsync 中连接并保持
 - 事件处理器自动触发立即轮询
 - Step 和 Plan 战斗自动订阅/取消订阅
 - 连接失败时显示友好提示
+- 连接状态实时监控和通知
 
 **测试结果**:
 - 构建状态: ✅ 成功
-- 测试通过: ✅ 51/51
-- 代码质量: ⚠️ 1个未使用变量警告（预留）
+- 测试通过: ✅ 51/51 (100%)
+- 代码质量: ⚠️ 1个未使用变量警告（预留功能）
 
 **下一步**:
-- 端到端测试
+- 端到端测试验证连接稳定性
 - 性能验证（通知延迟 <1s）
+- 添加心跳监控机制
 - 用户验收测试

@@ -487,17 +487,157 @@ private int GetAdaptivePollingInterval(string eventType)
 
 ## ✅ 验收标准
 
-- [ ] SignalR 连接在页面加载时自动建立
-- [ ] 战斗事件通知正常接收和处理
-- [ ] 即时刷新功能工作正常
-- [ ] 战斗订阅管理正确实现
-- [ ] 降级策略正常工作
-- [ ] 资源正确清理，无内存泄漏
-- [ ] 通知延迟 <1s (P99)
-- [ ] 所有测试用例通过
+- [x] SignalR 连接在页面加载时自动建立
+- [x] 战斗事件通知正常接收和处理
+- [x] 即时刷新功能工作正常
+- [x] 战斗订阅管理正确实现
+- [x] 降级策略正常工作
+- [x] 资源正确清理，无内存泄漏
+- [ ] 通知延迟 <1s (P99) - 待端到端测试
+- [x] 所有测试用例通过（51/51）
+
+---
+
+## 🎉 最新更新（2025-10-14）
+
+### Phase 3: 连接优化与问题修复
+
+#### 已完成修复
+1. **CORS 配置修复** ✅
+   - 添加 `AllowCredentials()` 支持 SignalR JWT 认证
+   - 解决了客户端无法携带认证凭据的问题
+
+2. **JWT 认证增强** ✅
+   - 添加 `OnMessageReceived` 事件处理器
+   - 支持从查询字符串 `access_token` 获取 JWT Token
+   - 专门针对 `/hubs` 路径启用
+
+3. **配置文件分离** ✅
+   - 创建独立的 SignalR 配置文件结构
+   - `wwwroot/config/signalr.json` - 基础配置
+   - `signalr.Development.json` - 开发环境配置
+   - `signalr.Production.json` - 生产环境配置
+
+4. **连接状态监控** ✅
+   - 添加连接状态变更事件处理
+   - 实时显示连接状态（已连接、已断开、重连中）
+   - 自动通知用户连接状态变化
+
+#### 技术实现
+
+**服务端 Program.cs 修改**:
+```csharp
+// CORS 配置 - 添加 AllowCredentials
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowBlazorClient", policy =>
+    {
+        policy
+            .WithOrigins("https://localhost:5001", ...)
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials(); // SignalR JWT 认证必需
+    });
+});
+
+// JWT 认证 - 支持 SignalR 查询字符串 token
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        // ... 其他配置
+        
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                
+                if (!string.IsNullOrEmpty(accessToken) && 
+                    path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
+    });
+```
+
+**客户端连接状态监控**:
+```csharp
+// 注册连接状态变更处理器
+SignalRService.OnConnectionStateChanged(HandleConnectionStateChanged);
+
+private async void HandleConnectionStateChanged(string state)
+{
+    _signalRConnectionStatus = state;
+    _isSignalRConnected = state == "已连接";
+    
+    // 显示状态通知
+    switch (state)
+    {
+        case "已连接":
+            toastNotification?.ShowSuccess("✅ SignalR 已连接", "", 2000);
+            break;
+        case "已断开":
+            toastNotification?.ShowWarning("⚠️ SignalR 已断开", "", 2000);
+            break;
+        case "重连中":
+            toastNotification?.ShowInfo("🔄 SignalR 重连中...", "", 2000);
+            break;
+    }
+    
+    await InvokeAsync(StateHasChanged);
+}
+```
+
+#### 配置文件示例
+
+**signalr.json**:
+```json
+{
+  "SignalR": {
+    "HubEndpoint": "/hubs/battle",
+    "EnableSignalR": true,
+    "MaxReconnectAttempts": 5,
+    "ReconnectBaseDelayMs": 1000,
+    "MaxReconnectDelayMs": 30000,
+    "ConnectionTimeoutSeconds": 30,
+    "EnableDetailedLogging": false,
+    "KeepAliveIntervalSeconds": 15,
+    "ServerTimeoutSeconds": 30,
+    "AutoReconnect": true,
+    "ConnectionStatusNotifications": true
+  }
+}
+```
+
+**signalr.Development.json**:
+```json
+{
+  "SignalR": {
+    "EnableDetailedLogging": true,
+    "ConnectionStatusNotifications": true
+  }
+}
+```
+
+**signalr.Production.json**:
+```json
+{
+  "SignalR": {
+    "EnableDetailedLogging": false,
+    "ConnectionStatusNotifications": false,
+    "MaxReconnectAttempts": 10,
+    "MaxReconnectDelayMs": 60000
+  }
+}
+```
 
 ---
 
 **创建人**: GitHub Copilot Agent  
 **创建日期**: 2025-10-13  
-**下次更新**: Stage 3 前端集成实施完成后
+**最后更新**: 2025-10-14  
+**状态**: Phase 3 完成，连接问题已修复
