@@ -10,6 +10,24 @@ public class WarriorProfession : IProfessionModule
     public string Id => "warrior";
     public double BaseAttackInterval => 2.5;
     public double BaseSpecialInterval => 5.0;
+    
+    /// <summary>
+    /// 战士的特殊轨道（战斗专注）不受怪物存在影响，持续触发
+    /// 体现战士"保持战斗专注"的职业特性
+    /// </summary>
+    public bool? PauseSpecialWhenNoEnemies => false;
+    
+    /// <summary>
+    /// 战士的特殊轨道战斗开始时立即触发
+    /// 让战士能够立即进入战斗状态
+    /// </summary>
+    public bool? SpecialStartsImmediately => true;
+    
+    /// <summary>
+    /// 战士复活后特殊轨道立即触发
+    /// 体现战士快速恢复战斗状态的能力
+    /// </summary>
+    public bool? SpecialStartsImmediatelyAfterRevive => true;
 
     public virtual void RegisterBuffDefinitions(BattleContext context)
     {

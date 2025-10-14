@@ -155,7 +155,8 @@ public sealed class BattleEngine
             stats: stats,
             dungeon: dungeonDef,
             notificationService: notificationService,
-            messageFormatter: messageFormatter
+            messageFormatter: messageFormatter,
+            combatLoopOptions: _loopOptions
         );
 
         SeedIndexStart = rng.Index;
@@ -172,10 +173,12 @@ public sealed class BattleEngine
             : 0;
         var attackTrack = new TrackState(TrackType.Attack, Battle.AttackIntervalSeconds, attackStartDelay);
         
-        // 特殊轨道同样根据配置决定初始延迟
-        var specialStartDelay = _loopOptions.SpecialStartsWithFullInterval 
-            ? Battle.SpecialIntervalSeconds 
-            : 0;
+        // 战斗循环优化 Task 2.3: 特殊轨道使用职业配置决定初始延迟
+        // 优先级：职业配置 > 全局配置 > 默认值
+        bool specialImmediateStart = GetProfessionSpecialStartsImmediately(professionModule);
+        var specialStartDelay = specialImmediateStart 
+            ? 0 
+            : Battle.SpecialIntervalSeconds;
         var specialTrack = new TrackState(TrackType.Special, Battle.SpecialIntervalSeconds, specialStartDelay);
         
         Context.Tracks.Add(attackTrack);
@@ -268,11 +271,11 @@ public sealed class BattleEngine
             {
                 shouldPause = _loopOptions.PauseAttackWhenNoEnemies;
             }
-            // 特殊轨道：根据职业模块配置或默认配置决定是否暂停
+            // 战斗循环优化 Task 2.3: 特殊轨道根据职业配置决定是否暂停
+            // 优先级：职业配置 > 全局配置
             else if (track.TrackType == TrackType.Special)
             {
-                // 优先使用职业模块的配置（如果实现了），否则使用全局默认配置
-                shouldPause = _loopOptions.PauseSpecialWhenNoEnemiesByDefault;
+                shouldPause = GetProfessionPauseSpecialWhenNoEnemies();
             }
             
             if (shouldPause && track.NextTriggerAt < FAR_FUTURE)
@@ -290,8 +293,9 @@ public sealed class BattleEngine
     }
     
     /// <summary>
-    /// 战斗循环优化 Task 1.2: 恢复玩家轨道（类似玩家复活的机制）
+    /// 战斗循环优化 Task 1.2 & 2.3: 恢复玩家轨道（类似玩家复活的机制）
     /// 用于新怪物出现后恢复攻击和特殊轨道
+    /// 使用职业配置决定特殊轨道的恢复行为
     /// </summary>
     private void ResumePlayerTracks()
     {
@@ -306,13 +310,14 @@ public sealed class BattleEngine
             {
                 // 根据配置决定恢复延迟
                 // 攻击轨道：从完整间隔开始（符合"从0开始计算进度"的需求）
-                // 特殊轨道：根据配置决定是否立即触发
+                // 战斗循环优化 Task 2.3: 特殊轨道根据职业配置决定是否立即触发
                 double resumeDelay = track.CurrentInterval; // 默认从完整间隔开始
                 
-                if (track.TrackType == TrackType.Special && 
-                    _loopOptions.SpecialStartsImmediatelyAfterReviveByDefault)
+                if (track.TrackType == TrackType.Special)
                 {
-                    resumeDelay = 0.0; // 特殊轨道可配置为立即触发
+                    // 优先级：职业配置 > 全局配置
+                    bool specialImmediateStart = GetProfessionSpecialStartsImmediately(Context.ProfessionModule);
+                    resumeDelay = specialImmediateStart ? 0.0 : track.CurrentInterval;
                 }
                 
                 track.NextTriggerAt = resumeTime + resumeDelay;
@@ -892,5 +897,64 @@ public sealed class BattleEngine
                 BUFF_TICK_INTERVAL
             ));
         }
+    }
+    
+    // ========================================
+    // 战斗循环优化 - 中篇：职业配置辅助方法
+    // ========================================
+    
+    /// <summary>
+    /// 获取特殊轨道是否在无怪物时暂停
+    /// 优先级：职业配置 > 全局配置
+    /// </summary>
+    private bool GetProfessionPauseSpecialWhenNoEnemies()
+    {
+        var professionConfig = Context.ProfessionModule.PauseSpecialWhenNoEnemies;
+        
+        // 如果职业提供了明确的配置，使用职业配置
+        if (professionConfig.HasValue)
+        {
+            return professionConfig.Value;
+        }
+        
+        // 否则使用全局默认配置
+        return _loopOptions.PauseSpecialWhenNoEnemiesByDefault;
+    }
+    
+    /// <summary>
+    /// 获取特殊轨道是否立即触发（战斗开始/恢复时）
+    /// 优先级：职业配置 > 全局配置（取反）
+    /// </summary>
+    private bool GetProfessionSpecialStartsImmediately(IProfessionModule professionModule)
+    {
+        var professionConfig = professionModule.SpecialStartsImmediately;
+        
+        // 如果职业提供了明确的配置，使用职业配置
+        if (professionConfig.HasValue)
+        {
+            return professionConfig.Value;
+        }
+        
+        // 否则使用全局配置的反向逻辑
+        // SpecialStartsWithFullInterval = true 意味着 SpecialStartsImmediately = false
+        return !_loopOptions.SpecialStartsWithFullInterval;
+    }
+    
+    /// <summary>
+    /// 获取特殊轨道在玩家复活后是否立即触发
+    /// 优先级：职业配置 > 全局配置
+    /// </summary>
+    private bool GetProfessionSpecialStartsImmediatelyAfterRevive(IProfessionModule professionModule)
+    {
+        var professionConfig = professionModule.SpecialStartsImmediatelyAfterRevive;
+        
+        // 如果职业提供了明确的配置，使用职业配置
+        if (professionConfig.HasValue)
+        {
+            return professionConfig.Value;
+        }
+        
+        // 否则使用全局配置
+        return _loopOptions.SpecialStartsImmediatelyAfterReviveByDefault;
     }
 }
