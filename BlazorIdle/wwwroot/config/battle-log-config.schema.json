@@ -1,0 +1,165 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://blazoridle.com/schemas/battle-log-config.json",
+  "title": "Battle Log Configuration",
+  "description": "Configuration for battle log display and behavior",
+  "type": "object",
+  "properties": {
+    "battleLog": {
+      "type": "object",
+      "description": "战斗日志配置",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "是否启用战斗日志",
+          "default": true
+        },
+        "maxMessages": {
+          "type": "integer",
+          "description": "最大保存消息数",
+          "minimum": 10,
+          "maximum": 500,
+          "default": 50
+        },
+        "displayLatestCount": {
+          "type": "integer",
+          "description": "显示最近消息数量",
+          "minimum": 5,
+          "maximum": 100,
+          "default": 20
+        },
+        "autoScroll": {
+          "type": "boolean",
+          "description": "自动滚动到最新消息",
+          "default": true
+        },
+        "showTimestamps": {
+          "type": "boolean",
+          "description": "显示时间戳",
+          "default": true
+        },
+        "timestampFormat": {
+          "type": "string",
+          "description": "时间戳格式 (C# DateTime format)",
+          "default": "HH:mm:ss",
+          "examples": ["HH:mm:ss", "HH:mm:ss.fff", "yyyy-MM-dd HH:mm:ss"]
+        },
+        "animateNewMessages": {
+          "type": "boolean",
+          "description": "新消息动画效果",
+          "default": true
+        },
+        "eventTypes": {
+          "type": "object",
+          "description": "事件类型控制",
+          "properties": {
+            "enableAttackStarted": {
+              "type": "boolean",
+              "description": "启用攻击开始事件",
+              "default": true
+            },
+            "enableDamageApplied": {
+              "type": "boolean",
+              "description": "启用造成伤害事件",
+              "default": true
+            },
+            "enableDamageReceived": {
+              "type": "boolean",
+              "description": "启用受到伤害事件",
+              "default": true
+            },
+            "enableEnemyAttackStarted": {
+              "type": "boolean",
+              "description": "启用敌人攻击事件",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "ui": {
+          "type": "object",
+          "description": "UI样式设置",
+          "properties": {
+            "panelHeight": {
+              "type": "string",
+              "description": "面板高度 (CSS height)",
+              "default": "300px",
+              "examples": ["300px", "20vh", "auto"]
+            },
+            "fontSize": {
+              "type": "string",
+              "description": "字体大小 (CSS font-size)",
+              "default": "14px",
+              "examples": ["12px", "14px", "16px", "1rem"]
+            },
+            "entryPadding": {
+              "type": "string",
+              "description": "条目内边距 (CSS padding)",
+              "default": "4px 8px"
+            },
+            "backgroundColor": {
+              "type": "string",
+              "description": "背景颜色 (CSS color)",
+              "default": "#1a1a1a",
+              "pattern": "^#[0-9A-Fa-f]{6}$|^rgba?\\("
+            },
+            "textColor": {
+              "type": "string",
+              "description": "文字颜色 (CSS color)",
+              "default": "#e0e0e0",
+              "pattern": "^#[0-9A-Fa-f]{6}$|^rgba?\\("
+            },
+            "timestampColor": {
+              "type": "string",
+              "description": "时间戳颜色 (CSS color)",
+              "default": "#888888",
+              "pattern": "^#[0-9A-Fa-f]{6}$|^rgba?\\("
+            }
+          },
+          "additionalProperties": false
+        },
+        "colors": {
+          "type": "object",
+          "description": "颜色主题",
+          "properties": {
+            "attackStarted": {
+              "type": "string",
+              "description": "攻击开始颜色",
+              "default": "#4a9eff",
+              "pattern": "^#[0-9A-Fa-f]{6}$|^rgba?\\("
+            },
+            "damageDealt": {
+              "type": "string",
+              "description": "造成伤害颜色",
+              "default": "#ff6b6b",
+              "pattern": "^#[0-9A-Fa-f]{6}$|^rgba?\\("
+            },
+            "damageReceived": {
+              "type": "string",
+              "description": "受到伤害颜色",
+              "default": "#ffa94d",
+              "pattern": "^#[0-9A-Fa-f]{6}$|^rgba?\\("
+            },
+            "criticalHit": {
+              "type": "string",
+              "description": "暴击颜色",
+              "default": "#ffdd57",
+              "pattern": "^#[0-9A-Fa-f]{6}$|^rgba?\\("
+            },
+            "enemyAttack": {
+              "type": "string",
+              "description": "敌人攻击颜色",
+              "default": "#ff4757",
+              "pattern": "^#[0-9A-Fa-f]{6}$|^rgba?\\("
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": ["enabled"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["battleLog"],
+  "additionalProperties": false
+}
