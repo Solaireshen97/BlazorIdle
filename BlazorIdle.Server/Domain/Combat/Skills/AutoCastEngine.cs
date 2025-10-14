@@ -233,14 +233,22 @@ public class AutoCastEngine
         }
         else
         {
-            // Phase 2: 单体技能使用 TargetSelector 随机选择目标
+            // Phase 2: 单体技能使用当前攻击目标（如果有），否则使用 TargetSelector 随机选择
             if (context.EncounterGroup != null)
             {
-                var candidates = context.EncounterGroup.All
-                    .Select((enc, idx) => new Combatants.EnemyCombatant($"enemy_{idx}", enc))
-                    .ToList<Combatants.ICombatant>();
+                // 优先使用当前攻击目标（确保攻击和技能使用同一目标）
+                Combatants.ICombatant? target = context.CurrentAttackTarget;
                 
-                var target = context.TargetSelector.SelectTarget(candidates);
+                // 如果没有当前目标，则选择一个新目标
+                if (target == null)
+                {
+                    var candidates = context.EncounterGroup.All
+                        .Select((enc, idx) => new Combatants.EnemyCombatant($"enemy_{idx}", enc))
+                        .ToList<Combatants.ICombatant>();
+                    
+                    target = context.TargetSelector.SelectTarget(candidates);
+                }
+                
                 if (target is Combatants.EnemyCombatant enemyTarget)
                 {
                     DamageCalculator.ApplyDamageToTarget(context, enemyTarget.Encounter, "skill:" + def.Id, baseDmg, type);

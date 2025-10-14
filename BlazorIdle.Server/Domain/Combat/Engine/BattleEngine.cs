@@ -154,7 +154,9 @@ public sealed class BattleEngine
         professionModule.OnBattleStart(Context);
         professionModule.BuildSkills(Context, Context.AutoCaster);
 
-        var attackTrack = new TrackState(TrackType.Attack, Battle.AttackIntervalSeconds, 0);
+        // 攻击轨道从完整间隔开始，避免战斗开始时立即攻击
+        // 这样玩家会有"读秒-攻击"的直观感受
+        var attackTrack = new TrackState(TrackType.Attack, Battle.AttackIntervalSeconds, Battle.AttackIntervalSeconds);
         var specialTrack = new TrackState(TrackType.Special, Battle.SpecialIntervalSeconds, Battle.SpecialIntervalSeconds);
         Context.Tracks.Add(attackTrack);
         Context.Tracks.Add(specialTrack);
@@ -219,6 +221,75 @@ public sealed class BattleEngine
         }
     }
 
+    /// <summary>
+    /// 暂停玩家轨道（类似玩家死亡的机制）
+    /// 用于刷新等待期间暂停攻击和特殊轨道
+    /// </summary>
+    /// <param name="reason">暂停原因，用于日志记录</param>
+    private void PausePlayerTracks(string reason)
+    {
+        const double FAR_FUTURE = 1e10;
+        
+        // 如果刷新延迟为0，跳过暂停（因为会立即恢复）
+        if (_pendingSpawnAt.HasValue && 
+            Math.Abs(_pendingSpawnAt.Value - Clock.CurrentTime) < 1e-6)
+        {
+            Collector.OnTag("pause_skipped:immediate_spawn", 1);
+            return;
+        }
+        
+        foreach (var track in Context.Tracks)
+        {
+            // 检查是否应该暂停此轨道
+            // 攻击轨道总是暂停
+            // 特殊轨道在上篇也暂停，中篇会根据职业配置决定
+            bool shouldPause = track.TrackType == TrackType.Attack || 
+                              track.TrackType == TrackType.Special;
+            
+            if (shouldPause && track.NextTriggerAt < FAR_FUTURE)
+            {
+                track.NextTriggerAt = FAR_FUTURE;
+                Collector.OnTag($"track_paused:{track.TrackType}", 1);
+            }
+        }
+        
+        Collector.OnTag($"tracks_paused:{reason}", 1);
+    }
+
+    /// <summary>
+    /// 恢复玩家轨道（类似玩家复活的机制）
+    /// 用于新怪物出现后恢复攻击和特殊轨道
+    /// </summary>
+    private void ResumePlayerTracks()
+    {
+        const double FAR_FUTURE = 1e10;
+        double resumeTime = Clock.CurrentTime;
+        
+        foreach (var track in Context.Tracks)
+        {
+            // 检查轨道是否处于暂停状态
+            if (track.NextTriggerAt > FAR_FUTURE / 2)
+            {
+                // 从完整间隔开始（符合"从0开始计算进度"的需求）
+                track.NextTriggerAt = resumeTime + track.CurrentInterval;
+                
+                // 重新调度事件
+                if (track.TrackType == TrackType.Attack)
+                {
+                    Scheduler.Schedule(new AttackTickEvent(track.NextTriggerAt, track));
+                }
+                else if (track.TrackType == TrackType.Special)
+                {
+                    Scheduler.Schedule(new SpecialPulseEvent(track.NextTriggerAt, track));
+                }
+                
+                Collector.OnTag($"track_resumed:{track.TrackType}", 1);
+            }
+        }
+        
+        Collector.OnTag("tracks_resumed:spawn_complete", 1);
+    }
+
     // 若主目标已死而波未清空，立刻重选主目标
     private void TryRetargetPrimaryIfDead()
     {
@@ -266,6 +337,9 @@ public sealed class BattleEngine
 
             // 进入刷新等待状态时重置攻击进度
             ResetAttackProgress();
+
+            // 暂停玩家轨道（攻击和特殊轨道）
+            PausePlayerTracks("spawn_wait");
 
             if (runCompleted) Collector.OnTag("dungeon_run_complete", 1);
             Collector.OnTag("spawn_scheduled", 1);
@@ -339,6 +413,9 @@ public sealed class BattleEngine
             
             // 重新初始化新波次的怪物技能系统（内部使用 Clock.CurrentTime）
             InitializeEnemySkills(Context.EncounterGroup!);
+
+            // 恢复玩家轨道
+            ResumePlayerTracks();
 
             Collector.OnTag("spawn_performed", 1);
             Collector.OnTag("wave_transition_enemy_reinitialized", Context.EnemyCombatants.Count);

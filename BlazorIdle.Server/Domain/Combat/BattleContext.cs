@@ -48,6 +48,12 @@ public class BattleContext
     /// <summary>Phase 6: 当前副本定义（如果有）</summary>
     public DungeonDefinition? CurrentDungeon { get; private set; }
     
+    /// <summary>
+    /// 当前攻击目标（用于保证攻击和技能使用同一目标）
+    /// 在每次攻击事件中设置，在技能施放时使用
+    /// </summary>
+    public ICombatant? CurrentAttackTarget { get; set; }
+    
     /// <summary>SignalR Phase 2: 战斗通知服务（可选，用于实时通知前端）</summary>
     public IBattleNotificationService? NotificationService { get; private set; }
     

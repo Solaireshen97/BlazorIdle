@@ -55,6 +55,9 @@ public record AttackTickEvent(double ExecuteAt, TrackState Track) : IGameEvent
             return;
         }
 
+        // 设置当前攻击目标，供技能使用（确保攻击和技能使用同一目标）
+        context.CurrentAttackTarget = target;
+
         // Phase 5: 基础攻击伤害计算（简化版，不访问数据库）
         // 在实际战斗中，武器信息已经通过 Stats.AttackPower 体现
         // 这里保持简单的计算逻辑以保证性能
@@ -93,6 +96,9 @@ public record AttackTickEvent(double ExecuteAt, TrackState Track) : IGameEvent
         context.ProfessionModule.OnAttackTick(context, this);
 
         context.AutoCaster.TryAutoCast(context, ExecuteAt);
+
+        // 清除当前攻击目标，避免状态泄漏
+        context.CurrentAttackTarget = null;
 
         Track.NextTriggerAt = ExecuteAt + Track.CurrentInterval;
         context.Scheduler.Schedule(new AttackTickEvent(Track.NextTriggerAt, Track));
