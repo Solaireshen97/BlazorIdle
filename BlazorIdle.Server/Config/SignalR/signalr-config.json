@@ -16,7 +16,10 @@
     "EnableTargetSwitchedNotification": true,
     "EnableWaveSpawnNotification": false,
     "EnableSkillCastNotification": false,
-    "EnableBuffChangeNotification": false
+    "EnableBuffChangeNotification": false,
+    "EnableAttackTickNotification": true,
+    "EnableSkillCastCompleteNotification": true,
+    "EnableDamageAppliedNotification": false
   },
   "Performance": {
     "EnableThrottling": false,

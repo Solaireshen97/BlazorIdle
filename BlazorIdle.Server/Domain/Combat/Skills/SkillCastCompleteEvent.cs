@@ -102,6 +102,19 @@ public record SkillCastCompleteEvent(double ExecuteAt, SkillSlot Slot, long Cast
         context.ProfessionModule.OnSkillCast(context, def);
         context.Procs.OnDirectHit(context, "skill:" + def.Id, type, isCrit, isDot: false, DirectSourceKind.Skill, ExecuteAt);
 
+        // SignalR: 发送技能施放完成轻量事件通知（用于前端进度条增量更新）
+        if (context.NotificationService?.IsAvailable == true)
+        {
+            var eventDto = new BlazorIdle.Shared.Models.SkillCastCompleteEventDto
+            {
+                BattleId = context.Battle.Id,
+                EventTime = ExecuteAt,
+                EventType = "SkillCastComplete",
+                SkillId = def.Id,
+                CastCompleteAt = ExecuteAt
+            };
+            _ = context.NotificationService.NotifyEventAsync(context.Battle.Id, eventDto);
+        }
 
         context.AutoCaster.ClearCasting();
         context.AutoCaster.TryAutoCast(context, ExecuteAt);

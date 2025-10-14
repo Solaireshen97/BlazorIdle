@@ -139,6 +139,9 @@ public sealed class BattleNotificationService : IBattleNotificationService
             "WaveSpawn" => _options.Notification.EnableWaveSpawnNotification,
             "SkillCast" => _options.Notification.EnableSkillCastNotification,
             "BuffChange" => _options.Notification.EnableBuffChangeNotification,
+            "AttackTick" => _options.Notification.EnableAttackTickNotification,
+            "SkillCastComplete" => _options.Notification.EnableSkillCastCompleteNotification,
+            "DamageApplied" => _options.Notification.EnableDamageAppliedNotification,
             _ => true // 默认启用未知类型
         };
     }

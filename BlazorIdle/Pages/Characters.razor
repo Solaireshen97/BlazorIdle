@@ -1023,6 +1023,7 @@ else
             {
                 // 注册 SignalR 事件处理器
                 SignalRService.OnStateChanged(HandleSignalRStateChanged);
+                SignalRService.OnBattleEvent(HandleBattleEvent);
                 Console.WriteLine("[SignalR] 连接成功，实时通知已启用");
                 toastNotification?.ShowSuccess("✅ 实时通知已启用", "", 2000);
             }
@@ -1133,6 +1134,130 @@ else
         {
             Console.WriteLine($"[SignalR] 立即轮询失败: {ex.Message}");
         }
+    }
+    
+    /// <summary>
+    /// 处理 SignalR 战斗事件（轻量级增量事件）
+    /// </summary>
+    private async void HandleBattleEvent(object eventData)
+    {
+        try
+        {
+            var config = _progressBarConfig?.SignalRIncrementalUpdate;
+            if (config?.EnableIncrementalUpdate != true)
+            {
+                return;
+            }
+
+            // 根据事件类型处理增量更新
+            switch (eventData)
+            {
+                case BlazorIdle.Shared.Models.AttackTickEventDto attackEvent:
+                    if (config.EnableAttackTickUpdate)
+                    {
+                        await HandleAttackTickEvent(attackEvent);
+                    }
+                    break;
+                    
+                case BlazorIdle.Shared.Models.SkillCastCompleteEventDto skillEvent:
+                    if (config.EnableSkillCastUpdate)
+                    {
+                        await HandleSkillCastCompleteEvent(skillEvent);
+                    }
+                    break;
+                    
+                case BlazorIdle.Shared.Models.DamageAppliedEventDto damageEvent:
+                    if (config.EnableDamageAppliedUpdate)
+                    {
+                        await HandleDamageAppliedEvent(damageEvent);
+                    }
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            if (_progressBarConfig?.Debug.LogSignalREvents == true)
+            {
+                Console.WriteLine($"[SignalR] 处理轻量事件失败: {ex.Message}");
+            }
+        }
+    }
+    
+    /// <summary>
+    /// 处理攻击触发事件（增量更新进度条）
+    /// </summary>
+    private async Task HandleAttackTickEvent(BlazorIdle.Shared.Models.AttackTickEventDto evt)
+    {
+        if (_progressBarConfig?.Debug.LogIncrementalUpdates == true)
+        {
+            Console.WriteLine($"[SignalR] AttackTick: NextAt={evt.NextTriggerAt:F2}, Interval={evt.Interval:F2}");
+        }
+        
+        // 检查是否是当前战斗
+        var isStepBattle = stepBattleId.HasValue && stepBattleId.Value == evt.BattleId;
+        var isPlanBattle = currentPlanBattle is not null && currentPlanBattle.Id == evt.BattleId;
+        
+        if (!isStepBattle && !isPlanBattle)
+        {
+            return;
+        }
+        
+        // 增量更新进度条状态
+        if (isStepBattle && stepStatus is not null)
+        {
+            // 更新攻击进度跟踪
+            UpdateProgressTracking(
+                ref _stepAttackInterval,
+                ref _stepPrevNextAttackAt,
+                evt.NextTriggerAt,
+                ref _stepLastUpdateTime
+            );
+            
+            // 刷新 UI（不需要完整轮询）
+            await InvokeAsync(StateHasChanged);
+        }
+        else if (isPlanBattle && currentPlanBattle is not null)
+        {
+            // 更新活动计划战斗进度
+            UpdateProgressTracking(
+                ref _planAttackInterval,
+                ref _planPrevNextAttackAt,
+                evt.NextTriggerAt,
+                ref _planLastUpdateTime
+            );
+            
+            // 刷新 UI
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+    
+    /// <summary>
+    /// 处理技能施放完成事件
+    /// </summary>
+    private async Task HandleSkillCastCompleteEvent(BlazorIdle.Shared.Models.SkillCastCompleteEventDto evt)
+    {
+        if (_progressBarConfig?.Debug.LogIncrementalUpdates == true)
+        {
+            Console.WriteLine($"[SignalR] SkillCast: SkillId={evt.SkillId}, CompleteAt={evt.CastCompleteAt:F2}");
+        }
+        
+        // 技能施放完成后，可能需要触发一次轻量轮询来更新技能冷却等状态
+        // 但这里我们主要关注进度条，所以只记录日志
+        await Task.CompletedTask;
+    }
+    
+    /// <summary>
+    /// 处理伤害应用事件
+    /// </summary>
+    private async Task HandleDamageAppliedEvent(BlazorIdle.Shared.Models.DamageAppliedEventDto evt)
+    {
+        if (_progressBarConfig?.Debug.LogIncrementalUpdates == true)
+        {
+            Console.WriteLine($"[SignalR] DamageApplied: Source={evt.Source}, Damage={evt.Damage}, Crit={evt.IsCrit}");
+        }
+        
+        // 伤害事件可用于实时更新血量显示（如果需要）
+        await Task.CompletedTask;
     }
 
     async Task LoadUserDataAsync()
