@@ -159,6 +159,23 @@ public sealed class BattleNotificationService : IBattleNotificationService
             return;
         }
 
+        // 检查事件类型是否启用（如果事件数据包含 EventType 属性）
+        if (eventData is BattleEventDto battleEvent)
+        {
+            if (!IsEventTypeEnabled(battleEvent.EventType))
+            {
+                if (_options.EnableDetailedLogging)
+                {
+                    _logger.LogDebug(
+                        "Event type {EventType} is disabled in configuration, skipping notification for battle {BattleId}",
+                        battleEvent.EventType,
+                        battleId
+                    );
+                }
+                return;
+            }
+        }
+
         try
         {
             var groupName = $"battle_{battleId}";
