@@ -1,0 +1,128 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Progress Bar Configuration Schema",
+  "description": "Configuration schema for frontend progress bar and polling optimization",
+  "type": "object",
+  "properties": {
+    "ProgressBar": {
+      "type": "object",
+      "description": "Progress bar display and calculation settings",
+      "properties": {
+        "EnableLoopingProgress": {
+          "type": "boolean",
+          "description": "Enable looping progress after reaching 100%"
+        },
+        "AnimationIntervalMs": {
+          "type": "integer",
+          "description": "Animation refresh interval in milliseconds"
+        },
+        "MinIntervalForLooping": {
+          "type": "number",
+          "description": "Minimum valid interval for looping progress"
+        },
+        "MaxIntervalForLooping": {
+          "type": "number",
+          "description": "Maximum valid interval for looping progress"
+        }
+      }
+    },
+    "JITPolling": {
+      "type": "object",
+      "description": "Just-In-Time polling configuration",
+      "properties": {
+        "EnableJITPolling": {
+          "type": "boolean",
+          "description": "Enable JIT polling mechanism"
+        },
+        "TriggerWindowMs": {
+          "type": "integer",
+          "description": "Time window before trigger to initiate JIT poll"
+        },
+        "MinPredictionTimeMs": {
+          "type": "integer",
+          "description": "Minimum time to predict ahead"
+        },
+        "MaxJITAttemptsPerCycle": {
+          "type": "integer",
+          "description": "Maximum JIT polling attempts per attack cycle"
+        },
+        "AdaptivePollingEnabled": {
+          "type": "boolean",
+          "description": "Enable adaptive polling based on battle state"
+        },
+        "MinPollingIntervalMs": {
+          "type": "integer",
+          "description": "Minimum polling interval"
+        },
+        "MaxPollingIntervalMs": {
+          "type": "integer",
+          "description": "Maximum polling interval"
+        },
+        "HealthCriticalThreshold": {
+          "type": "number",
+          "description": "Health percentage threshold for critical state"
+        },
+        "HealthLowThreshold": {
+          "type": "number",
+          "description": "Health percentage threshold for low health state"
+        },
+        "CriticalHealthPollingMs": {
+          "type": "integer",
+          "description": "Polling interval when health is critical"
+        },
+        "LowHealthPollingMs": {
+          "type": "integer",
+          "description": "Polling interval when health is low"
+        },
+        "NormalPollingMs": {
+          "type": "integer",
+          "description": "Polling interval during normal state"
+        }
+      }
+    },
+    "HPAnimation": {
+      "type": "object",
+      "description": "HP bar animation settings",
+      "properties": {
+        "TransitionDurationMs": {
+          "type": "integer",
+          "description": "Default transition duration in milliseconds"
+        },
+        "TransitionTimingFunction": {
+          "type": "string",
+          "description": "CSS timing function (e.g., linear, ease, ease-in-out)"
+        },
+        "EnableSmoothTransition": {
+          "type": "boolean",
+          "description": "Enable smooth transitions for HP changes"
+        },
+        "PlayerHPTransitionMs": {
+          "type": "integer",
+          "description": "Player HP transition duration"
+        },
+        "EnemyHPTransitionMs": {
+          "type": "integer",
+          "description": "Enemy HP transition duration"
+        }
+      }
+    },
+    "Debug": {
+      "type": "object",
+      "description": "Debug and logging settings",
+      "properties": {
+        "LogProgressCalculations": {
+          "type": "boolean",
+          "description": "Log progress calculation details"
+        },
+        "LogJITPollingEvents": {
+          "type": "boolean",
+          "description": "Log JIT polling trigger events"
+        },
+        "ShowProgressDebugInfo": {
+          "type": "boolean",
+          "description": "Show debug info in UI"
+        }
+      }
+    }
+  }
+}

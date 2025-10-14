@@ -37,7 +37,7 @@
                         }
                         else
                         {
-                            <div style="background: linear-gradient(90deg, #f44336, #e57373); height: 100%; width: @(primaryTarget.HpPercent * 100)%; transition: width 0.3s;"></div>
+                            <div style="background: linear-gradient(90deg, #f44336, #e57373); height: 100%; width: @(primaryTarget.HpPercent * 100)%; transition: width 120ms linear;"></div>
                         }
                         <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-weight: bold; font-size: 11px;">
                             @primaryTarget.CurrentHp / @primaryTarget.MaxHp (@((primaryTarget.HpPercent * 100).ToString("0"))%)
@@ -75,7 +75,7 @@
                         }
                         else
                         {
-                            <div style="background: linear-gradient(90deg, #f44336, #e57373); height: 100%; width: @(enemy.HpPercent * 100)%; transition: width 0.3s;"></div>
+                            <div style="background: linear-gradient(90deg, #f44336, #e57373); height: 100%; width: @(enemy.HpPercent * 100)%; transition: width 120ms linear;"></div>
                         }
                         <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-size: 9px;">
                             @((enemy.HpPercent * 100).ToString("0"))%
