@@ -22,12 +22,38 @@ public static class DamageCalculator
         return ApplyDamageToTarget(context, context.Encounter, sourceId, baseDamage, type);
     }
 
-    public static int ApplyDamageToTarget(BattleContext context, Encounter target, string sourceId, int baseDamage, DamageType type)
+    public static int ApplyDamageToTarget(BattleContext context, Encounter target, string sourceId, int baseDamage, DamageType type, bool isCrit = false)
     {
         var agg = context.Buffs.Aggregate;
         int dealt = ComputeDealt(baseDamage, type, target.Enemy, agg, context);
         var applied = target.ApplyDamage(dealt, context.Clock.CurrentTime);
         context.SegmentCollector.OnDamage(sourceId, applied, type);
+        
+        // 发送伤害应用事件（用于显示战斗日志）
+        if (context.NotificationService?.IsAvailable == true && 
+            context.MessageFormatter?.IsDamageDealtEnabled == true)
+        {
+            var attackerName = context.MessageFormatter.GetPlayerName();
+            var targetName = target.Enemy.Name;
+            var message = context.MessageFormatter.FormatDamageDealt(attackerName, targetName, applied, isCrit);
+            
+            var damageEvent = new BlazorIdle.Shared.Models.DamageAppliedEventDto
+            {
+                BattleId = context.Battle.Id,
+                EventTime = context.Clock.CurrentTime,
+                EventType = "DamageApplied",
+                Source = sourceId,
+                Damage = applied,
+                IsCrit = isCrit,
+                TargetCurrentHp = target.CurrentHp,
+                TargetMaxHp = target.Enemy.MaxHp,
+                AttackerName = attackerName,
+                TargetName = targetName,
+                Message = message
+            };
+            _ = context.NotificationService.NotifyEventAsync(context.Battle.Id, damageEvent);
+        }
+        
         return applied;
     }
 

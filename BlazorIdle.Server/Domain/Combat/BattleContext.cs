@@ -50,6 +50,9 @@ public class BattleContext
     
     /// <summary>SignalR Phase 2: 战斗通知服务（可选，用于实时通知前端）</summary>
     public IBattleNotificationService? NotificationService { get; private set; }
+    
+    /// <summary>战斗消息格式化服务（可选，用于生成事件消息）</summary>
+    public Services.BattleMessageFormatter? MessageFormatter { get; private set; }
 
     public BattleContext(
         Battle battle,
@@ -66,7 +69,8 @@ public class BattleContext
         string? characterId = null,
         string? characterName = null,
         DungeonDefinition? dungeon = null,
-        IBattleNotificationService? notificationService = null)
+        IBattleNotificationService? notificationService = null,
+        Services.BattleMessageFormatter? messageFormatter = null)
     {
         Battle = battle;
         Clock = clock;
@@ -77,6 +81,7 @@ public class BattleContext
         Rng = rng;
         Stats = stats ?? new CharacterStats();
         NotificationService = notificationService;
+        MessageFormatter = messageFormatter;
 
         EncounterGroup = encounterGroup ?? (encounter != null ? Enemies.EncounterGroup.FromSingle(encounter) : null);
         Encounter = EncounterGroup?.PrimaryAlive() ?? encounter;

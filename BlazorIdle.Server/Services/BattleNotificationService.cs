@@ -142,6 +142,9 @@ public sealed class BattleNotificationService : IBattleNotificationService
             "AttackTick" => _options.Notification.EnableAttackTickNotification,
             "SkillCastComplete" => _options.Notification.EnableSkillCastCompleteNotification,
             "DamageApplied" => _options.Notification.EnableDamageAppliedNotification,
+            "AttackStarted" => _options.Notification.EnableAttackStartedNotification,
+            "EnemyAttackStarted" => _options.Notification.EnableEnemyAttackStartedNotification,
+            "DamageReceived" => _options.Notification.EnableDamageReceivedNotification,
             _ => true // 默认启用未知类型
         };
     }

@@ -123,4 +123,76 @@ public sealed class DamageAppliedEventDto : BattleEventDto
     /// 目标最大血量
     /// </summary>
     public int TargetMaxHp { get; set; }
+    
+    /// <summary>
+    /// 攻击者名称
+    /// </summary>
+    public string AttackerName { get; set; } = "";
+    
+    /// <summary>
+    /// 目标名称
+    /// </summary>
+    public string TargetName { get; set; } = "";
+    
+    /// <summary>
+    /// 事件消息（根据配置模板生成）
+    /// </summary>
+    public string Message { get; set; } = "";
+}
+
+/// <summary>
+/// 攻击开始事件（用于显示"XX开始攻击XX"）
+/// </summary>
+public sealed class AttackStartedEventDto : BattleEventDto
+{
+    /// <summary>
+    /// 攻击者名称
+    /// </summary>
+    public string AttackerName { get; set; } = "";
+    
+    /// <summary>
+    /// 目标名称
+    /// </summary>
+    public string TargetName { get; set; } = "";
+    
+    /// <summary>
+    /// 事件消息（根据配置模板生成）
+    /// </summary>
+    public string Message { get; set; } = "";
+}
+
+/// <summary>
+/// 受到伤害事件（用于显示"XX受到XX伤害"）
+/// </summary>
+public sealed class DamageReceivedEventDto : BattleEventDto
+{
+    /// <summary>
+    /// 攻击者名称
+    /// </summary>
+    public string AttackerName { get; set; } = "";
+    
+    /// <summary>
+    /// 目标名称（受伤者）
+    /// </summary>
+    public string TargetName { get; set; } = "";
+    
+    /// <summary>
+    /// 伤害值
+    /// </summary>
+    public int Damage { get; set; }
+    
+    /// <summary>
+    /// 目标当前血量
+    /// </summary>
+    public int TargetCurrentHp { get; set; }
+    
+    /// <summary>
+    /// 目标最大血量
+    /// </summary>
+    public int TargetMaxHp { get; set; }
+    
+    /// <summary>
+    /// 事件消息（根据配置模板生成）
+    /// </summary>
+    public string Message { get; set; } = "";
 }
