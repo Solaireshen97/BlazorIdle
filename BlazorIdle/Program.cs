@@ -16,4 +16,7 @@ builder.Services.AddScoped<BlazorIdle.Services.IShopService, BlazorIdle.Services
 // SignalR ����
 builder.Services.AddScoped<BlazorIdle.Client.Services.BattleSignalRService>();
 
+// 进度条配置服务
+builder.Services.AddScoped<BlazorIdle.Services.ProgressBarConfigService>();
+
 await builder.Build().RunAsync();

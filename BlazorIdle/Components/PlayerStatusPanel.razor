@@ -22,7 +22,7 @@
         <div style="display: flex; align-items: center; margin-bottom: 4px;">
             <span style="min-width: 60px; font-size: 13px;"><b>HP:</b></span>
             <div style="flex: 1; background: #e0e0e0; height: 24px; border-radius: 4px; overflow: hidden; position: relative;">
-                <div style="background: linear-gradient(90deg, #4caf50, #81c784); height: 100%; width: @(HpPercent * 100)%; transition: width 0.3s;"></div>
+                <div style="background: linear-gradient(90deg, #4caf50, #81c784); height: 100%; width: @(HpPercent * 100)%; transition: width 120ms linear;"></div>
                 <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-weight: bold; font-size: 12px;">
                     @CurrentHp / @MaxHp (@((HpPercent * 100).ToString("0"))%)
                 </span>
@@ -42,7 +42,7 @@
                 <div style="display: flex; align-items: center; margin-bottom: 4px;">
                     <span style="min-width: 80px; font-size: 11px;">普通攻击:</span>
                     <div style="flex: 1; background: #e0e0e0; height: 16px; border-radius: 3px; overflow: hidden; position: relative;">
-                        <div style="background: linear-gradient(90deg, #2196f3, #64b5f6); height: 100%; width: @(AttackProgress * 100)%; transition: width 0.1s;"></div>
+                        <div style="background: linear-gradient(90deg, #2196f3, #64b5f6); height: 100%; width: @(AttackProgress * 100)%; transition: width 50ms linear;"></div>
                         <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-size: 10px;">
                             @(attackTime > 0 ? $"{attackTime:0.00}s" : "就绪")
                         </span>
@@ -56,7 +56,7 @@
                 <div style="display: flex; align-items: center;">
                     <span style="min-width: 80px; font-size: 11px;">特殊攻击:</span>
                     <div style="flex: 1; background: #e0e0e0; height: 16px; border-radius: 3px; overflow: hidden; position: relative;">
-                        <div style="background: linear-gradient(90deg, #ff9800, #ffb74d); height: 100%; width: @(SpecialProgress * 100)%; transition: width 0.1s;"></div>
+                        <div style="background: linear-gradient(90deg, #ff9800, #ffb74d); height: 100%; width: @(SpecialProgress * 100)%; transition: width 50ms linear;"></div>
                         <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #000; font-size: 10px;">
                             @(specialTime > 0 ? $"{specialTime:0.00}s" : "就绪")
                         </span>

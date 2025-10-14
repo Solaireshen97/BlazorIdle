@@ -3,11 +3,13 @@
 @using BlazorIdle.Shared.Models
 @using BlazorIdle.Client.Services
 @using BlazorIdle.Components
+@using BlazorIdle.Models
 @inject ApiClient Api
 @inject AuthService AuthService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject BattleSignalRService SignalRService
+@inject ProgressBarConfigService ConfigService
 @implements IDisposable
 
 <!-- 离线结算弹窗 -->
@@ -953,6 +955,9 @@ else
     // ====== 离线战斗 ======
     private OfflineCheckResult? offlineCheckResult;
     private DateTime lastHeartbeatUpdate = DateTime.MinValue;
+    
+    // ====== 进度条配置 ======
+    private ProgressBarConfig? _progressBarConfig;
 
     // ====== 创建/同步战斗 ======
     protected override async Task OnInitializedAsync()
@@ -972,6 +977,9 @@ else
             // 注册认证事件处理器（用于后续登录/登出时的 SignalR 连接管理）
             AuthService.OnAuthenticated += HandleAuthenticatedAsync;
             AuthService.OnUnauthenticated += HandleUnauthenticatedAsync;
+
+            // 加载进度条配置
+            _progressBarConfig = await ConfigService.GetConfigAsync();
 
             // 加载当前用户信息和角色列表
             await LoadUserDataAsync();
@@ -2260,7 +2268,7 @@ else
     }
 
     /// <summary>
-    /// 计算平滑的攻击进度百分比
+    /// 计算平滑的攻击进度百分比（支持循环滚动）
     /// </summary>
     /// <param name="currentTime">服务器当前战斗时间</param>
     /// <param name="nextTriggerAt">下次触发时间</param>
@@ -2275,6 +2283,16 @@ else
             return currentTime >= nextTriggerAt ? 1.0 : 0.0;
         }
 
+        // 获取配置参数
+        var config = _progressBarConfig?.ProgressBar ?? new ProgressBarSettings();
+        
+        // 验证interval是否在有效范围内
+        if (interval < config.MinIntervalForLooping || interval > config.MaxIntervalForLooping)
+        {
+            // interval超出有效范围，不进行循环
+            return currentTime >= nextTriggerAt ? 1.0 : 0.0;
+        }
+
         // 计算上次攻击时间
         double lastTriggerAt = nextTriggerAt - interval;
 
@@ -2285,8 +2303,26 @@ else
         double clientElapsedSeconds = (DateTime.UtcNow - lastUpdateTime).TotalSeconds;
         double interpolatedProgress = serverProgress + (clientElapsedSeconds / interval);
 
-        // 限制在 0 到 1 之间
-        return Math.Clamp(interpolatedProgress, 0.0, 1.0);
+        // 如果启用循环进度且进度超过1.0，使用取模继续循环
+        if (config.EnableLoopingProgress && interpolatedProgress >= 1.0)
+        {
+            // 取模实现循环：progress % 1.0
+            // 例如：progress=1.3 -> 0.3, progress=2.7 -> 0.7
+            interpolatedProgress = interpolatedProgress % 1.0;
+            
+            // 可选：记录调试信息
+            if (_progressBarConfig?.Debug.LogProgressCalculations == true)
+            {
+                Console.WriteLine($"[Progress] Looping enabled - raw: {serverProgress + (clientElapsedSeconds / interval):F3}, looped: {interpolatedProgress:F3}");
+            }
+        }
+        else
+        {
+            // 不循环时限制在 0 到 1 之间
+            interpolatedProgress = Math.Clamp(interpolatedProgress, 0.0, 1.0);
+        }
+
+        return interpolatedProgress;
     }
 
     // ====== 统一轮询协调器 (BattlePollingCoordinator) ======
@@ -2314,6 +2350,10 @@ else
         private int _planPollInterval = 2000;
         private int _debugPollInterval = 1000;
         private const int AnimationInterval = 100;
+        
+        // JIT轮询跟踪（每个攻击周期最多触发一次）
+        private double? _lastJITTriggerAtForAttack;
+        private double? _lastJITTriggerAtForSpecial;
 
         public BattlePollingCoordinator(Characters parent)
         {
@@ -2328,6 +2368,106 @@ else
             _stepBattleActive = true;
             _stepPollInterval = pollIntervalMs;
             EnsurePollingStarted();
+        }
+        
+        /// <summary>
+        /// 计算自适应轮询间隔（基于战斗状态动态调整）
+        /// </summary>
+        private int CalculateAdaptivePollingInterval()
+        {
+            var config = _parent._progressBarConfig?.JITPolling;
+            if (config == null || !config.AdaptivePollingEnabled)
+            {
+                return _stepPollInterval;
+            }
+
+            // 根据血量百分比调整轮询频率
+            var hpPercent = _parent.stepStatus?.PlayerHpPercent ?? 1.0;
+            
+            if (hpPercent <= config.HealthCriticalThreshold)
+            {
+                // 血量危急，提高轮询频率
+                return config.CriticalHealthPollingMs;
+            }
+            else if (hpPercent <= config.HealthLowThreshold)
+            {
+                // 血量偏低，中等轮询频率
+                return config.LowHealthPollingMs;
+            }
+            else
+            {
+                // 正常状态，标准轮询频率
+                return config.NormalPollingMs;
+            }
+        }
+        
+        /// <summary>
+        /// 检查是否应该触发JIT轮询
+        /// </summary>
+        private bool ShouldTriggerJITPolling(out int delayMs)
+        {
+            delayMs = 0;
+            
+            var config = _parent._progressBarConfig?.JITPolling;
+            if (config == null || !config.EnableJITPolling)
+            {
+                return false;
+            }
+
+            var status = _parent.stepStatus;
+            if (status == null)
+            {
+                return false;
+            }
+
+            // 检查普通攻击是否即将触发
+            if (status.NextAttackAt.HasValue && _parent._stepAttackInterval > 0)
+            {
+                double timeUntilAttack = (status.NextAttackAt.Value - status.CurrentTime) * 1000; // 转换为毫秒
+                double clientElapsed = (DateTime.UtcNow - _parent._stepLastUpdateTime).TotalMilliseconds;
+                double predictedTimeUntilTrigger = timeUntilAttack - clientElapsed;
+
+                // 如果预测时间在触发窗口内，且本周期还未触发过JIT轮询
+                if (predictedTimeUntilTrigger > config.MinPredictionTimeMs && 
+                    predictedTimeUntilTrigger <= config.TriggerWindowMs &&
+                    _lastJITTriggerAtForAttack != status.NextAttackAt)
+                {
+                    delayMs = Math.Max(0, (int)(predictedTimeUntilTrigger - config.MinPredictionTimeMs));
+                    _lastJITTriggerAtForAttack = status.NextAttackAt;
+                    
+                    if (config?.EnableJITPolling == true && _parent._progressBarConfig?.Debug.LogJITPollingEvents == true)
+                    {
+                        Console.WriteLine($"[JIT Polling] Attack trigger scheduled in {delayMs}ms (predicted: {predictedTimeUntilTrigger:F0}ms)");
+                    }
+                    
+                    return true;
+                }
+            }
+
+            // 检查特殊攻击是否即将触发
+            if (status.NextSpecialAt.HasValue && _parent._stepSpecialInterval > 0)
+            {
+                double timeUntilSpecial = (status.NextSpecialAt.Value - status.CurrentTime) * 1000;
+                double clientElapsed = (DateTime.UtcNow - _parent._stepLastUpdateTime).TotalMilliseconds;
+                double predictedTimeUntilTrigger = timeUntilSpecial - clientElapsed;
+
+                if (predictedTimeUntilTrigger > config.MinPredictionTimeMs && 
+                    predictedTimeUntilTrigger <= config.TriggerWindowMs &&
+                    _lastJITTriggerAtForSpecial != status.NextSpecialAt)
+                {
+                    delayMs = Math.Max(0, (int)(predictedTimeUntilTrigger - config.MinPredictionTimeMs));
+                    _lastJITTriggerAtForSpecial = status.NextSpecialAt;
+                    
+                    if (config?.EnableJITPolling == true && _parent._progressBarConfig?.Debug.LogJITPollingEvents == true)
+                    {
+                        Console.WriteLine($"[JIT Polling] Special trigger scheduled in {delayMs}ms (predicted: {predictedTimeUntilTrigger:F0}ms)");
+                    }
+                    
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -2426,7 +2566,10 @@ else
                     // Step战斗状态轮询
                     if (_stepBattleActive && now >= nextStepPoll)
                     {
-                        nextStepPoll = now.AddMilliseconds(_stepPollInterval);
+                        // 使用自适应轮询间隔
+                        int adaptiveInterval = CalculateAdaptivePollingInterval();
+                        nextStepPoll = now.AddMilliseconds(adaptiveInterval);
+                        
                         tasks.Add(Task.Run(async () =>
                         {
                             try
@@ -2446,6 +2589,35 @@ else
                             {
                                 _parent.stepError = $"轮询异常: {ex.Message}";
                                 _parent.toastNotification?.ShowError($"轮询异常: {ex.Message}");
+                            }
+                        }, ct));
+                    }
+                    
+                    // 检查是否需要JIT轮询（在预测触发点前）
+                    if (_stepBattleActive && ShouldTriggerJITPolling(out int jitDelayMs))
+                    {
+                        // 安排JIT轮询任务
+                        tasks.Add(Task.Run(async () =>
+                        {
+                            try
+                            {
+                                // 等待到预测的触发时间
+                                if (jitDelayMs > 0)
+                                {
+                                    await Task.Delay(jitDelayMs, ct);
+                                }
+                                
+                                // 执行JIT轮询
+                                await _parent.PollStepOnceAsync(ct);
+                                await _parent.InvokeAsync(_parent.StateHasChanged);
+                            }
+                            catch (Exception ex) when (ex is not TaskCanceledException)
+                            {
+                                // JIT轮询失败不影响主流程
+                                if (_parent._progressBarConfig?.Debug.LogJITPollingEvents == true)
+                                {
+                                    Console.WriteLine($"[JIT Polling] Failed: {ex.Message}");
+                                }
                             }
                         }, ct));
                     }
