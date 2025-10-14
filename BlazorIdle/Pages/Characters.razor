@@ -10,6 +10,7 @@
 @inject IJSRuntime JS
 @inject BattleSignalRService SignalRService
 @inject ProgressBarConfigService ConfigService
+@inject IConfiguration Configuration
 @implements IDisposable
 
 <!-- 离线结算弹窗 -->
@@ -840,6 +841,15 @@ else
     </div>
 }
 
+<!-- 战斗日志面板 -->
+@if (lastCreated is not null && _isSignalRConnected && _battleLogMessages.Count > 0)
+{
+    <BattleLogPanel 
+        Messages="@_battleLogMessages"
+        DisplayLimit="50"
+        OnClear="@ClearBattleLog" />
+}
+
 @if (lastCreated is not null)
 {
     <div class="panel" style="margin-top: 18px;">
@@ -939,6 +949,10 @@ else
     private bool _isSignalRConnected = false;
     private bool _isSignalREnabled = true;
     
+    // ====== 战斗日志 ======
+    private List<BattleLogMessage> _battleLogMessages = new();
+    private int _maxBattleLogMessages = 100;  // 默认值，从配置文件加载
+    
     // ====== 确认对话框 ======
     private bool showConfirmDialog = false;
     private string confirmDialogTitle = "";
@@ -980,6 +994,9 @@ else
 
             // 加载进度条配置
             _progressBarConfig = await ConfigService.GetConfigAsync();
+            
+            // 加载战斗消息配置
+            _maxBattleLogMessages = Configuration.GetValue<int>("BattleMessages:MaxMessageHistory", 100);
 
             // 加载当前用户信息和角色列表
             await LoadUserDataAsync();
@@ -1143,6 +1160,9 @@ else
     {
         try
         {
+            // 处理战斗消息事件（AttackStarted, DamageApplied, DamageReceived等）
+            HandleBattleMessageEvent(eventData);
+            
             var config = _progressBarConfig?.SignalRIncrementalUpdate;
             if (config?.EnableIncrementalUpdate != true)
             {
@@ -1258,6 +1278,79 @@ else
         
         // 伤害事件可用于实时更新血量显示（如果需要）
         await Task.CompletedTask;
+    }
+    
+    /// <summary>
+    /// 处理战斗消息事件（显示在战斗日志中）
+    /// </summary>
+    private void HandleBattleMessageEvent(object eventData)
+    {
+        try
+        {
+            switch (eventData)
+            {
+                case BlazorIdle.Shared.Models.AttackStartedEventDto attackStarted:
+                    AddBattleLogMessage(new BattleLogMessage
+                    {
+                        Timestamp = DateTime.Now,
+                        Text = attackStarted.Message,
+                        Type = BattleLogMessageType.AttackStarted,
+                        BattleId = attackStarted.BattleId
+                    });
+                    break;
+                    
+                case BlazorIdle.Shared.Models.DamageAppliedEventDto damageApplied:
+                    AddBattleLogMessage(new BattleLogMessage
+                    {
+                        Timestamp = DateTime.Now,
+                        Text = damageApplied.Message,
+                        Type = BattleLogMessageType.DamageDealt,
+                        IsCrit = damageApplied.IsCrit,
+                        BattleId = damageApplied.BattleId
+                    });
+                    break;
+                    
+                case BlazorIdle.Shared.Models.DamageReceivedEventDto damageReceived:
+                    AddBattleLogMessage(new BattleLogMessage
+                    {
+                        Timestamp = DateTime.Now,
+                        Text = damageReceived.Message,
+                        Type = BattleLogMessageType.DamageReceived,
+                        BattleId = damageReceived.BattleId
+                    });
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[BattleLog] 处理消息失败: {ex.Message}");
+        }
+    }
+    
+    /// <summary>
+    /// 添加战斗日志消息
+    /// </summary>
+    private void AddBattleLogMessage(BattleLogMessage message)
+    {
+        _battleLogMessages.Add(message);
+        
+        // 限制消息历史数量（从配置文件读取）
+        if (_battleLogMessages.Count > _maxBattleLogMessages)
+        {
+            _battleLogMessages.RemoveAt(0);
+        }
+        
+        // 触发UI更新
+        InvokeAsync(StateHasChanged);
+    }
+    
+    /// <summary>
+    /// 清空战斗日志
+    /// </summary>
+    private void ClearBattleLog()
+    {
+        _battleLogMessages.Clear();
+        StateHasChanged();
     }
 
     async Task LoadUserDataAsync()
