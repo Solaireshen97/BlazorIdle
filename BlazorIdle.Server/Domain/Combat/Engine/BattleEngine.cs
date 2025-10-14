@@ -8,6 +8,7 @@ using BlazorIdle.Server.Domain.Combat.Procs;
 using BlazorIdle.Server.Domain.Combat.Professions;
 using BlazorIdle.Server.Domain.Combat.Rng;
 using BlazorIdle.Server.Domain.Combat.Skills;
+using BlazorIdle.Server.Infrastructure.Configuration;
 using BlazorIdle.Shared.Models;
 using BlazorWebGame.Domain.Combat;
 using System;
@@ -48,6 +49,9 @@ public sealed class BattleEngine
     private double? _pendingSpawnAt;
     private bool _waitingSpawn;
     private readonly HashSet<Encounter> _markedDead = new();
+    
+    // 战斗循环配置选项
+    private readonly CombatLoopOptions _loopOptions;
 
     private void ClearDeathMarks() => _markedDead.Clear();
 
@@ -62,14 +66,16 @@ public sealed class BattleEngine
         IProfessionModule? module = null,
         BattleMeta? meta = null,
         IBattleNotificationService? notificationService = null,       // SignalR Phase 2
-        Services.BattleMessageFormatter? messageFormatter = null)
+        Services.BattleMessageFormatter? messageFormatter = null,
+        CombatLoopOptions? loopOptions = null)
         : this(battleId, characterId, profession, stats, rng,
                provider: null,
                initialGroup: new EncounterGroup(Enumerable.Range(0, Math.Max(1, enemyCount)).Select(_ => enemyDef).ToList()),
                module: module,
                meta: meta,
                notificationService: notificationService,
-               messageFormatter: messageFormatter)
+               messageFormatter: messageFormatter,
+               loopOptions: loopOptions)
     {
     }
 
@@ -83,14 +89,16 @@ public sealed class BattleEngine
         IProfessionModule? module = null,
         BattleMeta? meta = null,
         IBattleNotificationService? notificationService = null,       // SignalR Phase 2
-        Services.BattleMessageFormatter? messageFormatter = null)
+        Services.BattleMessageFormatter? messageFormatter = null,
+        CombatLoopOptions? loopOptions = null)
         : this(battleId, characterId, profession, stats, rng,
                provider: provider,
                initialGroup: provider.CurrentGroup,
                module: module,
                meta: meta,
                notificationService: notificationService,
-               messageFormatter: messageFormatter)
+               messageFormatter: messageFormatter,
+               loopOptions: loopOptions)
     {
     }
 
@@ -106,9 +114,11 @@ public sealed class BattleEngine
         IProfessionModule? module,
         BattleMeta? meta,
         IBattleNotificationService? notificationService,              // SignalR Phase 2
-        Services.BattleMessageFormatter? messageFormatter)
+        Services.BattleMessageFormatter? messageFormatter,
+        CombatLoopOptions? loopOptions)
     {
         _provider = provider;
+        _loopOptions = loopOptions ?? new CombatLoopOptions(); // 使用默认值如果未提供
 
         var professionModule = module ?? ProfessionRegistry.Resolve(profession);
 
@@ -154,8 +164,20 @@ public sealed class BattleEngine
         professionModule.OnBattleStart(Context);
         professionModule.BuildSkills(Context, Context.AutoCaster);
 
-        var attackTrack = new TrackState(TrackType.Attack, Battle.AttackIntervalSeconds, 0);
-        var specialTrack = new TrackState(TrackType.Special, Battle.SpecialIntervalSeconds, Battle.SpecialIntervalSeconds);
+        // 战斗循环优化 Task 1.1: 根据配置决定攻击轨道的初始延迟
+        // 如果配置为从完整间隔开始，则第一次攻击在战斗开始后 attackInterval 秒触发
+        // 否则保持旧行为（立即触发）
+        var attackStartDelay = _loopOptions.AttackStartsWithFullInterval 
+            ? Battle.AttackIntervalSeconds 
+            : 0;
+        var attackTrack = new TrackState(TrackType.Attack, Battle.AttackIntervalSeconds, attackStartDelay);
+        
+        // 特殊轨道同样根据配置决定初始延迟
+        var specialStartDelay = _loopOptions.SpecialStartsWithFullInterval 
+            ? Battle.SpecialIntervalSeconds 
+            : 0;
+        var specialTrack = new TrackState(TrackType.Special, Battle.SpecialIntervalSeconds, specialStartDelay);
+        
         Context.Tracks.Add(attackTrack);
         Context.Tracks.Add(specialTrack);
         
@@ -218,6 +240,103 @@ public sealed class BattleEngine
             Collector.OnTag("attack_progress_reset", 1);
         }
     }
+    
+    /// <summary>
+    /// 战斗循环优化 Task 1.2: 暂停玩家轨道（类似玩家死亡的机制）
+    /// 用于刷新等待期间暂停攻击和特殊轨道
+    /// </summary>
+    /// <param name="reason">暂停原因，用于日志记录</param>
+    private void PausePlayerTracks(string reason)
+    {
+        const double FAR_FUTURE = 1e10;
+        var pausedTracks = new List<string>();
+        
+        // 如果刷新延迟极小（接近0），跳过暂停以避免状态抖动
+        if (_pendingSpawnAt.HasValue && 
+            Math.Abs(_pendingSpawnAt.Value - Clock.CurrentTime) < 1e-6)
+        {
+            Collector.OnTag("pause_skipped:immediate_spawn", 1);
+            return;
+        }
+        
+        foreach (var track in Context.Tracks)
+        {
+            bool shouldPause = false;
+            
+            // 攻击轨道：根据配置决定是否暂停
+            if (track.TrackType == TrackType.Attack)
+            {
+                shouldPause = _loopOptions.PauseAttackWhenNoEnemies;
+            }
+            // 特殊轨道：根据职业模块配置或默认配置决定是否暂停
+            else if (track.TrackType == TrackType.Special)
+            {
+                // 优先使用职业模块的配置（如果实现了），否则使用全局默认配置
+                shouldPause = _loopOptions.PauseSpecialWhenNoEnemiesByDefault;
+            }
+            
+            if (shouldPause && track.NextTriggerAt < FAR_FUTURE)
+            {
+                track.NextTriggerAt = FAR_FUTURE;
+                pausedTracks.Add(track.TrackType.ToString());
+                Collector.OnTag($"track_paused:{track.TrackType}", 1);
+            }
+        }
+        
+        if (pausedTracks.Count > 0)
+        {
+            Collector.OnTag($"tracks_paused:{reason}", 1);
+        }
+    }
+    
+    /// <summary>
+    /// 战斗循环优化 Task 1.2: 恢复玩家轨道（类似玩家复活的机制）
+    /// 用于新怪物出现后恢复攻击和特殊轨道
+    /// </summary>
+    private void ResumePlayerTracks()
+    {
+        const double FAR_FUTURE = 1e10;
+        double resumeTime = Clock.CurrentTime;
+        var resumedTracks = new List<string>();
+        
+        foreach (var track in Context.Tracks)
+        {
+            // 检查轨道是否处于暂停状态（NextTriggerAt 被设置为 FAR_FUTURE）
+            if (track.NextTriggerAt > FAR_FUTURE / 2)
+            {
+                // 根据配置决定恢复延迟
+                // 攻击轨道：从完整间隔开始（符合"从0开始计算进度"的需求）
+                // 特殊轨道：根据配置决定是否立即触发
+                double resumeDelay = track.CurrentInterval; // 默认从完整间隔开始
+                
+                if (track.TrackType == TrackType.Special && 
+                    _loopOptions.SpecialStartsImmediatelyAfterReviveByDefault)
+                {
+                    resumeDelay = 0.0; // 特殊轨道可配置为立即触发
+                }
+                
+                track.NextTriggerAt = resumeTime + resumeDelay;
+                resumedTracks.Add(track.TrackType.ToString());
+                
+                // 重新调度事件
+                if (track.TrackType == TrackType.Attack)
+                {
+                    Scheduler.Schedule(new AttackTickEvent(track.NextTriggerAt, track));
+                }
+                else if (track.TrackType == TrackType.Special)
+                {
+                    Scheduler.Schedule(new SpecialPulseEvent(track.NextTriggerAt, track));
+                }
+                
+                Collector.OnTag($"track_resumed:{track.TrackType}", 1);
+            }
+        }
+        
+        if (resumedTracks.Count > 0)
+        {
+            Collector.OnTag("tracks_resumed:spawn_complete", 1);
+        }
+    }
 
     // 若主目标已死而波未清空，立刻重选主目标
     private void TryRetargetPrimaryIfDead()
@@ -264,8 +383,8 @@ public sealed class BattleEngine
             _pendingSpawnAt = Clock.CurrentTime + delay;
             _waitingSpawn = true;
 
-            // 进入刷新等待状态时重置攻击进度
-            ResetAttackProgress();
+            // 战斗循环优化 Task 1.2: 暂停玩家轨道（替代旧的 ResetAttackProgress）
+            PausePlayerTracks("spawn_wait");
 
             if (runCompleted) Collector.OnTag("dungeon_run_complete", 1);
             Collector.OnTag("spawn_scheduled", 1);
@@ -339,6 +458,19 @@ public sealed class BattleEngine
             
             // 重新初始化新波次的怪物技能系统（内部使用 Clock.CurrentTime）
             InitializeEnemySkills(Context.EncounterGroup!);
+            
+            // 战斗循环优化 Task 1.2: 恢复玩家轨道
+            // 只有在玩家存活时才恢复轨道（避免玩家死亡期间怪物刷新的边缘情况）
+            if (Context.Player.CanAct())
+            {
+                ResumePlayerTracks();
+            }
+            else
+            {
+                // 玩家死亡中，标记刷新已完成但不恢复轨道
+                // 等待 PlayerReviveEvent 恢复
+                Collector.OnTag("spawn_completed_while_player_dead", 1);
+            }
 
             Collector.OnTag("spawn_performed", 1);
             Collector.OnTag("wave_transition_enemy_reinitialized", Context.EnemyCombatants.Count);

@@ -335,6 +335,13 @@ public class EnemyAttackTests
             EnemyCount = enemyCount
         };
         
+        // Use old behavior for backward compatibility in tests
+        var loopOptions = new Server.Infrastructure.Configuration.CombatLoopOptions
+        {
+            AttackStartsWithFullInterval = false, // Old behavior: immediate attack
+            SpecialStartsWithFullInterval = false
+        };
+        
         var engine = new BattleEngine(
             battleId: battleId,
             characterId: characterId,
@@ -344,7 +351,8 @@ public class EnemyAttackTests
             enemyDef: enemyDef,
             enemyCount: enemyCount,
             module: new TestProfessionModule(),
-            meta: meta
+            meta: meta,
+            loopOptions: loopOptions
         );
         
         return engine;
