@@ -41,6 +41,13 @@ public class WaveTransitionBugTests
         var rng = new RngContext(123);
         var profession = Profession.Warrior;
         var module = new TestProfessionModule();
+        
+        // Use old behavior for backward compatibility in tests
+        var loopOptions = new Server.Infrastructure.Configuration.CombatLoopOptions
+        {
+            AttackStartsWithFullInterval = false, // Old behavior: immediate attack
+            SpecialStartsWithFullInterval = false
+        };
 
         var engine = new BattleEngine(
             battleId: Guid.NewGuid(),
@@ -49,7 +56,8 @@ public class WaveTransitionBugTests
             stats: stats,
             rng: rng,
             provider: provider,
-            module: module
+            module: module,
+            loopOptions: loopOptions
         );
 
         var initialPlayerHp = engine.Context.Player.CurrentHp;
