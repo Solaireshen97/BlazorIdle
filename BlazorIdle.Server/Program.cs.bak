@@ -85,19 +85,6 @@ builder.Services.AddSignalR(options =>
 });
 builder.Services.AddSingleton<IBattleNotificationService, BattleNotificationService>();
 
-// SignalR Stage 4 服务：配置管理与监控
-builder.Services.AddSingleton<SignalRConfigurationService>();
-builder.Services.AddSingleton<SignalRMetricsCollector>();
-
-// SignalR 启动验证器（确保配置正确）
-builder.Services.AddHostedService<SignalRStartupValidator>();
-
-// SignalR 可选扩展组件（过滤器支持）
-// 如需使用过滤器，取消注释以下行：
-// builder.Services.AddSingleton<NotificationFilterPipeline>();
-// builder.Services.AddTransient<INotificationFilter, EventTypeFilter>();
-// builder.Services.AddTransient<INotificationFilter, RateLimitFilter>();
-
 // 5. ע�����߼�⺧̨����
 builder.Services.AddHostedService<OfflineDetectionService>();
 
