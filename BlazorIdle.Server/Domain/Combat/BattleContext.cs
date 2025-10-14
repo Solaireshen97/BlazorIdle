@@ -53,6 +53,12 @@ public class BattleContext
     
     /// <summary>战斗消息格式化服务（可选，用于生成事件消息）</summary>
     public Services.BattleMessageFormatter? MessageFormatter { get; private set; }
+    
+    /// <summary>
+    /// 战斗循环优化 Task 1.3: 当前攻击目标（用于保证攻击和技能使用同一目标）
+    /// 在每次攻击事件中设置，在技能施放时使用
+    /// </summary>
+    public ICombatant? CurrentAttackTarget { get; set; }
 
     public BattleContext(
         Battle battle,
