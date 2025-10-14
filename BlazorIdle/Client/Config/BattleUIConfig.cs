@@ -36,10 +36,10 @@ public class ProgressBarConfig
 public class PollingConfig
 {
     [JsonPropertyName("step")]
-    public PollingModeConfig Step { get; set; } = new();
+    public PollingModeConfig Step { get; set; } = new() { NormalIntervalMs = 500, SlowIntervalMs = 2000, FastIntervalMs = 200 };
     
     [JsonPropertyName("plan")]
-    public PollingModeConfig Plan { get; set; } = new();
+    public PollingModeConfig Plan { get; set; } = new() { NormalIntervalMs = 2000, SlowIntervalMs = 5000, FastIntervalMs = 500 };
     
     [JsonPropertyName("adaptive")]
     public AdaptivePollingConfig Adaptive { get; set; } = new();
