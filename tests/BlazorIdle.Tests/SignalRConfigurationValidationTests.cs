@@ -274,4 +274,44 @@ public sealed class SignalRConfigurationValidationTests
         Assert.False(string.IsNullOrEmpty(message));
         Assert.Contains(";", message); // 多个错误用分号分隔
     }
+
+    [Fact]
+    public void NotificationOptions_DamageAppliedNotification_CanBeEnabled()
+    {
+        // Arrange - 模拟从配置文件读取的设置
+        var options = new SignalROptions
+        {
+            HubEndpoint = "/hubs/battle",
+            Notification = new NotificationOptions
+            {
+                EnableDamageAppliedNotification = true,
+                EnableAttackStartedNotification = true,
+                EnableDamageReceivedNotification = true
+            }
+        };
+
+        // Act
+        var result = SignalROptionsValidator.Validate(options);
+
+        // Assert
+        Assert.True(result.IsValid);
+        Assert.True(options.Notification.EnableDamageAppliedNotification);
+        Assert.True(options.Notification.EnableAttackStartedNotification);
+        Assert.True(options.Notification.EnableDamageReceivedNotification);
+    }
+
+    [Fact]
+    public void NotificationOptions_DefaultValues_DamageAppliedDisabled()
+    {
+        // Arrange - 测试默认值
+        var options = new SignalROptions
+        {
+            HubEndpoint = "/hubs/battle"
+        };
+
+        // Act & Assert - 验证默认值
+        Assert.False(options.Notification.EnableDamageAppliedNotification); // 默认为 false，需要显式启用
+        Assert.True(options.Notification.EnableAttackStartedNotification); // 默认为 true
+        Assert.True(options.Notification.EnableDamageReceivedNotification); // 默认为 true
+    }
 }
