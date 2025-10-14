@@ -59,6 +59,12 @@ public class BattleContext
     /// 在每次攻击事件中设置，在技能施放时使用
     /// </summary>
     public ICombatant? CurrentAttackTarget { get; set; }
+    
+    /// <summary>
+    /// 战斗循环优化 Task 2.3: 战斗循环配置选项
+    /// 用于在事件中访问配置，特别是 PlayerReviveEvent
+    /// </summary>
+    public Infrastructure.Configuration.CombatLoopOptions CombatLoopOptions { get; private set; }
 
     public BattleContext(
         Battle battle,
@@ -76,7 +82,8 @@ public class BattleContext
         string? characterName = null,
         DungeonDefinition? dungeon = null,
         IBattleNotificationService? notificationService = null,
-        Services.BattleMessageFormatter? messageFormatter = null)
+        Services.BattleMessageFormatter? messageFormatter = null,
+        Infrastructure.Configuration.CombatLoopOptions? combatLoopOptions = null)
     {
         Battle = battle;
         Clock = clock;
@@ -88,6 +95,7 @@ public class BattleContext
         Stats = stats ?? new CharacterStats();
         NotificationService = notificationService;
         MessageFormatter = messageFormatter;
+        CombatLoopOptions = combatLoopOptions ?? new Infrastructure.Configuration.CombatLoopOptions();
 
         EncounterGroup = encounterGroup ?? (encounter != null ? Enemies.EncounterGroup.FromSingle(encounter) : null);
         Encounter = EncounterGroup?.PrimaryAlive() ?? encounter;

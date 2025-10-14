@@ -10,6 +10,24 @@ public class RangerProfession : IProfessionModule
     public string Id => "ranger";
     public double BaseAttackInterval => 1.4;
     public double BaseSpecialInterval => 4.0;
+    
+    /// <summary>
+    /// 游侠的特殊轨道（专注积累）需要目标，无怪物时暂停
+    /// 使用默认值（null），由 CombatLoopOptions 配置决定
+    /// </summary>
+    public bool? PauseSpecialWhenNoEnemies => null;
+    
+    /// <summary>
+    /// 游侠的特殊轨道使用标准延迟触发
+    /// 使用默认值（null），由 CombatLoopOptions 配置决定
+    /// </summary>
+    public bool? SpecialStartsImmediately => null;
+    
+    /// <summary>
+    /// 游侠复活后特殊轨道使用标准延迟
+    /// 使用默认值（null），由 CombatLoopOptions 配置决定
+    /// </summary>
+    public bool? SpecialStartsImmediatelyAfterRevive => null;
 
     public virtual void RegisterBuffDefinitions(BattleContext context)
     {
