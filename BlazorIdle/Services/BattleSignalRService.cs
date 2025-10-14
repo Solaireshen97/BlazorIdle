@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
 using BlazorIdle.Shared.Models;
+using System.Text.Json;
 
 namespace BlazorIdle.Client.Services;
 
@@ -273,11 +274,68 @@ public sealed class BattleSignalRService : IAsyncDisposable
             );
         }
 
+        // Deserialize JSON to the correct DTO type
+        object? deserializedEvent = null;
+        
+        try
+        {
+            // When SignalR receives JSON, it's typically a JsonElement
+            if (eventData is JsonElement jsonElement)
+            {
+                // First, try to get the EventType property to determine the correct type
+                if (jsonElement.TryGetProperty("EventType", out var eventTypeProperty))
+                {
+                    var eventType = eventTypeProperty.GetString();
+                    
+                    // Deserialize to the appropriate DTO type based on EventType
+                    deserializedEvent = eventType switch
+                    {
+                        "AttackStarted" => JsonSerializer.Deserialize<AttackStartedEventDto>(jsonElement.GetRawText()),
+                        "EnemyAttackStarted" => JsonSerializer.Deserialize<AttackStartedEventDto>(jsonElement.GetRawText()),
+                        "DamageApplied" => JsonSerializer.Deserialize<DamageAppliedEventDto>(jsonElement.GetRawText()),
+                        "DamageReceived" => JsonSerializer.Deserialize<DamageReceivedEventDto>(jsonElement.GetRawText()),
+                        "AttackTick" => JsonSerializer.Deserialize<AttackTickEventDto>(jsonElement.GetRawText()),
+                        "SkillCastComplete" => JsonSerializer.Deserialize<SkillCastCompleteEventDto>(jsonElement.GetRawText()),
+                        "PlayerDeath" => JsonSerializer.Deserialize<PlayerDeathEventDto>(jsonElement.GetRawText()),
+                        "EnemyKilled" => JsonSerializer.Deserialize<EnemyKilledEventDto>(jsonElement.GetRawText()),
+                        "TargetSwitched" => JsonSerializer.Deserialize<TargetSwitchedEventDto>(jsonElement.GetRawText()),
+                        _ => eventData // Unknown type, pass as-is
+                    };
+                    
+                    if (_enableDetailedLogging && deserializedEvent != null)
+                    {
+                        _logger.LogDebug(
+                            "Deserialized event to type: {TypeName}",
+                            deserializedEvent.GetType().Name
+                        );
+                    }
+                }
+                else
+                {
+                    // If no EventType property, use as-is
+                    deserializedEvent = eventData;
+                }
+            }
+            else
+            {
+                // Not a JsonElement, use as-is (might already be properly typed)
+                deserializedEvent = eventData;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to deserialize battle event");
+            deserializedEvent = eventData; // Fallback to original
+        }
+
+        // Use the deserialized event (or original if deserialization failed)
+        var eventToHandle = deserializedEvent ?? eventData;
+
         foreach (var handler in _battleEventHandlers)
         {
             try
             {
-                handler(eventData);
+                handler(eventToHandle);
             }
             catch (Exception ex)
             {
