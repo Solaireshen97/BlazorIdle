@@ -27,6 +27,15 @@ public class ProgressBarSettings
     
     /// <summary>循环进度的最大有效间隔（秒）</summary>
     public double MaxIntervalForLooping { get; set; } = 100.0;
+    
+    /// <summary>启用基于 AttackTick 事件的进度条同步</summary>
+    public bool EnableSyncOnAttackTick { get; set; } = true;
+    
+    /// <summary>启用基于 SkillCast 事件的进度条同步</summary>
+    public bool EnableSyncOnSkillCast { get; set; } = true;
+    
+    /// <summary>启用基于 DamageApplied 事件的即时血量更新</summary>
+    public bool EnableSyncOnDamageApplied { get; set; } = true;
 }
 
 /// <summary>

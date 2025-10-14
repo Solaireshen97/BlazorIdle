@@ -24,6 +24,9 @@ public sealed class BattleSignalRService : IAsyncDisposable
     
     // 事件处理器
     private readonly List<Action<StateChangedEvent>> _stateChangedHandlers = new();
+    private readonly List<Action<AttackTickEventDto>> _attackTickHandlers = new();
+    private readonly List<Action<SkillCastEventDto>> _skillCastHandlers = new();
+    private readonly List<Action<DamageAppliedEventDto>> _damageAppliedHandlers = new();
 
     public BattleSignalRService(
         ILogger<BattleSignalRService> logger,
@@ -116,6 +119,9 @@ public sealed class BattleSignalRService : IAsyncDisposable
 
             // 注册事件处理器
             _connection.On<StateChangedEvent>("StateChanged", OnStateChanged);
+            
+            // Phase 2.5: 注册轻量事件处理器（通过多态分发）
+            _connection.On<object>("BattleEvent", OnBattleEvent);
 
             // 连接管理事件
             _connection.Closed += OnConnectionClosed;
@@ -193,6 +199,30 @@ public sealed class BattleSignalRService : IAsyncDisposable
     {
         _stateChangedHandlers.Add(handler);
     }
+    
+    /// <summary>
+    /// 注册攻击触发事件处理器（Phase 2.5 轻量事件）
+    /// </summary>
+    public void OnAttackTick(Action<AttackTickEventDto> handler)
+    {
+        _attackTickHandlers.Add(handler);
+    }
+    
+    /// <summary>
+    /// 注册技能施放事件处理器（Phase 2.5 轻量事件）
+    /// </summary>
+    public void OnSkillCast(Action<SkillCastEventDto> handler)
+    {
+        _skillCastHandlers.Add(handler);
+    }
+    
+    /// <summary>
+    /// 注册伤害应用事件处理器（Phase 2.5 轻量事件）
+    /// </summary>
+    public void OnDamageApplied(Action<DamageAppliedEventDto> handler)
+    {
+        _damageAppliedHandlers.Add(handler);
+    }
 
     /// <summary>
     /// 断开连接
@@ -225,6 +255,89 @@ public sealed class BattleSignalRService : IAsyncDisposable
             {
                 _logger.LogError(ex, "Error in StateChanged handler");
             }
+        }
+    }
+    
+    // Phase 2.5: 通用 BattleEvent 处理器，根据事件类型分发到相应的处理器
+    private void OnBattleEvent(object evt)
+    {
+        try
+        {
+            switch (evt)
+            {
+                case AttackTickEventDto attackTick:
+                    if (_enableDetailedLogging)
+                    {
+                        _logger.LogDebug(
+                            "Received AttackTick event: BattleId={BattleId}, NextAttackAt={NextAttackAt}",
+                            attackTick.BattleId,
+                            attackTick.NextAttackAt
+                        );
+                    }
+                    foreach (var handler in _attackTickHandlers)
+                    {
+                        try
+                        {
+                            handler(attackTick);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error in AttackTick handler");
+                        }
+                    }
+                    break;
+                    
+                case SkillCastEventDto skillCast:
+                    if (_enableDetailedLogging)
+                    {
+                        _logger.LogDebug(
+                            "Received SkillCast event: BattleId={BattleId}, SkillId={SkillId}, IsCastStart={IsCastStart}",
+                            skillCast.BattleId,
+                            skillCast.SkillId,
+                            skillCast.IsCastStart
+                        );
+                    }
+                    foreach (var handler in _skillCastHandlers)
+                    {
+                        try
+                        {
+                            handler(skillCast);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error in SkillCast handler");
+                        }
+                    }
+                    break;
+                    
+                case DamageAppliedEventDto damageApplied:
+                    if (_enableDetailedLogging)
+                    {
+                        _logger.LogDebug(
+                            "Received DamageApplied event: BattleId={BattleId}, Damage={Damage}, TargetHp={TargetHp}/{MaxHp}",
+                            damageApplied.BattleId,
+                            damageApplied.DamageAmount,
+                            damageApplied.TargetCurrentHp,
+                            damageApplied.TargetMaxHp
+                        );
+                    }
+                    foreach (var handler in _damageAppliedHandlers)
+                    {
+                        try
+                        {
+                            handler(damageApplied);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error in DamageApplied handler");
+                        }
+                    }
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing BattleEvent");
         }
     }
 
