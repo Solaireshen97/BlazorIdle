@@ -1,4 +1,6 @@
 using BlazorIdle.Server.Domain.Equipment.Models;
+using BlazorIdle.Server.Infrastructure.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace BlazorIdle.Server.Domain.Equipment.Services;
 
@@ -8,12 +10,16 @@ namespace BlazorIdle.Server.Domain.Equipment.Services;
 /// </summary>
 public class BlockCalculator
 {
-    // 格挡常数
-    private const double BASE_BLOCK_CHANCE = 0.05;          // 基础格挡率 5%
-    private const double BLOCK_DAMAGE_REDUCTION = 0.30;     // 格挡减伤 30%
-    private const double BLOCK_CHANCE_PER_STRENGTH = 0.001; // 每点力量增加0.1%格挡率
-    private const double BLOCK_CHANCE_PER_ITEMLEVEL = 0.002; // 每点物品等级增加0.2%格挡率
-    private const double MAX_BLOCK_CHANCE = 0.50;           // 最大格挡率 50%
+    private readonly EquipmentSystemOptions _options;
+
+    /// <summary>
+    /// 构造函数
+    /// </summary>
+    /// <param name="options">装备系统配置选项</param>
+    public BlockCalculator(IOptions<EquipmentSystemOptions>? options = null)
+    {
+        _options = options?.Value ?? new EquipmentSystemOptions();
+    }
 
     /// <summary>
     /// 计算盾牌格挡率
@@ -23,16 +29,16 @@ public class BlockCalculator
     /// <returns>格挡率（0-0.5）</returns>
     public double CalculateBlockChance(int shieldItemLevel, double characterStrength = 0)
     {
-        double blockChance = BASE_BLOCK_CHANCE;
+        double blockChance = _options.BlockCalculation.BaseBlockChance;
         
         // 盾牌物品等级贡献
-        blockChance += shieldItemLevel * BLOCK_CHANCE_PER_ITEMLEVEL;
+        blockChance += shieldItemLevel * _options.BlockCalculation.BlockChancePerItemLevel;
         
         // 力量属性贡献
-        blockChance += characterStrength * BLOCK_CHANCE_PER_STRENGTH;
+        blockChance += characterStrength * _options.BlockCalculation.BlockChancePerStrength;
         
         // 限制最大值
-        return Math.Min(blockChance, MAX_BLOCK_CHANCE);
+        return Math.Min(blockChance, _options.BlockCalculation.MaxBlockChance);
     }
 
     /// <summary>
@@ -42,7 +48,7 @@ public class BlockCalculator
     /// <returns>格挡后伤害</returns>
     public int ApplyBlockReduction(int incomingDamage)
     {
-        return (int)(incomingDamage * (1.0 - BLOCK_DAMAGE_REDUCTION));
+        return (int)(incomingDamage * (1.0 - _options.BlockCalculation.BlockDamageReduction));
     }
 
     /// <summary>
@@ -68,16 +74,16 @@ public class BlockCalculator
     /// <summary>
     /// 获取格挡减伤百分比（供UI显示）
     /// </summary>
-    public static double GetBlockDamageReduction()
+    public double GetBlockDamageReduction()
     {
-        return BLOCK_DAMAGE_REDUCTION;
+        return _options.BlockCalculation.BlockDamageReduction;
     }
 
     /// <summary>
     /// 获取最大格挡率（供UI显示）
     /// </summary>
-    public static double GetMaxBlockChance()
+    public double GetMaxBlockChance()
     {
-        return MAX_BLOCK_CHANCE;
+        return _options.BlockCalculation.MaxBlockChance;
     }
 }

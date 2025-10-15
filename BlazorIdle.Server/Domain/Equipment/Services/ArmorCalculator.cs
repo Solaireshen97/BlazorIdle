@@ -1,4 +1,6 @@
 using BlazorIdle.Server.Domain.Equipment.Models;
+using BlazorIdle.Server.Infrastructure.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace BlazorIdle.Server.Domain.Equipment.Services;
 
@@ -8,9 +10,16 @@ namespace BlazorIdle.Server.Domain.Equipment.Services;
 /// </summary>
 public class ArmorCalculator
 {
-    // 护甲减伤常数（参考经典MMORPG设定）
-    private const double ARMOR_CONSTANT = 400.0;
-    private const double MAX_ARMOR_REDUCTION = 0.75; // 最大75%减伤
+    private readonly EquipmentSystemOptions _options;
+
+    /// <summary>
+    /// 构造函数
+    /// </summary>
+    /// <param name="options">装备系统配置选项</param>
+    public ArmorCalculator(IOptions<EquipmentSystemOptions>? options = null)
+    {
+        _options = options?.Value ?? new EquipmentSystemOptions();
+    }
 
     // 护甲类型系数
     private static readonly Dictionary<ArmorType, double> ArmorTypeMultipliers = new()
@@ -75,7 +84,7 @@ public class ArmorCalculator
     public double CalculateShieldArmorValue(int itemLevel)
     {
         // 盾牌提供较高的护甲值（相当于1.5倍板甲胸甲）
-        return itemLevel * 2.25;
+        return itemLevel * _options.ArmorCalculation.ShieldArmorMultiplier;
     }
 
     /// <summary>
@@ -94,11 +103,11 @@ public class ArmorCalculator
         // 护甲减伤公式：Armor / (Armor + K * AttackerLevel + C)
         // K = 50, C = 400 (与DamageCalculator一致)
         double K = 50.0;
-        double denominator = totalArmor + (K * attackerLevel + ARMOR_CONSTANT);
+        double denominator = totalArmor + (K * attackerLevel + _options.ArmorCalculation.ArmorConstant);
         double reduction = totalArmor / denominator;
 
         // 限制最大减伤
-        return Math.Min(reduction, MAX_ARMOR_REDUCTION);
+        return Math.Min(reduction, _options.ArmorCalculation.MaxArmorReduction);
     }
 
     /// <summary>
