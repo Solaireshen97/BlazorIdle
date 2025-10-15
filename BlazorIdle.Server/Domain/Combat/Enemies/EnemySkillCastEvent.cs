@@ -67,10 +67,13 @@ public record EnemySkillCastEvent(
             if (damage > 0 && target is PlayerCombatant player)
             {
                 // 对玩家造成伤害
+                // Phase 8: 传递配置的默认攻击者等级
                 var actualDamage = player.ReceiveDamage(
                     damage,
                     skill.DamageType,
-                    ExecuteAt
+                    ExecuteAt,
+                    attackerLevel: null,  // TODO: 传递实际敌人等级
+                    defaultAttackerLevel: context.CombatEngineOptions.DefaultAttackerLevel
                 );
                 
                 // 记录统计

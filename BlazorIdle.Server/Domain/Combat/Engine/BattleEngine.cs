@@ -52,6 +52,9 @@ public sealed class BattleEngine
     
     // 战斗循环配置选项
     private readonly CombatLoopOptions _loopOptions;
+    
+    // Phase 8: 战斗引擎配置选项
+    private readonly Infrastructure.Configuration.CombatEngineOptions _engineOptions;
 
     private void ClearDeathMarks() => _markedDead.Clear();
 
@@ -67,7 +70,8 @@ public sealed class BattleEngine
         BattleMeta? meta = null,
         IBattleNotificationService? notificationService = null,       // SignalR Phase 2
         Services.BattleMessageFormatter? messageFormatter = null,
-        CombatLoopOptions? loopOptions = null)
+        CombatLoopOptions? loopOptions = null,
+        Infrastructure.Configuration.CombatEngineOptions? engineOptions = null)
         : this(battleId, characterId, profession, stats, rng,
                provider: null,
                initialGroup: new EncounterGroup(Enumerable.Range(0, Math.Max(1, enemyCount)).Select(_ => enemyDef).ToList()),
@@ -75,7 +79,8 @@ public sealed class BattleEngine
                meta: meta,
                notificationService: notificationService,
                messageFormatter: messageFormatter,
-               loopOptions: loopOptions)
+               loopOptions: loopOptions,
+               engineOptions: engineOptions)
     {
     }
 
@@ -90,7 +95,8 @@ public sealed class BattleEngine
         BattleMeta? meta = null,
         IBattleNotificationService? notificationService = null,       // SignalR Phase 2
         Services.BattleMessageFormatter? messageFormatter = null,
-        CombatLoopOptions? loopOptions = null)
+        CombatLoopOptions? loopOptions = null,
+        Infrastructure.Configuration.CombatEngineOptions? engineOptions = null)
         : this(battleId, characterId, profession, stats, rng,
                provider: provider,
                initialGroup: provider.CurrentGroup,
@@ -98,7 +104,8 @@ public sealed class BattleEngine
                meta: meta,
                notificationService: notificationService,
                messageFormatter: messageFormatter,
-               loopOptions: loopOptions)
+               loopOptions: loopOptions,
+               engineOptions: engineOptions)
     {
     }
 
@@ -115,10 +122,12 @@ public sealed class BattleEngine
         BattleMeta? meta,
         IBattleNotificationService? notificationService,              // SignalR Phase 2
         Services.BattleMessageFormatter? messageFormatter,
-        CombatLoopOptions? loopOptions)
+        CombatLoopOptions? loopOptions,
+        Infrastructure.Configuration.CombatEngineOptions? engineOptions)
     {
         _provider = provider;
         _loopOptions = loopOptions ?? new CombatLoopOptions(); // 使用默认值如果未提供
+        _engineOptions = engineOptions ?? new Infrastructure.Configuration.CombatEngineOptions(); // Phase 8: 使用默认值如果未提供
 
         var professionModule = module ?? ProfessionRegistry.Resolve(profession);
 
@@ -156,7 +165,8 @@ public sealed class BattleEngine
             dungeon: dungeonDef,
             notificationService: notificationService,
             messageFormatter: messageFormatter,
-            combatLoopOptions: _loopOptions
+            combatLoopOptions: _loopOptions,
+            combatEngineOptions: _engineOptions  // Phase 8: 传递战斗引擎配置
         );
 
         SeedIndexStart = rng.Index;
@@ -251,7 +261,8 @@ public sealed class BattleEngine
     /// <param name="reason">暂停原因，用于日志记录</param>
     private void PausePlayerTracks(string reason)
     {
-        const double FAR_FUTURE = 1e10;
+        // Phase 8: 使用配置化的远未来时间戳
+        var farFuture = _engineOptions.FarFutureTimestamp;
         var pausedTracks = new List<string>();
         
         // 如果刷新延迟极小（接近0），跳过暂停以避免状态抖动
@@ -278,9 +289,9 @@ public sealed class BattleEngine
                 shouldPause = GetProfessionPauseSpecialWhenNoEnemies();
             }
             
-            if (shouldPause && track.NextTriggerAt < FAR_FUTURE)
+            if (shouldPause && track.NextTriggerAt < farFuture)
             {
-                track.NextTriggerAt = FAR_FUTURE;
+                track.NextTriggerAt = farFuture;
                 pausedTracks.Add(track.TrackType.ToString());
                 Collector.OnTag($"track_paused:{track.TrackType}", 1);
             }
@@ -312,14 +323,15 @@ public sealed class BattleEngine
     /// </summary>
     private void ResumePlayerTracks()
     {
-        const double FAR_FUTURE = 1e10;
+        // Phase 8: 使用配置化的远未来时间戳
+        var farFuture = _engineOptions.FarFutureTimestamp;
         double resumeTime = Clock.CurrentTime;
         var resumedTracks = new List<string>();
         
         foreach (var track in Context.Tracks)
         {
             // 检查轨道是否处于暂停状态（NextTriggerAt 被设置为 FAR_FUTURE）
-            if (track.NextTriggerAt > FAR_FUTURE / 2)
+            if (track.NextTriggerAt > farFuture / 2)
             {
                 // 根据配置决定恢复延迟
                 // 攻击轨道：从完整间隔开始（符合"从0开始计算进度"的需求）
@@ -915,23 +927,23 @@ public sealed class BattleEngine
         // 如果有任何怪物配置了技能，调度定期技能检查事件
         if (hasAnySkills)
         {
-            // 每 0.5 秒检查一次技能触发条件（平衡性能和响应速度）
-            const double SKILL_CHECK_INTERVAL = 0.5;
+            // Phase 8: 使用配置化的技能检查间隔（平衡性能和响应速度）
+            var skillCheckInterval = _engineOptions.SkillCheckIntervalSeconds;
             Scheduler.Schedule(new Enemies.EnemySkillCheckEvent(
-                Clock.CurrentTime + SKILL_CHECK_INTERVAL,
-                SKILL_CHECK_INTERVAL
+                Clock.CurrentTime + skillCheckInterval,
+                skillCheckInterval
             ));
         }
         
         // 调度定期 Buff Tick 事件（处理 DoT/HoT 等周期效果）
         // 只在有技能的怪物时才调度 buff tick，以减少事件数量
-        // 使用 1.0 秒间隔以减少事件数量，大多数 Buff DoT/HoT 间隔都是 2 秒以上
+        // Phase 8: 使用配置化的 Buff 刷新间隔（大多数 Buff DoT/HoT 间隔都是 2 秒以上）
         if (hasAnySkills && Context.EnemyCombatants.Count > 0)
         {
-            const double BUFF_TICK_INTERVAL = 1.0;  // 每 1.0 秒 tick 一次 buff
+            var buffTickInterval = _engineOptions.BuffTickIntervalSeconds;
             Scheduler.Schedule(new Enemies.EnemyBuffTickEvent(
-                Clock.CurrentTime + BUFF_TICK_INTERVAL,
-                BUFF_TICK_INTERVAL
+                Clock.CurrentTime + buffTickInterval,
+                buffTickInterval
             ));
         }
     }

@@ -88,7 +88,7 @@ public class PlayerCombatant : ICombatant
     }
     
     /// <summary>
-    /// 接收伤害
+    /// 接收伤害（实现 ICombatant 接口）
     /// Phase 4: 应用护甲减伤和格挡机制
     /// </summary>
     /// <param name="amount">伤害数值</param>
@@ -96,6 +96,21 @@ public class PlayerCombatant : ICombatant
     /// <param name="now">当前战斗时间</param>
     /// <returns>实际造成的伤害（如果已死亡则返回 0）</returns>
     public int ReceiveDamage(int amount, DamageType type, double now)
+    {
+        return ReceiveDamage(amount, type, now, attackerLevel: null, defaultAttackerLevel: 50);
+    }
+    
+    /// <summary>
+    /// 接收伤害（带配置参数）
+    /// Phase 8: 支持配置化的默认攻击者等级
+    /// </summary>
+    /// <param name="amount">伤害数值</param>
+    /// <param name="type">伤害类型</param>
+    /// <param name="now">当前战斗时间</param>
+    /// <param name="attackerLevel">攻击者等级（可选，默认使用配置值）</param>
+    /// <param name="defaultAttackerLevel">默认攻击者等级（从配置中获取）</param>
+    /// <returns>实际造成的伤害（如果已死亡则返回 0）</returns>
+    public int ReceiveDamage(int amount, DamageType type, double now, int? attackerLevel, int defaultAttackerLevel)
     {
         if (State == CombatantState.Dead)
             return 0;
@@ -118,10 +133,10 @@ public class PlayerCombatant : ICombatant
             // 2. 应用护甲减伤
             if (TotalArmor > 0 && _armorCalculator != null)
             {
-                // 使用默认攻击者等级50（典型怪物等级）
+                // Phase 8: 使用传入的攻击者等级，如果未提供则使用配置的默认值
                 // TODO: 在EnemyAttackEvent中传递实际敌人等级
-                const int defaultAttackerLevel = 50;
-                double armorReduction = _armorCalculator.CalculateArmorReduction(TotalArmor, defaultAttackerLevel);
+                var effectiveLevel = attackerLevel ?? defaultAttackerLevel;
+                double armorReduction = _armorCalculator.CalculateArmorReduction(TotalArmor, effectiveLevel);
                 mitigatedDamage = (int)Math.Ceiling(mitigatedDamage * (1.0 - armorReduction));
             }
         }

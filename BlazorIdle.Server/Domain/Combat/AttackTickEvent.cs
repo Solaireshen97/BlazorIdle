@@ -62,7 +62,8 @@ public record AttackTickEvent(double ExecuteAt, TrackState Track) : IGameEvent
         // Phase 5: 基础攻击伤害计算（简化版，不访问数据库）
         // 在实际战斗中，武器信息已经通过 Stats.AttackPower 体现
         // 这里保持简单的计算逻辑以保证性能
-        const int baseAttackDamage = 10;
+        // Phase 8: 使用配置化的基础攻击伤害
+        var baseAttackDamage = context.CombatEngineOptions.BaseAttackDamage;
         double preCritDamage = baseAttackDamage + context.Stats.AttackPower;
         
         // 注意：完整的双持武器伤害计算需要访问数据库获取武器类型

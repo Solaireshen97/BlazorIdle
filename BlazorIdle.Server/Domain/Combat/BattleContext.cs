@@ -65,6 +65,12 @@ public class BattleContext
     /// 用于在事件中访问配置，特别是 PlayerReviveEvent
     /// </summary>
     public Infrastructure.Configuration.CombatLoopOptions CombatLoopOptions { get; private set; }
+    
+    /// <summary>
+    /// Phase 8: 战斗引擎配置选项
+    /// 用于访问战斗引擎的核心参数（如时间戳、间隔、基础伤害等）
+    /// </summary>
+    public Infrastructure.Configuration.CombatEngineOptions CombatEngineOptions { get; private set; }
 
     public BattleContext(
         Battle battle,
@@ -83,7 +89,8 @@ public class BattleContext
         DungeonDefinition? dungeon = null,
         IBattleNotificationService? notificationService = null,
         Services.BattleMessageFormatter? messageFormatter = null,
-        Infrastructure.Configuration.CombatLoopOptions? combatLoopOptions = null)
+        Infrastructure.Configuration.CombatLoopOptions? combatLoopOptions = null,
+        Infrastructure.Configuration.CombatEngineOptions? combatEngineOptions = null)
     {
         Battle = battle;
         Clock = clock;
@@ -96,6 +103,7 @@ public class BattleContext
         NotificationService = notificationService;
         MessageFormatter = messageFormatter;
         CombatLoopOptions = combatLoopOptions ?? new Infrastructure.Configuration.CombatLoopOptions();
+        CombatEngineOptions = combatEngineOptions ?? new Infrastructure.Configuration.CombatEngineOptions();
 
         EncounterGroup = encounterGroup ?? (encounter != null ? Enemies.EncounterGroup.FromSingle(encounter) : null);
         Encounter = EncounterGroup?.PrimaryAlive() ?? encounter;
