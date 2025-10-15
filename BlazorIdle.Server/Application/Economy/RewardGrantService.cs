@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using BlazorIdle.Server.Application.Abstractions;
+using BlazorIdle.Server.Application.Monitoring;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Records;
 using BlazorIdle.Server.Infrastructure.Persistence;
@@ -16,16 +17,22 @@ namespace BlazorIdle.Server.Application.Economy;
 /// <summary>
 /// 奖励发放服务实现：负责将金币/经验/物品发放到角色账户。
 /// 使用 EconomyEventRecord 实现幂等性，防止重复发放。
+/// Phase 6: 集成MetricsCollectorService，记录经济系统指标
 /// </summary>
 public class RewardGrantService : IRewardGrantService
 {
     private readonly GameDbContext _db;
     private readonly ILogger<RewardGrantService> _logger;
+    private readonly IMetricsCollectorService? _metrics;
 
-    public RewardGrantService(GameDbContext db, ILogger<RewardGrantService> logger)
+    public RewardGrantService(
+        GameDbContext db, 
+        ILogger<RewardGrantService> logger,
+        IMetricsCollectorService? metrics = null)
     {
         _db = db;
         _logger = logger;
+        _metrics = metrics;
     }
 
     public async Task<bool> IsAlreadyGrantedAsync(string idempotencyKey, CancellationToken ct = default)
@@ -136,6 +143,23 @@ public class RewardGrantService : IRewardGrantService
             _logger.LogInformation(
                 "奖励发放完成，CharacterId={CharacterId}, EventType={EventType}, Gold={Gold}, Exp={Exp}, ItemCount={ItemCount}",
                 characterId, eventType, gold, exp, items.Count);
+
+            // Phase 6: 记录经济系统指标
+            if (gold != 0)
+            {
+                _metrics?.RecordGoldChange(characterId, (int)gold, eventType, (int)character.Gold);
+            }
+            if (exp != 0)
+            {
+                _metrics?.RecordExperienceGain(characterId, (int)exp, eventType, character.Level);
+            }
+            foreach (var (itemId, quantity) in items.Where(kv => kv.Value > 0))
+            {
+                if (Guid.TryParse(itemId, out var itemGuid))
+                {
+                    _metrics?.RecordItemAcquisition(characterId, itemGuid, quantity, eventType);
+                }
+            }
 
             return true;
         }

@@ -2,6 +2,7 @@
 using BlazorIdle.Server.Application.Activities;
 using BlazorIdle.Server.Application.Battles;
 using BlazorIdle.Server.Application.Economy;
+using BlazorIdle.Server.Application.Monitoring;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BlazorIdle.Server.Application;
@@ -57,6 +58,12 @@ public static class ApplicationDI
         //  - 购买验证器，负责验证购买请求的合法性
         //  - 使用 Scoped：与请求生命周期绑定
         services.AddScoped<IPurchaseValidator, Application.Shop.PurchaseValidator>();
+
+        // Phase 6: MetricsCollectorService
+        //  - 性能监控与指标收集服务
+        //  - 使用 Singleton：全局共享，无状态（仅记录日志）
+        //  - 线程安全：ILogger 本身是线程安全的
+        services.AddSingleton<IMetricsCollectorService, MetricsCollectorService>();
 
         return services;
     }
