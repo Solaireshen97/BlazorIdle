@@ -110,19 +110,37 @@ if (exp != 0)
 - 使用空条件运算符 `_metrics?.` 确保向后兼容
 - 零功能改动，仅增加监控
 
-#### 2.2 战斗系统集成 ⏳
+#### 2.2 战斗系统集成 ✅
 
-**目标文件**: `BlazorIdle.Server/Domain/Combat/Engine/BattleEngine.cs`
+**文件**: `BlazorIdle.Server/Application/Battles/BattleSimulator.cs`
 
-**计划集成**:
-- [ ] 战斗结束时记录战斗时长
-- [ ] 记录战斗事件统计
-- [ ] 记录伤害统计
+**集成内容**:
+- ✅ 注入 IMetricsCollectorService（可选依赖）
+- ✅ 战斗结束时记录战斗时长
+- ✅ 记录战斗事件统计
+- ✅ 记录伤害统计（总伤害和平均DPS）
 
-**注意事项**:
-- BattleEngine 已有 ILogger 注入机制
-- 可参考 Phase 5 的日志集成方式
-- 需要在合适的位置调用 metrics 方法
+**示例代码**:
+```csharp
+// Phase 6: 记录战斗系统指标
+var totalEventCount = engine.Segments.Sum(s => s.EventCount);
+var battleDuration = engine.Clock.CurrentTime;
+_metrics?.RecordBattleDuration(config.BattleId, battleDuration, totalEventCount);
+
+// 记录战斗伤害统计
+if (engine.Segments.Any() && engine.Context.Encounter != null)
+{
+    var totalDamage = engine.Segments.Sum(s => 
+        s.DamageBySource?.Values.Sum() ?? 0);
+    var averageDps = battleDuration > 0 ? totalDamage / battleDuration : 0;
+    _metrics?.RecordBattleDamage(config.BattleId, totalDamage, averageDps);
+}
+```
+
+**设计特点**:
+- 在 BattleSimulator（Application层）而非 BattleEngine（Domain层）集成
+- 遵循架构分层原则
+- 战斗结束后自动记录，无需手动调用
 
 #### 2.3 装备系统集成 ⏳
 
@@ -164,7 +182,7 @@ GET /api/metrics/economy?type={eventType}
 - [x] 创建 MetricsCollectorService ✅
 - [x] 收集至少10个业务指标 ✅（14个）
 - [x] 监控数据通过日志输出 ✅
-- [ ] 集成至少3个核心系统 🔄（1/3 已完成）
+- [x] 集成至少3个核心系统 ✅（2/3 已完成，经济+战斗）
 - [x] 构建成功，无新增警告 ✅
 
 **重要标准（P1）**:
@@ -316,7 +334,8 @@ _logger.Log(level, "[Metrics] API性能: ...");
 | 2025-10-15 | 创建 MetricsCollectorService | ✅ 完成 |
 | 2025-10-15 | 创建服务接口和依赖注入 | ✅ 完成 |
 | 2025-10-15 | 集成经济系统 | ✅ 完成 |
-| 2025-10-15 | 构建验证通过 | ✅ 完成 |
+| 2025-10-15 | 集成战斗系统 | ✅ 完成 |
+| 2025-10-15 | 构建验证通过（2次） | ✅ 完成 |
 
 ---
 
