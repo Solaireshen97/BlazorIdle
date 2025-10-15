@@ -1,4 +1,5 @@
 using BlazorIdle.Server.Application.Battles.Step;
+using BlazorIdle.Server.Application.Monitoring;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat;
 using BlazorIdle.Server.Domain.Combat.Enemies;
@@ -12,9 +13,20 @@ namespace BlazorIdle.Server.Application.Battles;
 /// <summary>
 /// 统一的战斗模拟组件，封装 BattleEngine 的创建和配置逻辑。
 /// 支持同步执行（BattleRunner）、异步执行（RunningBattle）和离线结算（OfflineSettlement）复用。
+/// Phase 6: 集成MetricsCollectorService，记录战斗系统指标
 /// </summary>
 public class BattleSimulator
 {
+    private readonly IMetricsCollectorService? _metrics;
+
+    /// <summary>
+    /// 构造函数
+    /// </summary>
+    /// <param name="metrics">Phase 6: 性能监控指标收集服务（可选）</param>
+    public BattleSimulator(IMetricsCollectorService? metrics = null)
+    {
+        _metrics = metrics;
+    }
     /// <summary>
     /// 战斗模拟结果
     /// </summary>
@@ -78,6 +90,20 @@ public class BattleSimulator
         engine.AdvanceUntil(durationSeconds);
 
         battle.Finish(engine.Battle.EndedAt ?? engine.Clock.CurrentTime);
+
+        // Phase 6: 记录战斗系统指标
+        var totalEventCount = engine.Segments.Sum(s => s.EventCount);
+        var battleDuration = engine.Clock.CurrentTime;
+        _metrics?.RecordBattleDuration(config.BattleId, battleDuration, totalEventCount);
+
+        // 记录战斗伤害统计（如果有数据）
+        if (engine.Segments.Any() && engine.Context.Encounter != null)
+        {
+            var totalDamage = engine.Segments.Sum(s => 
+                s.DamageBySource?.Values.Sum() ?? 0);
+            var averageDps = battleDuration > 0 ? totalDamage / battleDuration : 0;
+            _metrics?.RecordBattleDamage(config.BattleId, totalDamage, averageDps);
+        }
 
         return new SimulationResult
         {
