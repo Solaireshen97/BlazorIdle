@@ -4,6 +4,7 @@ using BlazorIdle.Server.Domain.Equipment.Models;
 using BlazorIdle.Server.Domain.Equipment.ValueObjects;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace BlazorIdle.Server.Domain.Equipment.Services;
 
@@ -14,10 +15,12 @@ namespace BlazorIdle.Server.Domain.Equipment.Services;
 public class ReforgeService
 {
     private readonly GameDbContext _context;
+    private readonly ILogger<ReforgeService> _logger;
 
-    public ReforgeService(GameDbContext context)
+    public ReforgeService(GameDbContext context, ILogger<ReforgeService> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     /// <summary>
@@ -32,6 +35,10 @@ public class ReforgeService
         // 参数验证
         ValidationHelper.ValidateGuid(characterId, nameof(characterId));
         ValidationHelper.ValidateGuid(gearInstanceId, nameof(gearInstanceId));
+
+        _logger.LogInformation(
+            "装备重铸开始，CharacterId={CharacterId}, GearInstanceId={GearInstanceId}",
+            characterId, gearInstanceId);
         
         // 1. 获取装备实例
         var gear = await _context.Set<GearInstance>()
@@ -40,6 +47,7 @@ public class ReforgeService
 
         if (gear == null)
         {
+            _logger.LogWarning("装备不存在，CharacterId={CharacterId}, GearInstanceId={GearInstanceId}", characterId, gearInstanceId);
             return ReforgeResult.Failure("装备不存在");
         }
 
@@ -78,6 +86,10 @@ public class ReforgeService
         // TODO: 集成背包系统扣除材料
 
         await _context.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "装备重铸完成，CharacterId={CharacterId}, GearInstanceId={GearInstanceId}, FromTier={FromTier}, ToTier={ToTier}, QualityScore={QualityScore}",
+            characterId, gearInstanceId, oldTier, newTier, gear.QualityScore);
 
         return ReforgeResult.Success($"成功将装备提升至 T{newTier}", gear);
     }

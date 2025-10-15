@@ -3,6 +3,7 @@ using BlazorIdle.Server.Domain.Equipment.Services;
 using BlazorIdle.Server.Domain.Equipment.ValueObjects;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace BlazorIdle.Tests.Equipment.Services;
@@ -22,7 +23,8 @@ public class ReforgeServiceTests : IDisposable
             .Options;
 
         _context = new GameDbContext(options);
-        _service = new ReforgeService(_context);
+        var logger = NullLogger<ReforgeService>.Instance;
+        _service = new ReforgeService(_context, logger);
     }
 
     [Fact]

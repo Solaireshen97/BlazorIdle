@@ -3,6 +3,7 @@ using BlazorIdle.Server.Domain.Equipment.Configuration;
 using BlazorIdle.Server.Domain.Equipment.Models;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace BlazorIdle.Server.Domain.Equipment.Services;
 
@@ -13,10 +14,12 @@ namespace BlazorIdle.Server.Domain.Equipment.Services;
 public class DisenchantService
 {
     private readonly GameDbContext _context;
+    private readonly ILogger<DisenchantService> _logger;
 
-    public DisenchantService(GameDbContext context)
+    public DisenchantService(GameDbContext context, ILogger<DisenchantService> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     /// <summary>
@@ -31,6 +34,10 @@ public class DisenchantService
         // 参数验证
         ValidationHelper.ValidateGuid(characterId, nameof(characterId));
         ValidationHelper.ValidateGuid(gearInstanceId, nameof(gearInstanceId));
+
+        _logger.LogInformation(
+            "装备分解开始，CharacterId={CharacterId}, GearInstanceId={GearInstanceId}",
+            characterId, gearInstanceId);
         
         // 1. 获取装备实例
         var gear = await _context.Set<GearInstance>()
@@ -39,6 +46,7 @@ public class DisenchantService
 
         if (gear == null)
         {
+            _logger.LogWarning("装备不存在，CharacterId={CharacterId}, GearInstanceId={GearInstanceId}", characterId, gearInstanceId);
             return DisenchantResult.Failure("装备不存在");
         }
 
@@ -67,6 +75,10 @@ public class DisenchantService
         // TODO: 集成背包系统添加材料
 
         await _context.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "装备分解完成，CharacterId={CharacterId}, GearInstanceId={GearInstanceId}, TierLevel={TierLevel}, MaterialCount={MaterialCount}",
+            characterId, gearInstanceId, gear.TierLevel, materials.Count);
 
         return DisenchantResult.Success("分解成功", materials);
     }

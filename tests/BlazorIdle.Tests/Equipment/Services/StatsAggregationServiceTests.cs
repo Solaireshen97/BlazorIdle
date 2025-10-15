@@ -2,6 +2,7 @@ using BlazorIdle.Server.Domain.Equipment.Models;
 using BlazorIdle.Server.Domain.Equipment.Services;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace BlazorIdle.Tests.Equipment.Services;
@@ -23,7 +24,8 @@ public class StatsAggregationServiceTests : IDisposable
 
         _context = new GameDbContext(options);
         var validator = new EquipmentValidator();
-        _equipmentService = new EquipmentService(_context, validator);
+        var logger = NullLogger<EquipmentService>.Instance;
+        _equipmentService = new EquipmentService(_context, validator, logger);
         var armorCalculator = new ArmorCalculator();
         var blockCalculator = new BlockCalculator();
         _service = new StatsAggregationService(_equipmentService, armorCalculator, blockCalculator);

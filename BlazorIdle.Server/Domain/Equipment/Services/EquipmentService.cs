@@ -2,6 +2,7 @@ using BlazorIdle.Server.Domain.Common.Utilities;
 using BlazorIdle.Server.Domain.Equipment.Models;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace BlazorIdle.Server.Domain.Equipment.Services;
 
@@ -13,11 +14,13 @@ public class EquipmentService
 {
     private readonly GameDbContext _context;
     private readonly EquipmentValidator _validator;
+    private readonly ILogger<EquipmentService> _logger;
 
-    public EquipmentService(GameDbContext context, EquipmentValidator validator)
+    public EquipmentService(GameDbContext context, EquipmentValidator validator, ILogger<EquipmentService> logger)
     {
         _context = context;
         _validator = validator;
+        _logger = logger;
     }
 
     /// <summary>
@@ -32,6 +35,10 @@ public class EquipmentService
         // 参数验证
         ValidationHelper.ValidateGuid(characterId, nameof(characterId));
         ValidationHelper.ValidateGuid(gearInstanceId, nameof(gearInstanceId));
+
+        _logger.LogInformation(
+            "装备穿戴开始，CharacterId={CharacterId}, GearInstanceId={GearInstanceId}",
+            characterId, gearInstanceId);
         
         // 1. 获取装备实例
         var gear = await _context.Set<GearInstance>()
@@ -40,6 +47,7 @@ public class EquipmentService
 
         if (gear == null)
         {
+            _logger.LogWarning("装备不存在，CharacterId={CharacterId}, GearInstanceId={GearInstanceId}", characterId, gearInstanceId);
             return EquipmentResult.Failure("装备不存在");
         }
 
@@ -108,6 +116,10 @@ public class EquipmentService
 
         await _context.SaveChangesAsync();
 
+        _logger.LogInformation(
+            "装备穿戴完成，CharacterId={CharacterId}, GearInstanceId={GearInstanceId}, Slot={Slot}, GearName={GearName}, TierLevel={TierLevel}",
+            characterId, gearInstanceId, slot, gear.Definition?.Name, gear.TierLevel);
+
         return EquipmentResult.Success($"成功装备 {gear.Definition?.Name ?? "装备"}");
     }
 
@@ -122,6 +134,8 @@ public class EquipmentService
     {
         // 参数验证
         ValidationHelper.ValidateGuid(characterId, nameof(characterId));
+
+        _logger.LogInformation("装备卸下开始，CharacterId={CharacterId}, Slot={Slot}", characterId, slot);
         
         var gear = await _context.Set<GearInstance>()
             .FirstOrDefaultAsync(g => g.CharacterId == characterId 
@@ -130,6 +144,7 @@ public class EquipmentService
 
         if (gear == null)
         {
+            _logger.LogDebug("该槽位没有装备，CharacterId={CharacterId}, Slot={Slot}", characterId, slot);
             return EquipmentResult.Success("该槽位没有装备");
         }
 
@@ -138,6 +153,9 @@ public class EquipmentService
         gear.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
+
+        _logger.LogInformation("装备卸下完成，CharacterId={CharacterId}, Slot={Slot}, GearInstanceId={GearInstanceId}", 
+            characterId, slot, gear.Id);
 
         return EquipmentResult.Success("成功卸下装备");
     }

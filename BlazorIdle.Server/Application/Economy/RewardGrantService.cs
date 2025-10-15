@@ -44,10 +44,14 @@ public class RewardGrantService : IRewardGrantService
         Guid? battleId = null,
         CancellationToken ct = default)
     {
+        _logger.LogInformation(
+            "奖励发放开始，CharacterId={CharacterId}, EventType={EventType}, Gold={Gold}, Exp={Exp}, ItemCount={ItemCount}, IdempotencyKey={IdempotencyKey}",
+            characterId, eventType, gold, exp, items.Count, idempotencyKey);
+
         // 幂等性检查
         if (await IsAlreadyGrantedAsync(idempotencyKey, ct))
         {
-            _logger.LogDebug("Reward already granted for key: {Key}", idempotencyKey);
+            _logger.LogDebug("奖励已发放（幂等性检查），IdempotencyKey={IdempotencyKey}", idempotencyKey);
             return false;
         }
 
@@ -59,12 +63,19 @@ public class RewardGrantService : IRewardGrantService
             var character = await _db.Characters.FindAsync(new object[] { characterId }, ct);
             if (character == null)
             {
-                _logger.LogWarning("Character {CharacterId} not found, skipping reward grant", characterId);
+                _logger.LogWarning("角色不存在，CharacterId={CharacterId}，跳过奖励发放", characterId);
                 return false;
             }
 
+            var oldGold = character.Gold;
+            var oldExp = character.Experience;
+
             character.Gold += gold;
             character.Experience += exp;
+
+            _logger.LogDebug(
+                "金币经验变更，CharacterId={CharacterId}, OldGold={OldGold}, NewGold={NewGold}, OldExp={OldExp}, NewExp={NewExp}",
+                characterId, oldGold, character.Gold, oldExp, character.Experience);
 
             // 2. 更新背包物品
             foreach (var (itemId, quantity) in items.Where(kv => kv.Value > 0))
@@ -112,15 +123,17 @@ public class RewardGrantService : IRewardGrantService
             await transaction.CommitAsync(ct);
 
             _logger.LogInformation(
-                "Granted rewards to character {CharacterId}: Gold={Gold}, Exp={Exp}, Items={ItemCount}",
-                characterId, gold, exp, items.Count);
+                "奖励发放完成，CharacterId={CharacterId}, EventType={EventType}, Gold={Gold}, Exp={Exp}, ItemCount={ItemCount}",
+                characterId, eventType, gold, exp, items.Count);
 
             return true;
         }
         catch (Exception ex)
         {
             await transaction.RollbackAsync(ct);
-            _logger.LogError(ex, "Failed to grant rewards for key: {Key}", idempotencyKey);
+            _logger.LogError(ex, 
+                "奖励发放失败，CharacterId={CharacterId}, EventType={EventType}, IdempotencyKey={IdempotencyKey}", 
+                characterId, eventType, idempotencyKey);
             throw;
         }
     }
