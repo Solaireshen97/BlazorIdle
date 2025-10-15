@@ -85,8 +85,14 @@ public class RewardGrantService : IRewardGrantService
 
                 if (existing != null)
                 {
+                    var oldQuantity = existing.Quantity;
                     existing.Quantity += quantity;
                     existing.UpdatedAt = DateTime.UtcNow;
+                    
+                    // Phase 5 日志系统: 物品数量变更日志
+                    _logger.LogDebug(
+                        "物品数量变更，CharacterId={CharacterId}, ItemId={ItemId}, OldQuantity={OldQuantity}, NewQuantity={NewQuantity}, Delta={Delta}",
+                        characterId, itemId, oldQuantity, existing.Quantity, quantity);
                 }
                 else
                 {
@@ -100,6 +106,11 @@ public class RewardGrantService : IRewardGrantService
                         UpdatedAt = DateTime.UtcNow
                     };
                     _db.InventoryItems.Add(newItem);
+                    
+                    // Phase 5 日志系统: 新物品获得日志
+                    _logger.LogDebug(
+                        "获得新物品，CharacterId={CharacterId}, ItemId={ItemId}, Quantity={Quantity}",
+                        characterId, itemId, quantity);
                 }
             }
 
