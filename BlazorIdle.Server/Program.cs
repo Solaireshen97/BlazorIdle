@@ -13,15 +13,15 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. ������ܷ���
-// ���ӻ��ڿ������� API ֧�֣�����·�� / ������ / ģ�Ͱ󶨵ȣ�
+// 1. 核心服务注册
+// 添加基于控制器的 API 支持（包含路由 / 参数绑定 / 模型绑定等）
 builder.Services.AddControllers();
 
 // 2. OpenAPI / Swagger
-builder.Services.AddEndpointsApiExplorer(); // Ϊ��С API / Controller ��������
-builder.Services.AddSwaggerGen(options =>   // ���� swagger.json + UI�������ڵ����ã�
+builder.Services.AddEndpointsApiExplorer(); // 为最小 API / Controller 生成端点
+builder.Services.AddSwaggerGen(options =>   // 生成 swagger.json + UI（用于调试/测试）
 {
-    // ����JWT��֤��֧��
+    // 配置JWT认证的支持
     options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
     {
         Description = "JWT Authorization header using the Bearer scheme. Example: \"Bearer {token}\"",
@@ -70,12 +70,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<JwtTokenService>();
 
-// 4. ҵ��ֲ�ע��
+// 4. 业务层注册
 builder.Services
-    .AddInfrastructure(builder.Configuration)   // ע�������ʩ��DbContext / �ִ����ڲ��ѵ��� AddRepositories��
-    .AddApplication();                          // ע��Ӧ�ò�����������Command/Query Handler �ȣ�
+    .AddInfrastructure(builder.Configuration)   // 注册基础设施层（DbContext / 仓储等，内部已调用 AddRepositories）
+    .AddApplication();                          // 注册应用层服务（如Command/Query Handler 等）
 
-// 4.5 SignalR ����
+// 4.5 SignalR 配置
 builder.Services.Configure<SignalROptions>(builder.Configuration.GetSection("SignalR"));
 builder.Services.Configure<BattleMessageOptions>(builder.Configuration.GetSection("BattleMessages"));
 builder.Services.AddSignalR(options =>
@@ -100,76 +100,76 @@ builder.Services.AddHostedService<SignalRStartupValidator>();
 // builder.Services.AddTransient<INotificationFilter, EventTypeFilter>();
 // builder.Services.AddTransient<INotificationFilter, RateLimitFilter>();
 
-// 5. ע�����߼�⺧̨����
+// 5. 注册离线检测后台服务
 builder.Services.AddHostedService<OfflineDetectionService>();
 
-// 6. CORS������
-// Ŀ�ģ�����ǰ�� Blazor WebAssembly�����ؿ����˿ڣ����ʱ� API��
-// ע�⣺�����ɸ�Ϊ��ȷ��Դ������ö�ȡ������ƾ�����ټ� AllowCredentials().
+// 6. CORS策略
+// 目的：允许前端 Blazor WebAssembly（运行在其他端口）访问后端 API。
+// 注意：生产环境可改为精确来源，或者动态读取配置。如果需要携带凭据再加 AllowCredentials().
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowBlazorClient", policy =>
     {
         policy
             .WithOrigins(
-                "https://localhost:5001", // �����Ǳ��� HTTPS ��̬��Դ�򿪷�����
-                "http://localhost:5001",  // HTTP �汾
-                "http://localhost:5000")  // HTTP �汾
+                "https://localhost:5001", // 如果这是本地 HTTPS 静态资源或开发服务器
+                "http://localhost:5001",  // HTTP 版本
+                "http://localhost:5000")  // HTTP 版本
             .AllowAnyHeader()
             .AllowAnyMethod();
-        // .AllowCredentials(); // ��δ��ʹ�� Cookie/��Ȩͷ����ҪЯ��ƾ��
+        // .AllowCredentials(); // 若未来使用 Cookie/授权头需要携带凭据
     });
 });
 
 var app = builder.Build();
 
-// 6. �Զ�Ǩ�ƣ���������
-// - ����һ����ʱ Scope ȡ�� DbContext �뻷��
-// - Development �����Զ�ִ�� Migrate() ���ڿ��ٵ���
-// - ����������ã�Ԥ��Ǩ�ƣ�CI/CD�����˹���˺�ִ��
+// 6. 自动迁移（仅开发环境）
+// - 创建一个临时 Scope 取得 DbContext 和环境
+// - Development 下自动执行 Migrate() 方便快速迭代
+// - 生产环境建议：预先迁移（CI/CD、运维管理员手动执行）
 using (var scope = app.Services.CreateScope())
 {
     var env = scope.ServiceProvider.GetRequiredService<IHostEnvironment>();
     var db = scope.ServiceProvider.GetRequiredService<GameDbContext>();
     if (env.IsDevelopment())
     {
-        // ����Ǩ�ƻ����쳣������ִ��
+        // 如果迁移或数据库异常，这里会执行
         // dotnet ef migrations add InitBattle
         // dotnet ef database update
         db.Database.Migrate();
     }
     else
     {
-        // ������ѡ���ԣ�
-        // 1) �ֶ�Ǩ�ƣ��Ƽ���
-        // 2) �����Զ�Ǩ�ƣ����գ����ܿؽṹ�Ķ���
-        // 3) ����Ⲣ��־�澯:
+        // 生产环境选择题：
+        // 1) 手动迁移（推荐）
+        // 2) 仍然自动迁移（不推荐，容易控制结构的变更）
+        // 3) 检查待迁移并日志警告:
         // if (db.Database.GetPendingMigrations().Any()) { /* log warning */ }
     }
 }
 
-// 7. �м������
+// 7. 中间件管道
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();    // /swagger/v1/swagger.json
     app.UseSwaggerUI();  // /swagger
 }
 
-app.UseHttpsRedirection();      // ǿ���ض����� HTTPS��ȷ�� swagger Ҳ��ͨ�� https ���ʣ�
-app.UseCors("AllowBlazorClient"); // ������ MapControllers ֮ǰ��������֤/��Ȩǰ������еĻ���
+app.UseHttpsRedirection();      // 强制重定向到 HTTPS（确保 swagger 也能通过 https 访问）
+app.UseCors("AllowBlazorClient"); // 放在所有 MapControllers 之前，必须在认证/授权前（如果有的话）
 
-// �����������������֤��˳��ͨ���� UseAuthentication -> UseAuthorization
-app.UseAuthentication(); // ��֤�м��
-app.UseAuthorization();  // ��Ȩ�м��
+// 重要：认证和授权中间件的顺序通常是： UseAuthentication -> UseAuthorization
+app.UseAuthentication(); // 认证中间件
+app.UseAuthorization();  // 授权中间件
 
-app.MapControllers(); // ӳ��������˵㵽·�ɱ�
+app.MapControllers(); // 映射控制器端点到路由表
 
-// SignalR Hub ӳ��
+// SignalR Hub 映射
 var signalRConfig = app.Configuration.GetSection("SignalR").Get<SignalROptions>() ?? new SignalROptions();
 if (signalRConfig.EnableSignalR)
 {
     app.MapHub<BattleNotificationHub>(signalRConfig.HubEndpoint);
 }
 
-// TODO����ѡ��չ����app.MapHealthChecks("/health"); app.MapGet("/version", ...);
+// TODO：可选扩展（如app.MapHealthChecks("/health"); app.MapGet("/version", ...);
 app.Run(); // ������������ͬ��������ֱ������ֹͣ��
