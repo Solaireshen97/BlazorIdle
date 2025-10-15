@@ -1,5 +1,6 @@
 ﻿using BlazorIdle.Server.Application.Battles.Offline;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace BlazorIdle.Server.Api;
 
@@ -43,8 +44,15 @@ namespace BlazorIdle.Server.Api;
 public class OfflineController : ControllerBase
 {
     private readonly OfflineSettlementService _offline;
+    private readonly ILogger<OfflineController> _logger;
 
-    public OfflineController(OfflineSettlementService offline) => _offline = offline;
+    public OfflineController(
+        OfflineSettlementService offline,
+        ILogger<OfflineController> logger)
+    {
+        _offline = offline;
+        _logger = logger;
+    }
 
     /// <summary>
     /// 检查角色离线时间并返回结算结果
@@ -99,13 +107,24 @@ public class OfflineController : ControllerBase
         [FromQuery] Guid characterId,
         CancellationToken ct = default)
     {
+        // Phase 5 日志系统: 离线结算检查日志
+        _logger.LogInformation("离线结算检查开始，CharacterId={CharacterId}", characterId);
+
         try
         {
             var result = await _offline.CheckAndSettleAsync(characterId, ct);
+            
+            _logger.LogInformation(
+                "离线结算检查完成，CharacterId={CharacterId}, OfflineSeconds={OfflineSeconds}, HasOfflineTime={HasOfflineTime}, HasRunningPlan={HasRunningPlan}",
+                characterId, result.OfflineSeconds, result.HasOfflineTime, result.HasRunningPlan);
+            
             return Ok(result);
         }
         catch (InvalidOperationException ex)
         {
+            _logger.LogWarning(
+                "离线结算检查失败，CharacterId={CharacterId}, Error={Error}",
+                characterId, ex.Message);
             return NotFound(new { message = ex.Message });
         }
     }
@@ -159,16 +178,29 @@ public class OfflineController : ControllerBase
         [FromBody] ApplySettlementRequest request,
         CancellationToken ct = default)
     {
+        // Phase 5 日志系统: 离线结算应用日志
+        _logger.LogInformation(
+            "离线结算应用开始，CharacterId={CharacterId}, Gold={Gold}, Exp={Exp}",
+            request.CharacterId, request.Settlement.Gold, request.Settlement.Exp);
+
         try
         {
             await _offline.ApplySettlementAsync(
                 request.CharacterId,
                 request.Settlement,
                 ct);
+            
+            _logger.LogInformation(
+                "离线结算应用成功，CharacterId={CharacterId}",
+                request.CharacterId);
+            
             return Ok(new { success = true, message = "收益已发放" });
         }
         catch (InvalidOperationException ex)
         {
+            _logger.LogError(ex,
+                "离线结算应用失败，CharacterId={CharacterId}, Error={Error}",
+                request.CharacterId, ex.Message);
             return NotFound(new { message = ex.Message });
         }
     }
@@ -262,7 +294,18 @@ public class OfflineController : ControllerBase
         CancellationToken ct = default)
     {
         if (seconds <= 0) return BadRequest("seconds must be positive.");
+        
+        // Phase 5 日志系统: 离线模拟日志
+        _logger.LogInformation(
+            "离线模拟开始，CharacterId={CharacterId}, Seconds={Seconds}, Mode={Mode}, EnemyId={EnemyId}, DungeonId={DungeonId}",
+            characterId, seconds, mode, enemyId, dungeonId);
+
         var res = await _offline.SimulateAsync(characterId, TimeSpan.FromSeconds(seconds), mode, enemyId, enemyCount, dungeonId, seed, dropMode, ct);
+        
+        _logger.LogInformation(
+            "离线模拟完成，CharacterId={CharacterId}, TotalDamage={TotalDamage}, TotalKills={TotalKills}, Gold={Gold}, Exp={Exp}",
+            characterId, res.TotalDamage, res.TotalKills, res.Gold, res.Exp);
+        
         return Ok(new
         {
             res.CharacterId,

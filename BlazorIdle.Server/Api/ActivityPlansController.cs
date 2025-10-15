@@ -2,6 +2,7 @@ using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Application.Activities;
 using BlazorIdle.Server.Domain.Activities;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
@@ -48,11 +49,16 @@ public class ActivityPlansController : ControllerBase
 {
     private readonly ActivityPlanService _service;
     private readonly IActivityPlanRepository _repository;
+    private readonly ILogger<ActivityPlansController> _logger;
 
-    public ActivityPlansController(ActivityPlanService service, IActivityPlanRepository repository)
+    public ActivityPlansController(
+        ActivityPlanService service, 
+        IActivityPlanRepository repository,
+        ILogger<ActivityPlansController> logger)
     {
         _service = service;
         _repository = repository;
+        _logger = logger;
     }
 
     /// <summary>
@@ -223,6 +229,11 @@ public class ActivityPlansController : ControllerBase
 
         var payloadJson = JsonSerializer.Serialize(payload);
 
+        // Phase 5 日志系统: 战斗计划创建日志
+        _logger.LogInformation(
+            "创建战斗计划，CharacterId={CharacterId}, SlotIndex={SlotIndex}, LimitType={LimitType}, LimitValue={LimitValue}, EnemyId={EnemyId}, EnemyCount={EnemyCount}",
+            characterId, slotIndex, parsedLimitType, limitValue, enemyId, enemyCount);
+
         try
         {
             var plan = await _service.CreatePlanAsync(
@@ -234,10 +245,17 @@ public class ActivityPlansController : ControllerBase
                 payloadJson,
                 ct);
 
+            _logger.LogInformation(
+                "战斗计划创建成功，PlanId={PlanId}, CharacterId={CharacterId}, SlotIndex={SlotIndex}",
+                plan.Id, characterId, slotIndex);
+
             return CreatedAtAction(nameof(Get), new { id = plan.Id }, plan);
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex,
+                "战斗计划创建失败，CharacterId={CharacterId}, SlotIndex={SlotIndex}, Error={Error}",
+                characterId, slotIndex, ex.Message);
             return BadRequest(ex.Message);
         }
     }
@@ -316,6 +334,11 @@ public class ActivityPlansController : ControllerBase
 
         var payloadJson = JsonSerializer.Serialize(payload);
 
+        // Phase 5 日志系统: 地下城计划创建日志
+        _logger.LogInformation(
+            "创建地下城计划，CharacterId={CharacterId}, SlotIndex={SlotIndex}, LimitType={LimitType}, LimitValue={LimitValue}, DungeonId={DungeonId}, Loop={Loop}",
+            characterId, slotIndex, parsedLimitType, limitValue, dungeonId, loop);
+
         try
         {
             var plan = await _service.CreatePlanAsync(
@@ -327,10 +350,17 @@ public class ActivityPlansController : ControllerBase
                 payloadJson,
                 ct);
 
+            _logger.LogInformation(
+                "地下城计划创建成功，PlanId={PlanId}, CharacterId={CharacterId}, SlotIndex={SlotIndex}, DungeonId={DungeonId}",
+                plan.Id, characterId, slotIndex, dungeonId);
+
             return CreatedAtAction(nameof(Get), new { id = plan.Id }, plan);
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex,
+                "地下城计划创建失败，CharacterId={CharacterId}, SlotIndex={SlotIndex}, DungeonId={DungeonId}, Error={Error}",
+                characterId, slotIndex, dungeonId, ex.Message);
             return BadRequest(ex.Message);
         }
     }
@@ -373,13 +403,24 @@ public class ActivityPlansController : ControllerBase
     [HttpPost("{id:guid}/start")]
     public async Task<IActionResult> Start(Guid id, CancellationToken ct)
     {
+        // Phase 5 日志系统: 计划启动日志
+        _logger.LogInformation("启动活动计划，PlanId={PlanId}", id);
+
         try
         {
             var battleId = await _service.StartPlanAsync(id, ct);
+            
+            _logger.LogInformation(
+                "活动计划启动成功，PlanId={PlanId}, BattleId={BattleId}",
+                id, battleId);
+            
             return Ok(new { planId = id, battleId });
         }
         catch (InvalidOperationException ex)
         {
+            _logger.LogWarning(
+                "活动计划启动失败，PlanId={PlanId}, Error={Error}",
+                id, ex.Message);
             return BadRequest(ex.Message);
         }
     }
@@ -418,13 +459,24 @@ public class ActivityPlansController : ControllerBase
     [HttpPost("{id:guid}/resume")]
     public async Task<IActionResult> Resume(Guid id, CancellationToken ct)
     {
+        // Phase 5 日志系统: 计划恢复日志
+        _logger.LogInformation("恢复活动计划，PlanId={PlanId}", id);
+
         try
         {
             var battleId = await _service.StartPlanAsync(id, ct);
+            
+            _logger.LogInformation(
+                "活动计划恢复成功，PlanId={PlanId}, BattleId={BattleId}",
+                id, battleId);
+            
             return Ok(new { planId = id, battleId, resumed = true });
         }
         catch (InvalidOperationException ex)
         {
+            _logger.LogWarning(
+                "活动计划恢复失败，PlanId={PlanId}, Error={Error}",
+                id, ex.Message);
             return BadRequest(ex.Message);
         }
     }
@@ -465,10 +517,17 @@ public class ActivityPlansController : ControllerBase
     [HttpPost("{id:guid}/pause")]
     public async Task<IActionResult> Pause(Guid id, CancellationToken ct)
     {
+        // Phase 5 日志系统: 计划暂停日志
+        _logger.LogInformation("暂停活动计划，PlanId={PlanId}", id);
+
         var result = await _service.PausePlanAsync(id, ct);
         if (!result)
+        {
+            _logger.LogWarning("活动计划暂停失败（不存在），PlanId={PlanId}", id);
             return NotFound();
+        }
 
+        _logger.LogInformation("活动计划暂停成功，PlanId={PlanId}", id);
         return Ok(new { planId = id, paused = true });
     }
 
@@ -508,10 +567,17 @@ public class ActivityPlansController : ControllerBase
     [HttpPost("{id:guid}/stop")]
     public async Task<IActionResult> Stop(Guid id, CancellationToken ct)
     {
+        // Phase 5 日志系统: 计划停止日志
+        _logger.LogInformation("停止活动计划，PlanId={PlanId}", id);
+
         var result = await _service.StopPlanAsync(id, ct);
         if (!result)
+        {
+            _logger.LogWarning("活动计划停止失败（不存在），PlanId={PlanId}", id);
             return NotFound();
+        }
 
+        _logger.LogInformation("活动计划停止成功，PlanId={PlanId}", id);
         return Ok(new { planId = id, stopped = true });
     }
 
@@ -550,10 +616,17 @@ public class ActivityPlansController : ControllerBase
     [HttpPost("{id:guid}/cancel")]
     public async Task<IActionResult> Cancel(Guid id, CancellationToken ct)
     {
+        // Phase 5 日志系统: 计划取消日志
+        _logger.LogInformation("取消活动计划，PlanId={PlanId}", id);
+
         var result = await _service.CancelPlanAsync(id, ct);
         if (!result)
+        {
+            _logger.LogWarning("活动计划取消失败（不存在），PlanId={PlanId}", id);
             return NotFound();
+        }
 
+        _logger.LogInformation("活动计划取消成功，PlanId={PlanId}", id);
         return Ok(new { planId = id, cancelled = true });
     }
 
