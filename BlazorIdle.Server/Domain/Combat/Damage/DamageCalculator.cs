@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using BlazorIdle.Server.Domain.Combat.Damage;
 using BlazorIdle.Server.Domain.Combat.Enemies;
+using BlazorIdle.Server.Infrastructure.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace BlazorIdle.Server.Domain.Combat;
 
@@ -31,7 +33,7 @@ namespace BlazorIdle.Server.Domain.Combat;
 /// 减伤系数 = 有效护甲 / (有效护甲 + K × 敌人等级 + C)
 /// 最终伤害 = 基础伤害 × (1 - 减伤系数) × (1 + 易伤) × (1 + 伤害增幅)
 /// 
-/// 其中 K=50.0, C=400.0 是平衡常量（可配置化）
+/// 其中 K 和 C 是可配置的平衡常量（通过 CombatEngineOptions.DamageReduction 配置）
 /// </code>
 /// 
 /// <para><strong>魔法伤害公式</strong>：</para>
@@ -48,11 +50,27 @@ namespace BlazorIdle.Server.Domain.Combat;
 /// </remarks>
 public static class DamageCalculator
 {
-    /// <summary>伤害减免系数K - 用于物理伤害计算公式（将来可配置化）</summary>
-    private const double K = 50.0;
+    /// <summary>伤害减免系数K - 从配置读取（默认值：50.0）</summary>
+    private static double K => _options?.Value.DamageReduction.CoefficientK ?? 50.0;
     
-    /// <summary>伤害减免常量C - 用于物理伤害计算公式（将来可配置化）</summary>
-    private const double C = 400.0;
+    /// <summary>伤害减免常量C - 从配置读取（默认值：400.0）</summary>
+    private static double C => _options?.Value.DamageReduction.ConstantC ?? 400.0;
+
+    /// <summary>配置选项（通过依赖注入设置）</summary>
+    private static IOptions<CombatEngineOptions>? _options;
+
+    /// <summary>
+    /// 初始化伤害计算器配置
+    /// </summary>
+    /// <param name="options">战斗引擎配置选项</param>
+    /// <remarks>
+    /// 此方法应在应用启动时调用一次，用于设置伤害计算参数。
+    /// 如果不调用此方法，将使用默认值（K=50.0, C=400.0）。
+    /// </remarks>
+    public static void Initialize(IOptions<CombatEngineOptions> options)
+    {
+        _options = options;
+    }
 
     /// <summary>
     /// 应用伤害到当前目标
