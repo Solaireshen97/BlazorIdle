@@ -23,10 +23,9 @@ public record PlayerDeathEvent(double ExecuteAt) : IGameEvent
         // 暂停所有玩家轨道：设置 NextTriggerAt 到极大值
         // 这样 AttackTickEvent 和 SpecialPulseEvent 不会在死亡期间触发
         // Phase 4: 怪物攻击事件会检测 Player.CanBeTargeted() 并自动暂停
-        const double FAR_FUTURE = 1e10;
         foreach (var track in context.Tracks)
         {
-            track.NextTriggerAt = FAR_FUTURE;
+            track.NextTriggerAt = CombatConstants.FarFutureTimestamp;
         }
         
         // 取消正在施放的技能
