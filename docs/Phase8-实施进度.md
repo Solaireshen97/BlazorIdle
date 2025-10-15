@@ -11,12 +11,12 @@
 
 | 任务 | 状态 | 进度 | 说明 |
 |------|------|------|------|
-| 8.1 常量清单与分类 | 🔄 | 50% | 已识别10处硬编码常量 |
-| 8.2 配置文件设计 | ⏳ | 0% | 待设计 CombatEngineOptions |
-| 8.3 迁移实施 | ⏳ | 0% | 待开始 |
-| 8.4 测试验证 | ⏳ | 0% | 待验证 |
+| 8.1 常量清单与分类 | ✅ | 100% | 已识别10处硬编码常量 |
+| 8.2 配置文件设计 | ✅ | 100% | CombatEngineOptions已创建 |
+| 8.3 迁移实施 | ✅ | 100% | 所有10处常量已迁移 |
+| 8.4 测试验证 | 🔄 | 50% | 构建成功，待运行测试套件 |
 
-**总体进度**: 10%
+**总体进度**: 90%
 
 ---
 
@@ -211,14 +211,15 @@ public class DamageReductionOptions
 - [ ] 更新相关测试（稍后验证）
 
 ### 步骤 3: 修改战斗引擎（预计 2 小时）
-- [ ] 修改 BattleEngine.cs（FAR_FUTURE, SKILL_CHECK_INTERVAL, BUFF_TICK_INTERVAL）
-- [ ] 修改 EnemyAttackEvent.cs（FAR_FUTURE）
-- [ ] 修改 PlayerDeathEvent.cs（FAR_FUTURE）
-- [ ] 注入配置到相关类
+- [x] 创建 CombatConstants 静态类
+- [x] 修改 BattleEngine.cs（FAR_FUTURE, SKILL_CHECK_INTERVAL, BUFF_TICK_INTERVAL）
+- [x] 修改 EnemyAttackEvent.cs（FAR_FUTURE）
+- [x] 修改 PlayerDeathEvent.cs（FAR_FUTURE）
+- [x] 在 Program.cs 中初始化 CombatConstants
 
 ### 步骤 4: 修改战斗人员（预计 0.5 小时）
-- [ ] 修改 AttackTickEvent.cs（baseAttackDamage）
-- [ ] 修改 PlayerCombatant.cs（defaultAttackerLevel）
+- [x] 修改 AttackTickEvent.cs（baseAttackDamage）
+- [x] 修改 PlayerCombatant.cs（defaultAttackerLevel）
 
 ### 步骤 5: 更新配置文件（预计 0.5 小时）
 - [ ] 更新 appsettings.json
@@ -271,7 +272,19 @@ public class DamageReductionOptions
 - ✅ 构建成功，无新增警告
 
 ### 2025-10-15 下午
-- 🔄 继续实施战斗引擎其他硬编码常量...
+- ✅ 创建 CombatConstants 静态助手类
+- ✅ 迁移 BattleEngine.cs 的3处 FAR_FUTURE 使用
+- ✅ 迁移 BattleEngine.cs 的 SKILL_CHECK_INTERVAL 和 BUFF_TICK_INTERVAL
+- ✅ 迁移 EnemyAttackEvent.cs 的 FAR_FUTURE
+- ✅ 迁移 PlayerDeathEvent.cs 的 FAR_FUTURE
+- ✅ 迁移 AttackTickEvent.cs 的 baseAttackDamage
+- ✅ 迁移 PlayerCombatant.cs 的 defaultAttackerLevel
+- ✅ 在 Program.cs 初始化 CombatConstants
+- ✅ 构建成功，无新增警告
+- ✅ **所有硬编码常量迁移完成**（10处全部完成）
+
+### 2025-10-15 晚上
+- 🔄 运行测试验证...
 
 ---
 

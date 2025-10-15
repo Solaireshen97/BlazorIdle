@@ -356,7 +356,6 @@ public sealed class BattleEngine
     /// <param name="reason">暂停原因，用于日志记录</param>
     private void PausePlayerTracks(string reason)
     {
-        const double FAR_FUTURE = 1e10;
         var pausedTracks = new List<string>();
         
         // 如果刷新延迟极小（接近0），跳过暂停以避免状态抖动
@@ -383,9 +382,9 @@ public sealed class BattleEngine
                 shouldPause = GetProfessionPauseSpecialWhenNoEnemies();
             }
             
-            if (shouldPause && track.NextTriggerAt < FAR_FUTURE)
+            if (shouldPause && track.NextTriggerAt < CombatConstants.FarFutureTimestamp)
             {
-                track.NextTriggerAt = FAR_FUTURE;
+                track.NextTriggerAt = CombatConstants.FarFutureTimestamp;
                 pausedTracks.Add(track.TrackType.ToString());
                 Collector.OnTag($"track_paused:{track.TrackType}", 1);
             }
@@ -417,14 +416,13 @@ public sealed class BattleEngine
     /// </summary>
     private void ResumePlayerTracks()
     {
-        const double FAR_FUTURE = 1e10;
         double resumeTime = Clock.CurrentTime;
         var resumedTracks = new List<string>();
         
         foreach (var track in Context.Tracks)
         {
             // 检查轨道是否处于暂停状态（NextTriggerAt 被设置为 FAR_FUTURE）
-            if (track.NextTriggerAt > FAR_FUTURE / 2)
+            if (track.NextTriggerAt > CombatConstants.FarFutureTimestamp / 2)
             {
                 // 根据配置决定恢复延迟
                 // 攻击轨道：从完整间隔开始（符合"从0开始计算进度"的需求）
@@ -1045,23 +1043,20 @@ public sealed class BattleEngine
         // 如果有任何怪物配置了技能，调度定期技能检查事件
         if (hasAnySkills)
         {
-            // 每 0.5 秒检查一次技能触发条件（平衡性能和响应速度）
-            const double SKILL_CHECK_INTERVAL = 0.5;
+            // 定期检查技能触发条件（平衡性能和响应速度）
             Scheduler.Schedule(new Enemies.EnemySkillCheckEvent(
-                Clock.CurrentTime + SKILL_CHECK_INTERVAL,
-                SKILL_CHECK_INTERVAL
+                Clock.CurrentTime + CombatConstants.SkillCheckIntervalSeconds,
+                CombatConstants.SkillCheckIntervalSeconds
             ));
         }
         
         // 调度定期 Buff Tick 事件（处理 DoT/HoT 等周期效果）
         // 只在有技能的怪物时才调度 buff tick，以减少事件数量
-        // 使用 1.0 秒间隔以减少事件数量，大多数 Buff DoT/HoT 间隔都是 2 秒以上
         if (hasAnySkills && Context.EnemyCombatants.Count > 0)
         {
-            const double BUFF_TICK_INTERVAL = 1.0;  // 每 1.0 秒 tick 一次 buff
             Scheduler.Schedule(new Enemies.EnemyBuffTickEvent(
-                Clock.CurrentTime + BUFF_TICK_INTERVAL,
-                BUFF_TICK_INTERVAL
+                Clock.CurrentTime + CombatConstants.BuffTickIntervalSeconds,
+                CombatConstants.BuffTickIntervalSeconds
             ));
         }
     }

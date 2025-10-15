@@ -31,8 +31,7 @@ public record EnemyAttackEvent(double ExecuteAt, EnemyCombatant Enemy) : IGameEv
         {
             // 玩家死亡，暂停怪物攻击（设置到很远的未来，不调度下次攻击）
             // 复活时会在 PlayerReviveEvent 中重新激活
-            const double FAR_FUTURE = 1e10;
-            Enemy.AttackTrack.NextTriggerAt = FAR_FUTURE;
+            Enemy.AttackTrack.NextTriggerAt = CombatConstants.FarFutureTimestamp;
             context.SegmentCollector.OnTag("enemy_attack_paused", 1);
             return;
         }

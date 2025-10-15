@@ -118,10 +118,9 @@ public class PlayerCombatant : ICombatant
             // 2. 应用护甲减伤
             if (TotalArmor > 0 && _armorCalculator != null)
             {
-                // 使用默认攻击者等级50（典型怪物等级）
+                // 使用默认攻击者等级（典型怪物等级）
                 // TODO: 在EnemyAttackEvent中传递实际敌人等级
-                const int defaultAttackerLevel = 50;
-                double armorReduction = _armorCalculator.CalculateArmorReduction(TotalArmor, defaultAttackerLevel);
+                double armorReduction = _armorCalculator.CalculateArmorReduction(TotalArmor, CombatConstants.DefaultAttackerLevel);
                 mitigatedDamage = (int)Math.Ceiling(mitigatedDamage * (1.0 - armorReduction));
             }
         }

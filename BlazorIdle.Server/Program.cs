@@ -83,11 +83,12 @@ builder.Services.Configure<BattleMessageOptions>(builder.Configuration.GetSectio
 builder.Services.Configure<BlazorIdle.Server.Infrastructure.Configuration.CombatEngineOptions>(
     builder.Configuration.GetSection("CombatEngine"));
 
-// 初始化 DamageCalculator（静态类需要手动初始化）
+// 初始化战斗系统静态配置（静态类需要手动初始化）
 var combatOptions = Microsoft.Extensions.Options.Options.Create(
     builder.Configuration.GetSection("CombatEngine").Get<BlazorIdle.Server.Infrastructure.Configuration.CombatEngineOptions>() 
     ?? new BlazorIdle.Server.Infrastructure.Configuration.CombatEngineOptions());
 BlazorIdle.Server.Domain.Combat.DamageCalculator.Initialize(combatOptions);
+BlazorIdle.Server.Domain.Combat.CombatConstants.Initialize(combatOptions);
 
 builder.Services.AddSignalR(options =>
 {
