@@ -18,43 +18,123 @@ using System.Linq;
 namespace BlazorIdle.Server.Domain.Combat.Engine;
 
 /// <summary>
-/// 统一战斗引擎：事件队列驱动 + 多怪/波次 + 刷新等待 + RNG 段记录。
-/// Step 与同步均调用本引擎推进时间。
+/// 战斗引擎 - 核心战斗循环处理器
 /// </summary>
+/// <remarks>
+/// <para><strong>设计理念</strong>：</para>
+/// <list type="bullet">
+/// <item>事件队列驱动：所有战斗行为（攻击、技能、Buff）都是事件</item>
+/// <item>支持多怪物/波次：可处理单波战斗或多波次地下城</item>
+/// <item>刷新机制：支持怪物死亡后的延迟刷新</item>
+/// <item>RNG段记录：记录随机数使用，用于战斗重放</item>
+/// </list>
+/// 
+/// <para><strong>核心职责</strong>：</para>
+/// <list type="number">
+/// <item>驱动事件调度器推进战斗时间</item>
+/// <item>处理攻击、技能、Buff等战斗事件</item>
+/// <item>管理敌人生成和波次切换</item>
+/// <item>收集战斗数据和统计</item>
+/// <item>支持步进战斗和同步战斗两种模式</item>
+/// </list>
+/// 
+/// <para><strong>使用场景</strong>：</para>
+/// <list type="bullet">
+/// <item>普通战斗：单波敌人，击杀后结束</item>
+/// <item>地下城战斗：多波敌人，需要Provider管理波次</item>
+/// <item>持续战斗：无限刷新，用于挂机</item>
+/// <item>步进战斗：前端控制推进速度，用于实时显示</item>
+/// <item>离线战斗：一次性模拟到结束，用于离线结算</item>
+/// </list>
+/// 
+/// <para><strong>技术特性</strong>：</para>
+/// <list type="bullet">
+/// <item>可序列化：支持保存/恢复战斗状态</item>
+/// <item>可重放：通过RNG种子可精确重现战斗过程</item>
+/// <item>实时通知：可选的SignalR通知支持</item>
+/// <item>性能优化：分段处理，避免长时间阻塞</item>
+/// </list>
+/// </remarks>
 public sealed class BattleEngine
 {
+    /// <summary>战斗实例 - 包含基本信息（ID、角色ID、开始时间等）</summary>
     public Battle Battle { get; }
+    
+    /// <summary>游戏时钟 - 管理当前战斗时间</summary>
     public IGameClock Clock { get; }
+    
+    /// <summary>事件调度器 - 管理所有待执行的战斗事件队列</summary>
     public IEventScheduler Scheduler { get; }
+    
+    /// <summary>段收集器 - 收集战斗数据并生成段（用于前端显示）</summary>
     public SegmentCollector Collector { get; }
+    
+    /// <summary>战斗上下文 - 包含所有战斗状态（角色、敌人、Buff、技能等）</summary>
     public BattleContext Context { get; }
+    
+    /// <summary>战斗段列表 - 已生成的历史段，用于回放和统计</summary>
     public List<CombatSegment> Segments { get; } = new();
 
+    /// <summary>战斗是否已完成</summary>
     public bool Completed { get; private set; }
+    
+    /// <summary>是否击杀了敌人（单波模式或地下城最后一波）</summary>
     public bool Killed { get; private set; }
+    
+    /// <summary>击杀时间（游戏时间，单位：秒）</summary>
     public double? KillTime { get; private set; }
+    
+    /// <summary>溢出伤害（最后一击超出敌人剩余血量的部分）</summary>
     public int Overkill { get; private set; }
 
+    /// <summary>战斗开始时的RNG索引（用于重放）</summary>
     public long SeedIndexStart { get; }
+    
+    /// <summary>当前RNG索引（战斗结束时用于记录RNG使用范围）</summary>
     public long SeedIndexEnd => Context.Rng.Index;
 
-    // 暴露 provider 信息（由 RunningBattle/Runner 透传）
+    /// <summary>当前波次索引（从Provider获取，无Provider时默认为1）</summary>
     public int WaveIndex => _provider?.CurrentWaveIndex ?? 1;
+    
+    /// <summary>已完成的轮数（地下城循环模式，无Provider时默认为0）</summary>
     public int RunCount => _provider?.CompletedRunCount ?? 0;
 
+    /// <summary>敌人遭遇提供者 - 用于地下城/持续战斗的波次管理（可选）</summary>
     private readonly IEncounterProvider? _provider;
 
-    // 刷新/击杀标记
+    /// <summary>待刷新的下一组敌人</summary>
     private EncounterGroup? _pendingNextGroup;
+    
+    /// <summary>计划的刷新时间点（游戏时间）</summary>
     private double? _pendingSpawnAt;
+    
+    /// <summary>是否正在等待刷新（标志位）</summary>
     private bool _waitingSpawn;
+    
+    /// <summary>已标记死亡的敌人集合（用于避免重复计数击杀）</summary>
     private readonly HashSet<Encounter> _markedDead = new();
     
-    // 战斗循环配置选项
+    /// <summary>战斗循环配置选项（控制攻击/特殊轨道的行为）</summary>
     private readonly CombatLoopOptions _loopOptions;
 
+    /// <summary>清除死亡标记（用于波次切换时重置）</summary>
     private void ClearDeathMarks() => _markedDead.Clear();
 
+    /// <summary>
+    /// 构造函数（单波战斗）- 用于普通战斗，击杀所有敌人后结束
+    /// </summary>
+    /// <param name="battleId">战斗唯一标识</param>
+    /// <param name="characterId">角色ID</param>
+    /// <param name="profession">职业类型</param>
+    /// <param name="stats">角色属性（包含装备加成）</param>
+    /// <param name="rng">随机数上下文（用于战斗重放）</param>
+    /// <param name="enemyDef">敌人定义</param>
+    /// <param name="enemyCount">敌人数量（至少为1）</param>
+    /// <param name="module">职业模块（可选，默认从注册表解析）</param>
+    /// <param name="meta">战斗元数据（可选，用于标签和统计）</param>
+    /// <param name="notificationService">SignalR通知服务（可选，用于实时推送战斗事件）</param>
+    /// <param name="messageFormatter">战斗消息格式化器（可选，用于生成战斗日志）</param>
+    /// <param name="loopOptions">战斗循环配置（可选，控制轨道行为）</param>
     public BattleEngine(
         Guid battleId,
         Guid characterId,
@@ -65,7 +145,7 @@ public sealed class BattleEngine
         int enemyCount,
         IProfessionModule? module = null,
         BattleMeta? meta = null,
-        IBattleNotificationService? notificationService = null,       // SignalR Phase 2
+        IBattleNotificationService? notificationService = null,
         Services.BattleMessageFormatter? messageFormatter = null,
         CombatLoopOptions? loopOptions = null)
         : this(battleId, characterId, profession, stats, rng,
@@ -79,6 +159,20 @@ public sealed class BattleEngine
     {
     }
 
+    /// <summary>
+    /// 构造函数（多波战斗）- 用于地下城或持续战斗，由Provider管理波次
+    /// </summary>
+    /// <param name="battleId">战斗唯一标识</param>
+    /// <param name="characterId">角色ID</param>
+    /// <param name="profession">职业类型</param>
+    /// <param name="stats">角色属性（包含装备加成）</param>
+    /// <param name="rng">随机数上下文（用于战斗重放）</param>
+    /// <param name="provider">敌人遭遇提供者（管理波次和刷新）</param>
+    /// <param name="module">职业模块（可选，默认从注册表解析）</param>
+    /// <param name="meta">战斗元数据（可选，用于标签和统计）</param>
+    /// <param name="notificationService">SignalR通知服务（可选，用于实时推送战斗事件）</param>
+    /// <param name="messageFormatter">战斗消息格式化器（可选，用于生成战斗日志）</param>
+    /// <param name="loopOptions">战斗循环配置（可选，控制轨道行为）</param>
     public BattleEngine(
         Guid battleId,
         Guid characterId,
@@ -88,7 +182,7 @@ public sealed class BattleEngine
         IEncounterProvider provider,
         IProfessionModule? module = null,
         BattleMeta? meta = null,
-        IBattleNotificationService? notificationService = null,       // SignalR Phase 2
+        IBattleNotificationService? notificationService = null,
         Services.BattleMessageFormatter? messageFormatter = null,
         CombatLoopOptions? loopOptions = null)
         : this(battleId, characterId, profession, stats, rng,
@@ -102,7 +196,18 @@ public sealed class BattleEngine
     {
     }
 
-    // 私有共享构造
+    /// <summary>
+    /// 私有共享构造函数 - 初始化战斗引擎的所有组件
+    /// </summary>
+    /// <remarks>
+    /// 初始化流程：
+    /// 1. 创建战斗实例和核心组件（时钟、调度器、收集器）
+    /// 2. 创建战斗上下文（包含角色、敌人、Buff、技能等）
+    /// 3. 初始化职业模块（注册Buff定义、构建技能）
+    /// 4. 创建攻击和特殊轨道，并调度初始事件
+    /// 5. 初始化敌人攻击和技能系统
+    /// 6. 应用战斗元数据标签
+    /// </remarks>
     private BattleEngine(
         Guid battleId,
         Guid characterId,
@@ -534,9 +639,34 @@ public sealed class BattleEngine
     }
 
     /// <summary>
-    /// 推进到指定模拟时间上限（sliceEnd），或达到 maxEvents 限制为止。
-    /// 在事件执行前后统一记录 RNG Index 到段聚合，并处理多怪/刷新。
+    /// 推进战斗到指定时间或事件数量限制（步进模式）
     /// </summary>
+    /// <param name="sliceEnd">切片结束时间（游戏时间，单位：秒）</param>
+    /// <param name="maxEvents">最多执行的事件数量（防止无限循环）</param>
+    /// <remarks>
+    /// <para><strong>执行流程</strong>：</para>
+    /// <list type="number">
+    /// <item>检查是否有待执行的刷新，如果时间已到则执行刷新</item>
+    /// <item>如果正在等待刷新，将切片上限限制在刷新时间点</item>
+    /// <item>循环执行事件队列中的事件，直到达到时间或事件数限制</item>
+    /// <item>每个事件执行前后记录RNG索引（用于重放）</item>
+    /// <item>事件执行后处理目标切换、波次清空、刷新调度等</item>
+    /// <item>自动处理怪物死亡、目标重选、波次切换等逻辑</item>
+    /// </list>
+    /// 
+    /// <para><strong>使用场景</strong>：</para>
+    /// <list type="bullet">
+    /// <item>步进战斗：前端每帧调用一次，推进固定时间</item>
+    /// <item>实时战斗：配合SignalR实时推送战斗事件</item>
+    /// </list>
+    /// 
+    /// <para><strong>注意事项</strong>：</para>
+    /// <list type="bullet">
+    /// <item>如果战斗已完成（Completed=true），直接返回</item>
+    /// <item>maxEvents用于防止事件循环失控（通常设置为5000-10000）</item>
+    /// <item>切片模式不会自动结束战斗，需要外部判断并调用FinalizeNow()</item>
+    /// </list>
+    /// </remarks>
     public void AdvanceTo(double sliceEnd, int maxEvents)
     {
         if (Completed) return;
