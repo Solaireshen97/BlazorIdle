@@ -78,6 +78,12 @@ public static class DependencyInjection
         services.AddSingleton<WeaponDamageCalculator>();    // 武器伤害计算（Phase 5）
         services.AddScoped<EquipmentValidator>();           // 验证服务，使用Scoped
         
+        // 战斗引擎配置
+        services.Configure<CombatEngineOptions>(configuration.GetSection("CombatEngine"));
+        
+        // 战斗循环配置
+        services.Configure<CombatLoopOptions>(configuration.GetSection("CombatLoop"));
+        
         // 商店系统配置
         services.Configure<ShopOptions>(configuration.GetSection("Shop"));
         services.AddSingleton<IShopConfigurationValidator, ShopConfigurationValidator>();

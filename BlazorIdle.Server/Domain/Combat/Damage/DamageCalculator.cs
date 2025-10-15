@@ -7,9 +7,8 @@ namespace BlazorIdle.Server.Domain.Combat;
 
 public static class DamageCalculator
 {
-    private const double K = 50.0;
-    private const double C = 400.0;
-
+    // Phase 8: K 和 C 常量已移至配置 CombatEngineOptions.DamageReduction
+    
     public static int ApplyDamage(BattleContext context, string sourceId, int baseDamage, DamageType type)
     {
         if (context.Encounter is null)
@@ -80,7 +79,10 @@ public static class DamageCalculator
                     var armorEff = Math.Max(0.0, enemy.Armor - armorPenFlat);
                     armorEff *= (1 - armorPenPct);
 
-                    var denom = armorEff + (K * enemy.Level + C);
+                    // Phase 8: 使用配置化的伤害减免参数
+                    var k = ctx.CombatEngineOptions.DamageReduction.CoefficientK;
+                    var c = ctx.CombatEngineOptions.DamageReduction.ConstantC;
+                    var denom = armorEff + (k * enemy.Level + c);
                     var reduction = denom <= 0 ? 0 : armorEff / denom; // 0..1
                     factor *= Clamp01(1.0 - reduction);
                     factor *= 1.0 + enemy.VulnerabilityPhysical;

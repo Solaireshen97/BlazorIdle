@@ -12,9 +12,25 @@ namespace BlazorIdle.Server.Application.Battles;
 /// <summary>
 /// 统一的战斗模拟组件，封装 BattleEngine 的创建和配置逻辑。
 /// 支持同步执行（BattleRunner）、异步执行（RunningBattle）和离线结算（OfflineSettlement）复用。
+/// Phase 8: 支持战斗引擎配置注入
 /// </summary>
 public class BattleSimulator
 {
+    private readonly Infrastructure.Configuration.CombatEngineOptions _engineOptions;
+    private readonly Infrastructure.Configuration.CombatLoopOptions _loopOptions;
+    
+    /// <summary>
+    /// 构造函数
+    /// Phase 8: 注入战斗引擎配置和战斗循环配置
+    /// </summary>
+    public BattleSimulator(
+        Microsoft.Extensions.Options.IOptions<Infrastructure.Configuration.CombatEngineOptions>? engineOptions = null,
+        Microsoft.Extensions.Options.IOptions<Infrastructure.Configuration.CombatLoopOptions>? loopOptions = null)
+    {
+        _engineOptions = engineOptions?.Value ?? new Infrastructure.Configuration.CombatEngineOptions();
+        _loopOptions = loopOptions?.Value ?? new Infrastructure.Configuration.CombatLoopOptions();
+    }
+    
     /// <summary>
     /// 战斗模拟结果
     /// </summary>
@@ -135,7 +151,9 @@ public class BattleSimulator
                 rng: rng,
                 provider: config.Provider,
                 module: config.Module,
-                meta: meta
+                meta: meta,
+                loopOptions: _loopOptions,
+                engineOptions: _engineOptions
             );
         }
 
@@ -151,7 +169,9 @@ public class BattleSimulator
                 rng: rng,
                 provider: provider,
                 module: config.Module,
-                meta: meta
+                meta: meta,
+                loopOptions: _loopOptions,
+                engineOptions: _engineOptions
             );
         }
 
@@ -171,7 +191,9 @@ public class BattleSimulator
             enemyDef: enemyDef,
             enemyCount: enemyCount,
             module: config.Module,
-            meta: meta
+            meta: meta,
+            loopOptions: _loopOptions,
+            engineOptions: _engineOptions
         );
     }
 

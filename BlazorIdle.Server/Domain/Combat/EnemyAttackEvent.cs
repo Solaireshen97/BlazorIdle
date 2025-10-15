@@ -31,8 +31,9 @@ public record EnemyAttackEvent(double ExecuteAt, EnemyCombatant Enemy) : IGameEv
         {
             // 玩家死亡，暂停怪物攻击（设置到很远的未来，不调度下次攻击）
             // 复活时会在 PlayerReviveEvent 中重新激活
-            const double FAR_FUTURE = 1e10;
-            Enemy.AttackTrack.NextTriggerAt = FAR_FUTURE;
+            // Phase 8: 使用配置化的远未来时间戳
+            var farFuture = context.CombatEngineOptions.FarFutureTimestamp;
+            Enemy.AttackTrack.NextTriggerAt = farFuture;
             context.SegmentCollector.OnTag("enemy_attack_paused", 1);
             return;
         }
@@ -65,10 +66,13 @@ public record EnemyAttackEvent(double ExecuteAt, EnemyCombatant Enemy) : IGameEv
         if (damage > 0)
         {
             // 对玩家造成伤害
+            // Phase 8: 传递配置的默认攻击者等级
             var actualDamage = context.Player.ReceiveDamage(
                 damage, 
                 damageType, 
-                ExecuteAt
+                ExecuteAt,
+                attackerLevel: null,  // TODO: 传递实际敌人等级
+                defaultAttackerLevel: context.CombatEngineOptions.DefaultAttackerLevel
             );
 
             // 记录统计
