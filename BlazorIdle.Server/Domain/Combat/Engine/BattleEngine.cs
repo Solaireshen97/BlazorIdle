@@ -11,6 +11,7 @@ using BlazorIdle.Server.Domain.Combat.Skills;
 using BlazorIdle.Server.Infrastructure.Configuration;
 using BlazorIdle.Shared.Models;
 using BlazorWebGame.Domain.Combat;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -117,6 +118,9 @@ public sealed class BattleEngine
     /// <summary>战斗循环配置选项（控制攻击/特殊轨道的行为）</summary>
     private readonly CombatLoopOptions _loopOptions;
 
+    /// <summary>日志记录器（可选）- 用于记录战斗关键节点和调试信息</summary>
+    private readonly ILogger<BattleEngine>? _logger;
+
     /// <summary>清除死亡标记（用于波次切换时重置）</summary>
     private void ClearDeathMarks() => _markedDead.Clear();
 
@@ -135,6 +139,7 @@ public sealed class BattleEngine
     /// <param name="notificationService">SignalR通知服务（可选，用于实时推送战斗事件）</param>
     /// <param name="messageFormatter">战斗消息格式化器（可选，用于生成战斗日志）</param>
     /// <param name="loopOptions">战斗循环配置（可选，控制轨道行为）</param>
+    /// <param name="logger">日志记录器（可选）- Phase 5 日志系统增强</param>
     public BattleEngine(
         Guid battleId,
         Guid characterId,
@@ -147,7 +152,8 @@ public sealed class BattleEngine
         BattleMeta? meta = null,
         IBattleNotificationService? notificationService = null,
         Services.BattleMessageFormatter? messageFormatter = null,
-        CombatLoopOptions? loopOptions = null)
+        CombatLoopOptions? loopOptions = null,
+        ILogger<BattleEngine>? logger = null)
         : this(battleId, characterId, profession, stats, rng,
                provider: null,
                initialGroup: new EncounterGroup(Enumerable.Range(0, Math.Max(1, enemyCount)).Select(_ => enemyDef).ToList()),
@@ -155,7 +161,8 @@ public sealed class BattleEngine
                meta: meta,
                notificationService: notificationService,
                messageFormatter: messageFormatter,
-               loopOptions: loopOptions)
+               loopOptions: loopOptions,
+               logger: logger)
     {
     }
 
@@ -173,6 +180,7 @@ public sealed class BattleEngine
     /// <param name="notificationService">SignalR通知服务（可选，用于实时推送战斗事件）</param>
     /// <param name="messageFormatter">战斗消息格式化器（可选，用于生成战斗日志）</param>
     /// <param name="loopOptions">战斗循环配置（可选，控制轨道行为）</param>
+    /// <param name="logger">日志记录器（可选）- Phase 5 日志系统增强</param>
     public BattleEngine(
         Guid battleId,
         Guid characterId,
@@ -184,7 +192,8 @@ public sealed class BattleEngine
         BattleMeta? meta = null,
         IBattleNotificationService? notificationService = null,
         Services.BattleMessageFormatter? messageFormatter = null,
-        CombatLoopOptions? loopOptions = null)
+        CombatLoopOptions? loopOptions = null,
+        ILogger<BattleEngine>? logger = null)
         : this(battleId, characterId, profession, stats, rng,
                provider: provider,
                initialGroup: provider.CurrentGroup,
@@ -192,7 +201,8 @@ public sealed class BattleEngine
                meta: meta,
                notificationService: notificationService,
                messageFormatter: messageFormatter,
-               loopOptions: loopOptions)
+               loopOptions: loopOptions,
+               logger: logger)
     {
     }
 
@@ -220,10 +230,12 @@ public sealed class BattleEngine
         BattleMeta? meta,
         IBattleNotificationService? notificationService,              // SignalR Phase 2
         Services.BattleMessageFormatter? messageFormatter,
-        CombatLoopOptions? loopOptions)
+        CombatLoopOptions? loopOptions,
+        ILogger<BattleEngine>? logger)
     {
         _provider = provider;
         _loopOptions = loopOptions ?? new CombatLoopOptions(); // 使用默认值如果未提供
+        _logger = logger;
 
         var professionModule = module ?? ProfessionRegistry.Resolve(profession);
 
@@ -304,6 +316,15 @@ public sealed class BattleEngine
 
         // 统一：应用上下文标签（ctx.*）
         ApplyMetaTags(meta);
+
+        // Phase 5 日志系统: 战斗开始日志
+        _logger?.LogInformation(
+            "战斗开始，BattleId={BattleId}, CharacterId={CharacterId}, Profession={Profession}, EnemyCount={EnemyCount}, Mode={Mode}",
+            battleId,
+            characterId,
+            profession,
+            initialGroup.All.Count,
+            meta?.ModeTag ?? "duration");
     }
 
     private void ApplyMetaTags(BattleMeta? meta)
@@ -582,6 +603,8 @@ public sealed class BattleEngine
     {
         if (_waitingSpawn && _pendingSpawnAt.HasValue && _pendingNextGroup is not null && Clock.CurrentTime + 1e-9 >= _pendingSpawnAt.Value)
         {
+            var previousWaveIndex = WaveIndex;
+            
             Context.ResetEncounterGroup(_pendingNextGroup);
             Context.RefreshPrimaryEncounter();
 
@@ -603,6 +626,15 @@ public sealed class BattleEngine
             
             // 重新初始化新波次的怪物技能系统（内部使用 Clock.CurrentTime）
             InitializeEnemySkills(Context.EncounterGroup!);
+            
+            // Phase 5 日志系统: 波次切换日志
+            _logger?.LogInformation(
+                "波次切换，BattleId={BattleId}, PreviousWave={PreviousWave}, CurrentWave={CurrentWave}, Time={Time}s, EnemyCount={EnemyCount}",
+                Battle.Id,
+                previousWaveIndex,
+                WaveIndex,
+                Clock.CurrentTime,
+                Context.EncounterGroup!.All.Count);
             
             // 战斗循环优化 Task 1.2: 恢复玩家轨道
             // 只有在玩家存活时才恢复轨道（避免玩家死亡期间怪物刷新的边缘情况）
@@ -815,6 +847,15 @@ public sealed class BattleEngine
 
         Completed = true;
         Battle.Finish(Clock.CurrentTime);
+
+        // Phase 5 日志系统: 战斗结束日志
+        _logger?.LogInformation(
+            "战斗结束，BattleId={BattleId}, Duration={DurationSeconds}s, EventCount={EventCount}, Killed={Killed}, KillTime={KillTime}s",
+            Battle.Id,
+            Clock.CurrentTime,
+            Segments.Sum(s => s.EventCount),
+            Killed,
+            KillTime);
     }
 
     private void TryFlushSegment(bool force = false)
