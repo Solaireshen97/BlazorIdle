@@ -11,6 +11,8 @@ using BlazorIdle.Server.Domain.Combat.Skills;
 using BlazorIdle.Server.Infrastructure.Configuration;
 using BlazorIdle.Shared.Models;
 using BlazorWebGame.Domain.Combat;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -116,6 +118,9 @@ public sealed class BattleEngine
     
     /// <summary>战斗循环配置选项（控制攻击/特殊轨道的行为）</summary>
     private readonly CombatLoopOptions _loopOptions;
+    
+    /// <summary>日志记录器</summary>
+    private readonly ILogger<BattleEngine> _logger;
 
     /// <summary>清除死亡标记（用于波次切换时重置）</summary>
     private void ClearDeathMarks() => _markedDead.Clear();
@@ -135,6 +140,7 @@ public sealed class BattleEngine
     /// <param name="notificationService">SignalR通知服务（可选，用于实时推送战斗事件）</param>
     /// <param name="messageFormatter">战斗消息格式化器（可选，用于生成战斗日志）</param>
     /// <param name="loopOptions">战斗循环配置（可选，控制轨道行为）</param>
+    /// <param name="logger">日志记录器（可选，用于记录战斗过程）</param>
     public BattleEngine(
         Guid battleId,
         Guid characterId,
@@ -147,7 +153,8 @@ public sealed class BattleEngine
         BattleMeta? meta = null,
         IBattleNotificationService? notificationService = null,
         Services.BattleMessageFormatter? messageFormatter = null,
-        CombatLoopOptions? loopOptions = null)
+        CombatLoopOptions? loopOptions = null,
+        ILogger<BattleEngine>? logger = null)
         : this(battleId, characterId, profession, stats, rng,
                provider: null,
                initialGroup: new EncounterGroup(Enumerable.Range(0, Math.Max(1, enemyCount)).Select(_ => enemyDef).ToList()),
@@ -155,7 +162,8 @@ public sealed class BattleEngine
                meta: meta,
                notificationService: notificationService,
                messageFormatter: messageFormatter,
-               loopOptions: loopOptions)
+               loopOptions: loopOptions,
+               logger: logger)
     {
     }
 
@@ -173,6 +181,7 @@ public sealed class BattleEngine
     /// <param name="notificationService">SignalR通知服务（可选，用于实时推送战斗事件）</param>
     /// <param name="messageFormatter">战斗消息格式化器（可选，用于生成战斗日志）</param>
     /// <param name="loopOptions">战斗循环配置（可选，控制轨道行为）</param>
+    /// <param name="logger">日志记录器（可选，用于记录战斗过程）</param>
     public BattleEngine(
         Guid battleId,
         Guid characterId,
@@ -184,7 +193,8 @@ public sealed class BattleEngine
         BattleMeta? meta = null,
         IBattleNotificationService? notificationService = null,
         Services.BattleMessageFormatter? messageFormatter = null,
-        CombatLoopOptions? loopOptions = null)
+        CombatLoopOptions? loopOptions = null,
+        ILogger<BattleEngine>? logger = null)
         : this(battleId, characterId, profession, stats, rng,
                provider: provider,
                initialGroup: provider.CurrentGroup,
@@ -192,7 +202,8 @@ public sealed class BattleEngine
                meta: meta,
                notificationService: notificationService,
                messageFormatter: messageFormatter,
-               loopOptions: loopOptions)
+               loopOptions: loopOptions,
+               logger: logger)
     {
     }
 
@@ -220,12 +231,21 @@ public sealed class BattleEngine
         BattleMeta? meta,
         IBattleNotificationService? notificationService,              // SignalR Phase 2
         Services.BattleMessageFormatter? messageFormatter,
-        CombatLoopOptions? loopOptions)
+        CombatLoopOptions? loopOptions,
+        ILogger<BattleEngine>? logger)
     {
         _provider = provider;
         _loopOptions = loopOptions ?? new CombatLoopOptions(); // 使用默认值如果未提供
+        _logger = logger ?? NullLogger<BattleEngine>.Instance;
 
         var professionModule = module ?? ProfessionRegistry.Resolve(profession);
+        
+        // 记录战斗开始
+        _logger.LogInformation(
+            "战斗开始: BattleId={BattleId}, CharacterId={CharacterId}, Profession={Profession}, " +
+            "HasProvider={HasProvider}, EnemyCount={EnemyCount}",
+            battleId, characterId, profession, provider != null, initialGroup.All.Count
+        );
 
         Battle = new Battle
         {
@@ -582,12 +602,22 @@ public sealed class BattleEngine
     {
         if (_waitingSpawn && _pendingSpawnAt.HasValue && _pendingNextGroup is not null && Clock.CurrentTime + 1e-9 >= _pendingSpawnAt.Value)
         {
+            var oldWaveIndex = WaveIndex;
+            
             Context.ResetEncounterGroup(_pendingNextGroup);
             Context.RefreshPrimaryEncounter();
 
             _pendingNextGroup = null;
             _pendingSpawnAt = null;
             _waitingSpawn = false;
+
+            // 记录波次切换
+            _logger.LogInformation(
+                "波次切换: BattleId={BattleId}, OldWave={OldWave}, NewWave={NewWave}, " +
+                "BattleTime={BattleTime}s, NewEnemyCount={NewEnemyCount}",
+                Battle.Id, oldWaveIndex, WaveIndex, Clock.CurrentTime, 
+                Context.EncounterGroup?.All.Count ?? 0
+            );
 
             // 新一波开始：清理死亡标记，避免与新实例混淆
             ClearDeathMarks();
@@ -815,6 +845,14 @@ public sealed class BattleEngine
 
         Completed = true;
         Battle.Finish(Clock.CurrentTime);
+        
+        // 记录战斗结束
+        _logger.LogInformation(
+            "战斗结束: BattleId={BattleId}, Duration={Duration}s, Victory={Victory}, " +
+            "EventCount={EventCount}, WaveIndex={WaveIndex}, SegmentCount={SegmentCount}",
+            Battle.Id, Clock.CurrentTime, Killed, 
+            Segments.Sum(s => s.EventCount), WaveIndex, Segments.Count
+        );
     }
 
     private void TryFlushSegment(bool force = false)
