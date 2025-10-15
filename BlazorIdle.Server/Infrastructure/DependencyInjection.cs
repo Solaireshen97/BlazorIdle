@@ -84,6 +84,9 @@ public static class DependencyInjection
         // 战斗循环配置
         services.Configure<CombatLoopOptions>(configuration.GetSection("CombatLoop"));
         
+        // 装备系统配置
+        services.Configure<EquipmentSystemOptions>(configuration.GetSection("Equipment"));
+        
         // 商店系统配置
         services.Configure<ShopOptions>(configuration.GetSection("Shop"));
         services.AddSingleton<IShopConfigurationValidator, ShopConfigurationValidator>();

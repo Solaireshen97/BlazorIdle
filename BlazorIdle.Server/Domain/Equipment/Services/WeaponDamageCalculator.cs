@@ -1,4 +1,6 @@
 using BlazorIdle.Server.Domain.Equipment.Models;
+using BlazorIdle.Server.Infrastructure.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace BlazorIdle.Server.Domain.Equipment.Services;
 
@@ -9,10 +11,19 @@ namespace BlazorIdle.Server.Domain.Equipment.Services;
 public class WeaponDamageCalculator
 {
     private readonly AttackSpeedCalculator _attackSpeedCalculator;
+    private readonly EquipmentSystemOptions _options;
 
-    public WeaponDamageCalculator(AttackSpeedCalculator attackSpeedCalculator)
+    /// <summary>
+    /// 构造函数
+    /// </summary>
+    /// <param name="attackSpeedCalculator">攻击速度计算服务</param>
+    /// <param name="options">装备系统配置选项</param>
+    public WeaponDamageCalculator(
+        AttackSpeedCalculator attackSpeedCalculator,
+        IOptions<EquipmentSystemOptions>? options = null)
     {
         _attackSpeedCalculator = attackSpeedCalculator;
+        _options = options?.Value ?? new EquipmentSystemOptions();
     }
 
     /// <summary>
@@ -46,10 +57,10 @@ public class WeaponDamageCalculator
             double mainHandMultiplier = _attackSpeedCalculator.CalculateWeaponDamageMultiplier(mainHandWeapon);
             double offHandMultiplier = _attackSpeedCalculator.CalculateWeaponDamageMultiplier(offHandWeapon);
             
-            // 副手伤害系数 = 0.85（副手伤害稍低）
-            const double offHandDamageCoefficient = 0.85;
+            // 副手伤害系数（可配置）
+            double offHandDamageCoefficient = _options.WeaponDamage.OffHandDamageCoefficient;
             
-            // 双持总伤害 = 主手伤害 + 副手伤害 * 0.85
+            // 双持总伤害 = 主手伤害 + 副手伤害 * 系数
             double mainHandDamage = totalDamage * mainHandMultiplier;
             double offHandDamage = totalDamage * offHandMultiplier * offHandDamageCoefficient;
             

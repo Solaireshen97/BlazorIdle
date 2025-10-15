@@ -151,7 +151,7 @@ public class BlockCalculatorTests
     public void GetBlockDamageReduction_ShouldReturn30Percent()
     {
         // Act
-        var reduction = BlockCalculator.GetBlockDamageReduction();
+        var reduction = _calculator.GetBlockDamageReduction();
 
         // Assert
         Assert.Equal(0.30, reduction);
@@ -161,7 +161,7 @@ public class BlockCalculatorTests
     public void GetMaxBlockChance_ShouldReturn50Percent()
     {
         // Act
-        var maxChance = BlockCalculator.GetMaxBlockChance();
+        var maxChance = _calculator.GetMaxBlockChance();
 
         // Assert
         Assert.Equal(0.50, maxChance);
