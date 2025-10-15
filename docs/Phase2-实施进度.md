@@ -12,11 +12,11 @@
 | 任务 | 状态 | 进度 | 说明 |
 |------|------|------|------|
 | 2.1 制定注释规范 | ✅ | 100% | 已完成 |
-| 2.2 API控制器注释 | 🔄 | 8% | 1/13 完成 |
+| 2.2 API控制器注释 | 🔄 | 54% | 7/13 完成（P0全部完成） |
 | 2.3 核心引擎注释 | ⏳ | 0% | 待开始 |
 | 2.4 生成代码文档 | ⏳ | 0% | 待开始 |
 
-**总体进度**: 27% (1/4 任务完成，1/4 进行中)
+**总体进度**: 39% (1/4 任务完成，1/4 进行中)
 
 ---
 
@@ -44,10 +44,11 @@
 
 ### 2.2 API控制器注释（进行中）
 
-#### 已完成的控制器 (1/13)
+#### 已完成的控制器 (7/13)
 
 ##### ✅ CharactersController.cs
 **注释覆盖率**: 100%
+**优先级**: P0
 
 **添加的注释**:
 1. **类级注释** - 控制器功能概述、认证要求、基础路由
@@ -59,6 +60,62 @@
 7. **DefaultAttributesFor方法** - 私有方法职责说明
 8. **DTO类型** - CreateCharacterDto 和 ReorderDto 的参数说明
 
+##### ✅ EquipmentController.cs
+**注释覆盖率**: 100%
+**优先级**: P0
+
+**添加的注释**:
+1. **类级注释** - 装备系统功能概述，包含7大功能类别
+2. **11个API方法** - 获取装备栏、装备/卸下、背包查询、分解（单个/批量）、预览、重铸等
+3. **4个DTO类** - EquipRequest、DisenchantRequest、DisenchantBatchRequest、ReforgeRequest
+4. **2个私有方法** - GetWeaponDisplayInfo、GetSlotDisplayName
+
+##### ✅ BattlesController.cs
+**注释覆盖率**: 100%
+**优先级**: P0
+
+**添加的注释**:
+1. **类级注释** - 战斗系统功能概述，说明三种战斗模式
+2. **4个API方法** - 开始战斗、获取摘要、获取段详细数据、调试信息
+3. **详细说明** - 掉落模式（expected/sampled）、RNG种子、地下城奖励等
+
+##### ✅ ShopController.cs
+**注释覆盖率**: 100%
+**优先级**: P0
+
+**添加的注释**:
+1. **类级注释** - 商店系统功能概述，包含限购机制说明
+2. **4个API方法** - 查询商店列表、查询商品、购买、购买历史
+3. **1个私有方法** - GetCharacterIdFromClaims
+4. **详细说明** - 限购类型、货币系统、事务处理等
+
+##### ✅ InventoryController.cs
+**注释覆盖率**: 100%
+**优先级**: P0
+
+**添加的注释**:
+1. **类级注释** - 背包系统功能概述，排序规则说明
+2. **1个API方法** - 获取背包物品列表，包含金币和经验信息
+
+##### ✅ UsersController.cs
+**注释覆盖率**: 100%
+**优先级**: P0
+
+**添加的注释**:
+1. **类级注释** - 用户管理功能概述，权限控制说明
+2. **4个API方法** - 获取当前用户、获取指定用户、获取用户角色、更新用户信息
+3. **1个DTO类** - UpdateUserDto
+
+##### ✅ AuthController.cs
+**注释覆盖率**: 100%
+**优先级**: P0
+
+**添加的注释**:
+1. **类级注释** - 认证系统功能概述，安全特性说明
+2. **3个API方法** - 用户注册、用户登录、修改密码
+3. **4个DTO类** - RegisterDto、LoginDto、ChangePasswordDto、AuthResponseDto
+4. **详细说明** - BCrypt加密、JWT Token、安全设计原则等
+
 **注释特点**:
 - ✅ 中文注释，清晰易懂
 - ✅ 包含请求/响应示例
@@ -66,19 +123,20 @@
 - ✅ 详细的业务逻辑和处理流程
 - ✅ 配置参数和默认值说明
 - ✅ 使用场景和注意事项
+- ✅ 安全考虑和最佳实践
 
 ---
 
-#### 待完成的控制器 (12/13)
+#### 待完成的控制器 (6/13)
 
 | 控制器 | 优先级 | 状态 | 预计工作量 |
 |--------|--------|------|-----------|
-| EquipmentController | P0 | ⏳ | 2小时 |
-| BattlesController | P0 | ⏳ | 2小时 |
-| ShopController | P0 | ⏳ | 1.5小时 |
-| InventoryController | P0 | ⏳ | 1.5小时 |
-| UsersController | P0 | ⏳ | 1小时 |
-| AuthController | P0 | ⏳ | 1小时 |
+| ~~EquipmentController~~ | ~~P0~~ | ✅ | ~~2小时~~ |
+| ~~BattlesController~~ | ~~P0~~ | ✅ | ~~2小时~~ |
+| ~~ShopController~~ | ~~P0~~ | ✅ | ~~1.5小时~~ |
+| ~~InventoryController~~ | ~~P0~~ | ✅ | ~~1.5小时~~ |
+| ~~UsersController~~ | ~~P0~~ | ✅ | ~~1小时~~ |
+| ~~AuthController~~ | ~~P0~~ | ✅ | ~~1小时~~ |
 | ActivityPlansController | P1 | ⏳ | 1.5小时 |
 | OfflineController | P1 | ⏳ | 1小时 |
 | EnemiesController | P1 | ⏳ | 1小时 |
@@ -86,22 +144,33 @@
 | StepBattlesController | P1 | ⏳ | 1小时 |
 | BattlesReplayController | P2 | ⏳ | 0.5小时 |
 
-**总预计工作量**: 约 15.5 小时
+**已完成工作量**: 约 9.5 小时  
+**剩余工作量**: 约 6 小时
 
 ---
 
 ## 🎯 下一步计划
 
-### 立即执行（本次会话）
-1. ⏳ 完成 EquipmentController 注释
-2. ⏳ 完成 BattlesController 注释
-3. ⏳ 完成 ShopController 注释
+### 已完成（2025-10-15）
+1. ✅ 完成 EquipmentController 注释（11个方法，4个DTO）
+2. ✅ 完成 BattlesController 注释（4个方法）
+3. ✅ 完成 ShopController 注释（4个方法，1个私有方法）
+4. ✅ 完成 InventoryController 注释（1个方法）
+5. ✅ 完成 UsersController 注释（4个方法，1个DTO）
+6. ✅ 完成 AuthController 注释（3个方法，4个DTO）
+7. ✅ 所有 P0 级别控制器注释完成 (6/6)
+
+### 立即执行（下一步）
+1. ⏳ 完成 ActivityPlansController 注释（P1）
+2. ⏳ 完成 OfflineController 注释（P1）
+3. ⏳ 完成 EnemiesController 注释（P1）
+4. ⏳ 完成 SimulationController 注释（P1）
+5. ⏳ 完成 StepBattlesController 注释（P1）
 
 ### 后续计划
-4. 完成剩余 P0 级别控制器（UsersController, AuthController）
-5. 完成 P1 级别控制器
-6. 开始核心引擎注释（BattleEngine 等）
-7. 生成 API 文档
+6. 完成 BattlesReplayController 注释（P2）
+7. 开始核心引擎注释（BattleEngine 等）
+8. 生成 API 文档
 
 ---
 
@@ -111,11 +180,11 @@
 
 | 指标 | 当前值 | 目标值 | 进度 |
 |------|--------|--------|------|
-| 已完成控制器数量 | 1 | 13 | 8% |
-| P0控制器完成 | 1 | 6 | 17% |
+| 已完成控制器数量 | 7 | 13 | 54% |
+| P0控制器完成 | 6 | 6 | 100% ✅ |
 | P1控制器完成 | 0 | 5 | 0% |
 | P2控制器完成 | 0 | 2 | 0% |
-| 总注释行数 | ~100 | ~2000 | 5% |
+| 总注释行数 | ~1400 | ~2000 | 70% |
 
 ### 文档交付
 
@@ -177,8 +246,15 @@
 ### 2025-10-15
 - ✅ 创建《代码注释规范》文档
 - ✅ 完成 CharactersController 全部注释
-- ✅ 验证构建和测试通过
-- 📝 创建 Phase2 实施进度文档
+- ✅ 完成 EquipmentController 全部注释（11方法+4DTO）
+- ✅ 完成 BattlesController 全部注释（4方法）
+- ✅ 完成 ShopController 全部注释（4方法+1私有方法）
+- ✅ 完成 InventoryController 全部注释（1方法）
+- ✅ 完成 UsersController 全部注释（4方法+1DTO）
+- ✅ 完成 AuthController 全部注释（3方法+4DTO）
+- ✅ 所有 P0 级别控制器（6个）注释完成
+- ✅ 验证构建和测试通过（无新增警告）
+- ✅ 更新 Phase2 实施进度文档
 
 ---
 
@@ -186,13 +262,17 @@
 
 ### 已建立的标准
 1. **统一的注释规范** - 为整个项目提供注释标准
-2. **完整的示例** - CharactersController 作为注释模板
+2. **完整的示例** - 7个已完成的控制器作为注释模板
 3. **清晰的层级** - P0/P1/P2 优先级明确
+4. **一致的格式** - 所有控制器遵循相同的注释结构
 
 ### 质量提升
-- 代码可读性显著提升
-- 新开发者上手更容易
-- API 使用文档更完善
+- ✅ 所有P0级别API（6个控制器，30+方法）100%注释覆盖
+- ✅ 代码可读性显著提升
+- ✅ 新开发者上手更容易
+- ✅ API 使用文档更完善
+- ✅ 包含完整的请求/响应示例
+- ✅ 详细的业务逻辑和安全考虑说明
 
 ---
 
