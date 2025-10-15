@@ -7,6 +7,7 @@ using BlazorIdle.Server.Domain.Economy;
 using BlazorIdle.Server.Domain.Equipment.Services;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -55,6 +56,7 @@ public sealed class OfflineSettlementService
     private readonly OfflineFastForwardEngine _engine;
     private readonly GameDbContext _db;
     private readonly EquipmentStatsIntegration _equipmentStats;
+    private readonly ILogger<OfflineSettlementService> _logger;
     private readonly Func<Guid, CancellationToken, Task<ActivityPlan?>>? _tryStartNextPlan;
     private readonly Func<Guid, CancellationToken, Task<Guid>>? _startPlan;
 
@@ -65,6 +67,7 @@ public sealed class OfflineSettlementService
         OfflineFastForwardEngine engine,
         GameDbContext db,
         EquipmentStatsIntegration equipmentStats,
+        ILogger<OfflineSettlementService> logger,
         Func<Guid, CancellationToken, Task<ActivityPlan?>>? tryStartNextPlan = null,
         Func<Guid, CancellationToken, Task<Guid>>? startPlan = null)
     {
@@ -74,6 +77,7 @@ public sealed class OfflineSettlementService
         _engine = engine;
         _db = db;
         _equipmentStats = equipmentStats;
+        _logger = logger;
         _tryStartNextPlan = tryStartNextPlan;
         _startPlan = startPlan;
     }
@@ -87,15 +91,25 @@ public sealed class OfflineSettlementService
     {
         var character = await _characters.GetAsync(characterId, ct);
         if (character is null)
+        {
+            _logger.LogWarning("角色不存在，CharacterId={CharacterId}", characterId);
             throw new InvalidOperationException("Character not found");
+        }
 
         // 1. 计算离线时长
         var offlineSeconds = CalculateOfflineDuration(character);
+        
+        _logger.LogInformation(
+            "离线检查开始，CharacterId={CharacterId}, OfflineSeconds={OfflineSeconds}, LastSeenAt={LastSeenAt}",
+            characterId, offlineSeconds, character.LastSeenAtUtc);
+
         if (offlineSeconds <= 0)
         {
             // 更新心跳时间
             character.LastSeenAtUtc = DateTime.UtcNow;
             await _db.SaveChangesAsync(ct);
+
+            _logger.LogDebug("无离线时间，CharacterId={CharacterId}", characterId);
 
             return new OfflineCheckResult
             {
@@ -188,6 +202,10 @@ public sealed class OfflineSettlementService
                 // 用户可以手动点击恢复按钮来重试
             }
         }
+
+        _logger.LogInformation(
+            "离线结算完成，CharacterId={CharacterId}, OfflineSeconds={OfflineSeconds}, PlanCompleted={PlanCompleted}, Gold={Gold}, Exp={Exp}, TotalDamage={TotalDamage}",
+            characterId, offlineSeconds, result.PlanCompleted, result.Gold, result.Exp, result.TotalDamage);
 
         return new OfflineCheckResult
         {

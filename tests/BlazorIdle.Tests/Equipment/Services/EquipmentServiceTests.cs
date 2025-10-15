@@ -2,6 +2,8 @@ using BlazorIdle.Server.Domain.Equipment.Models;
 using BlazorIdle.Server.Domain.Equipment.Services;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace BlazorIdle.Tests.Equipment.Services;
@@ -22,7 +24,8 @@ public class EquipmentServiceTests : IDisposable
 
         _context = new GameDbContext(options);
         var validator = new EquipmentValidator();
-        _service = new EquipmentService(_context, validator);
+        var logger = NullLogger<EquipmentService>.Instance;
+        _service = new EquipmentService(_context, validator, logger);
     }
 
     [Fact]

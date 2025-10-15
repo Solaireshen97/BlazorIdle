@@ -4,6 +4,7 @@ using BlazorIdle.Server.Domain.Equipment.Services;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using BlazorIdle.Shared.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace BlazorIdle.Tests.Equipment;
@@ -26,7 +27,8 @@ public class ProfessionRestrictionIntegrationTests : IDisposable
 
         _context = new GameDbContext(options);
         _validator = new EquipmentValidator();
-        _equipmentService = new EquipmentService(_context, _validator);
+        var logger = NullLogger<EquipmentService>.Instance;
+        _equipmentService = new EquipmentService(_context, _validator, logger);
     }
 
     [Fact]

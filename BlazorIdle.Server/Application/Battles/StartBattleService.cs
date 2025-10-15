@@ -8,6 +8,7 @@ using BlazorIdle.Server.Domain.Combat.Rng;
 using BlazorIdle.Server.Domain.Economy;
 using BlazorIdle.Server.Domain.Equipment.Services;
 using BlazorIdle.Server.Domain.Records;
+using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
 namespace BlazorIdle.Server.Application.Battles;
@@ -21,6 +22,7 @@ public class StartBattleService
     private readonly EquipmentStatsIntegration _equipmentStats;
     private readonly IBattleNotificationService _notificationService;
     private readonly Services.BattleMessageFormatter _messageFormatter;
+    private readonly ILogger<StartBattleService> _logger;
     private readonly string _defaultDropMode; // "expected" | "sampled"
 
     public StartBattleService(
@@ -31,6 +33,7 @@ public class StartBattleService
         EquipmentStatsIntegration equipmentStats,
         IBattleNotificationService notificationService,
         Services.BattleMessageFormatter messageFormatter,
+        ILogger<StartBattleService> logger,
         IConfiguration cfg)
     {
         _characters = characters;
@@ -40,6 +43,7 @@ public class StartBattleService
         _equipmentStats = equipmentStats;
         _notificationService = notificationService;
         _messageFormatter = messageFormatter;
+        _logger = logger;
         _defaultDropMode = cfg.GetValue<string>("Economy:DefaultDropMode")?.Trim().ToLowerInvariant() == "sampled"
             ? "sampled" : "expected";
     }
@@ -58,6 +62,10 @@ public class StartBattleService
         double? runDelay = null,
         CancellationToken ct = default)
     {
+        _logger.LogInformation(
+            "战斗开始，CharacterId={CharacterId}, EnemyId={EnemyId}, EnemyCount={EnemyCount}, Mode={Mode}, DungeonId={DungeonId}, SimulateSeconds={SimulateSeconds}",
+            characterId, enemyId, enemyCount, mode, dungeonId, simulateSeconds);
+
         var c = await _characters.GetAsync(characterId, ct) ?? throw new InvalidOperationException("Character not found");
         var module = ProfessionRegistry.Resolve(c.Profession);
 
@@ -264,6 +272,11 @@ public class StartBattleService
         };
 
         await _battles.AddAsync(record, ct);
+
+        _logger.LogInformation(
+            "战斗结束，BattleId={BattleId}, CharacterId={CharacterId}, Duration={DurationSeconds}s, Killed={Killed}, TotalDamage={TotalDamage}, Gold={Gold}, Exp={Exp}, Segments={SegmentCount}",
+            record.Id, characterId, record.DurationSeconds, killed, totalDamage, gold, exp, segments.Count);
+
         return record.Id;
     }
 
