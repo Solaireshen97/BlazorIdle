@@ -4,6 +4,7 @@ using BlazorIdle.Server.Domain.Activities;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Combat.Professions;
 using BlazorIdle.Server.Domain.Combat.Rng;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Text.Json;
 using System.Threading;
@@ -19,15 +20,18 @@ public class ActivityPlanService
     private readonly IActivityPlanRepository _plans;
     private readonly ICharacterRepository _characters;
     private readonly StepBattleCoordinator _coordinator;
+    private readonly ILogger<ActivityPlanService> _logger;
 
     public ActivityPlanService(
         IActivityPlanRepository plans,
         ICharacterRepository characters,
-        StepBattleCoordinator coordinator)
+        StepBattleCoordinator coordinator,
+        ILogger<ActivityPlanService> logger)
     {
         _plans = plans;
         _characters = characters;
         _coordinator = coordinator;
+        _logger = logger;
     }
 
     /// <summary>
@@ -42,10 +46,17 @@ public class ActivityPlanService
         string payloadJson,
         CancellationToken ct = default)
     {
+        _logger.LogInformation(
+            "活动计划创建开始，CharacterId={CharacterId}, SlotIndex={SlotIndex}, Type={Type}, LimitType={LimitType}, LimitValue={LimitValue}",
+            characterId, slotIndex, type, limitType, limitValue);
+
         // 验证角色是否存在
         var character = await _characters.GetAsync(characterId, ct);
         if (character is null)
+        {
+            _logger.LogWarning("角色不存在，CharacterId={CharacterId}", characterId);
             throw new InvalidOperationException("Character not found");
+        }
 
         // 验证槽位索引
         if (slotIndex < 0 || slotIndex >= 5)
@@ -67,6 +78,10 @@ public class ActivityPlanService
         };
 
         await _plans.AddAsync(plan, ct);
+
+        _logger.LogInformation(
+            "活动计划创建完成，PlanId={PlanId}, CharacterId={CharacterId}, Type={Type}",
+            plan.Id, characterId, type);
 
         // 自动启动：如果当前角色没有正在运行的任务，自动启动这个任务
         var runningPlan = await _plans.GetRunningPlanAsync(characterId, ct);
