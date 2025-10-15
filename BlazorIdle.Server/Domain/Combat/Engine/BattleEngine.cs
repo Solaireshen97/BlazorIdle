@@ -289,6 +289,19 @@ public sealed class BattleEngine
         if (pausedTracks.Count > 0)
         {
             Collector.OnTag($"tracks_paused:{reason}", 1);
+            
+            // 战斗循环优化 Task 3.2: 发送轨道暂停事件通知前端
+            if (Context.NotificationService?.IsAvailable == true)
+            {
+                var resetEvent = new BlazorIdle.Shared.Models.TrackProgressResetEventDto
+                {
+                    BattleId = Battle.Id,
+                    EventTime = Clock.CurrentTime,
+                    TrackTypes = pausedTracks,
+                    ResetReason = reason
+                };
+                _ = Context.NotificationService.NotifyEventAsync(Battle.Id, resetEvent);
+            }
         }
     }
     
@@ -340,6 +353,30 @@ public sealed class BattleEngine
         if (resumedTracks.Count > 0)
         {
             Collector.OnTag("tracks_resumed:spawn_complete", 1);
+            
+            // 战斗循环优化 Task 3.2: 发送轨道恢复事件通知前端
+            if (Context.NotificationService?.IsAvailable == true)
+            {
+                // 收集新的触发时间
+                var newTriggerTimes = new Dictionary<string, double>();
+                foreach (var track in Context.Tracks)
+                {
+                    if (resumedTracks.Contains(track.TrackType.ToString()))
+                    {
+                        newTriggerTimes[track.TrackType.ToString()] = track.NextTriggerAt;
+                    }
+                }
+                
+                var resetEvent = new BlazorIdle.Shared.Models.TrackProgressResetEventDto
+                {
+                    BattleId = Battle.Id,
+                    EventTime = resumeTime,
+                    TrackTypes = resumedTracks,
+                    ResetReason = "spawn_complete",
+                    NewTriggerTimes = newTriggerTimes
+                };
+                _ = Context.NotificationService.NotifyEventAsync(Battle.Id, resetEvent);
+            }
         }
     }
 
