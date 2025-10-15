@@ -1,3 +1,4 @@
+using BlazorIdle.Server.Domain.Common.Utilities;
 using BlazorIdle.Server.Domain.Equipment.Configuration;
 using BlazorIdle.Server.Domain.Equipment.Models;
 using BlazorIdle.Server.Infrastructure.Persistence;
@@ -28,15 +29,8 @@ public class DisenchantService
     public async Task<DisenchantResult> DisenchantAsync(Guid characterId, Guid gearInstanceId)
     {
         // 参数验证
-        if (characterId == Guid.Empty)
-        {
-            throw new ArgumentException("角色ID不能为空", nameof(characterId));
-        }
-        
-        if (gearInstanceId == Guid.Empty)
-        {
-            throw new ArgumentException("装备ID不能为空", nameof(gearInstanceId));
-        }
+        ValidationHelper.ValidateGuid(characterId, nameof(characterId));
+        ValidationHelper.ValidateGuid(gearInstanceId, nameof(gearInstanceId));
         
         // 1. 获取装备实例
         var gear = await _context.Set<GearInstance>()

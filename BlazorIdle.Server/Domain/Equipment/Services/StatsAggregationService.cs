@@ -1,3 +1,4 @@
+using BlazorIdle.Server.Domain.Common.Utilities;
 using BlazorIdle.Server.Domain.Equipment.Models;
 
 namespace BlazorIdle.Server.Domain.Equipment.Services;
@@ -31,10 +32,7 @@ public class StatsAggregationService
     public virtual async Task<Dictionary<StatType, double>> CalculateEquipmentStatsAsync(Guid characterId)
     {
         // 参数验证
-        if (characterId == Guid.Empty)
-        {
-            throw new ArgumentException("角色ID不能为空", nameof(characterId));
-        }
+        ValidationHelper.ValidateGuid(characterId, nameof(characterId));
         
         var stats = new Dictionary<StatType, double>();
 

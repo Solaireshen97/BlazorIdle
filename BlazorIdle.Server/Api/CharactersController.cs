@@ -10,6 +10,23 @@ using Microsoft.Extensions.Configuration;
 
 namespace BlazorIdle.Server.Api;
 
+/// <summary>
+/// 角色管理 API 控制器
+/// </summary>
+/// <remarks>
+/// 提供的功能：
+/// - 创建新角色（需要认证，每个用户最多5个角色）
+/// - 查询角色信息
+/// - 绑定角色到用户账号
+/// - 调整角色在 Roster 中的显示顺序
+/// - 角色心跳更新（用于离线检测和自动结算）
+/// 
+/// 认证要求：
+/// - Create, BindToUser, ReorderCharacter 需要 JWT 认证
+/// - Get, Heartbeat 无需认证
+/// 
+/// 基础路由：/api/characters
+/// </remarks>
 [ApiController]
 [Route("api/[controller]")]
 public class CharactersController : ControllerBase
@@ -28,8 +45,47 @@ public class CharactersController : ControllerBase
         _configuration = configuration;
     }
 
+    /// <summary>
+    /// 创建新角色
+    /// </summary>
+    /// <param name="dto">角色创建数据传输对象</param>
+    /// <returns>包含角色ID、名称和顺序的对象</returns>
+    /// <response code="200">角色创建成功</response>
+    /// <response code="400">角色数量达到上限（最多5个）</response>
+    /// <response code="401">未登录或认证失败</response>
+    /// <remarks>
+    /// 功能说明：
+    /// - 需要用户登录（JWT认证）
+    /// - 每个用户最多创建5个角色
+    /// - 如果DTO中未提供属性值，使用职业默认属性
+    /// - 新角色等级为1，RosterOrder根据现有角色数量自动设置
+    /// 
+    /// 职业默认属性：
+    /// - 战士(Warrior): 力量20, 敏捷10, 智力5, 耐力15
+    /// - 游侠(Ranger): 力量10, 敏捷20, 智力8, 耐力12
+    /// - 其他: 力量10, 敏捷10, 智力10, 耐力10
+    /// 
+    /// 请求示例：
+    /// <code>
+    /// POST /api/characters
+    /// {
+    ///   "name": "我的战士",
+    ///   "profession": "Warrior",
+    ///   "strength": 25
+    /// }
+    /// </code>
+    /// 
+    /// 响应示例：
+    /// <code>
+    /// {
+    ///   "id": "123e4567-e89b-12d3-a456-426614174000",
+    ///   "name": "我的战士",
+    ///   "rosterOrder": 0
+    /// }
+    /// </code>
+    /// </remarks>
     [HttpPost]
-    [Authorize]  // 现在要求用户必须登录才能创建角色
+    [Authorize]
     public async Task<ActionResult<object>> Create([FromBody] CreateCharacterDto dto)
     {
         // 获取当前用户ID
@@ -72,6 +128,35 @@ public class CharactersController : ControllerBase
         return Ok(new { c.Id, c.Name, c.RosterOrder });
     }
 
+    /// <summary>
+    /// 获取角色信息
+    /// </summary>
+    /// <param name="id">角色ID</param>
+    /// <returns>角色详细信息，包含ID、名称、等级、职业和属性</returns>
+    /// <response code="200">成功获取角色信息</response>
+    /// <response code="404">角色不存在</response>
+    /// <remarks>
+    /// 无需认证，任何人都可以查询角色信息
+    /// 
+    /// 请求示例：
+    /// <code>
+    /// GET /api/characters/123e4567-e89b-12d3-a456-426614174000
+    /// </code>
+    /// 
+    /// 响应示例：
+    /// <code>
+    /// {
+    ///   "id": "123e4567-e89b-12d3-a456-426614174000",
+    ///   "name": "我的战士",
+    ///   "level": 10,
+    ///   "profession": "Warrior",
+    ///   "strength": 25,
+    ///   "agility": 12,
+    ///   "intellect": 8,
+    ///   "stamina": 20
+    /// }
+    /// </code>
+    /// </remarks>
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<object>> Get(Guid id)
     {
@@ -82,8 +167,29 @@ public class CharactersController : ControllerBase
     }
 
     /// <summary>
-    /// 将角色绑定到用户（需要认证）
+    /// 将未绑定的角色绑定到当前用户
     /// </summary>
+    /// <param name="id">角色ID</param>
+    /// <returns>绑定结果</returns>
+    /// <response code="200">绑定成功</response>
+    /// <response code="400">角色已绑定到其他用户</response>
+    /// <response code="401">未登录或认证失败</response>
+    /// <response code="404">角色不存在</response>
+    /// <remarks>
+    /// 功能说明：
+    /// - 需要用户登录（JWT认证）
+    /// - 只能绑定未归属任何用户的角色
+    /// - 绑定后自动设置 RosterOrder 为用户当前角色数量
+    /// 
+    /// 使用场景：
+    /// - 将测试角色绑定到正式账号
+    /// - 角色转移或认领
+    /// 
+    /// 请求示例：
+    /// <code>
+    /// PUT /api/characters/123e4567-e89b-12d3-a456-426614174000/bind-user
+    /// </code>
+    /// </remarks>
     [HttpPut("{id:guid}/bind-user")]
     [Authorize]
     public async Task<IActionResult> BindToUser(Guid id)
@@ -115,8 +221,29 @@ public class CharactersController : ControllerBase
     }
 
     /// <summary>
-    /// 调整角色在 Roster 中的顺序（需要认证）
+    /// 调整角色在 Roster 中的显示顺序
     /// </summary>
+    /// <param name="id">角色ID</param>
+    /// <param name="dto">包含新顺序值的数据传输对象</param>
+    /// <returns>调整结果</returns>
+    /// <response code="200">顺序调整成功</response>
+    /// <response code="401">未登录或认证失败</response>
+    /// <response code="403">无权操作该角色（角色不属于当前用户）</response>
+    /// <response code="404">角色不存在</response>
+    /// <remarks>
+    /// 功能说明：
+    /// - 需要用户登录（JWT认证）
+    /// - 只能调整属于自己的角色顺序
+    /// - RosterOrder 用于前端显示角色列表的排序
+    /// 
+    /// 请求示例：
+    /// <code>
+    /// PUT /api/characters/123e4567-e89b-12d3-a456-426614174000/reorder
+    /// {
+    ///   "rosterOrder": 2
+    /// }
+    /// </code>
+    /// </remarks>
     [HttpPut("{id:guid}/reorder")]
     [Authorize]
     public async Task<IActionResult> ReorderCharacter(Guid id, [FromBody] ReorderDto dto)
@@ -144,10 +271,62 @@ public class CharactersController : ControllerBase
     }
 
     /// <summary>
-    /// 更新角色心跳时间，标记角色在线
-    /// 自动检测离线状态并触发离线结算（如果需要）
-    /// POST /api/characters/{id}/heartbeat
+    /// 更新角色心跳时间，标记角色在线状态
     /// </summary>
+    /// <param name="id">角色ID</param>
+    /// <returns>心跳更新结果，可能包含离线结算信息</returns>
+    /// <response code="200">心跳更新成功</response>
+    /// <response code="404">角色不存在</response>
+    /// <remarks>
+    /// 功能说明：
+    /// - 更新角色的 LastSeenAtUtc 时间戳
+    /// - 自动检测离线状态（基于配置的离线阈值，默认60秒）
+    /// - 如果检测到离线，自动触发离线结算（如果启用）
+    /// - 无需认证，客户端定期调用
+    /// 
+    /// 配置参数（appsettings.json）：
+    /// - Offline:OfflineDetectionSeconds - 离线检测阈值（默认60秒）
+    /// - Offline:AutoApplyRewards - 是否自动应用离线收益（默认true）
+    /// 
+    /// 处理流程：
+    /// 1. 查询角色信息
+    /// 2. 计算自上次心跳以来的时间
+    /// 3. 如果超过离线阈值，触发离线结算
+    /// 4. 如果启用自动应用，立即应用离线收益
+    /// 5. 更新心跳时间戳
+    /// 
+    /// 请求示例：
+    /// <code>
+    /// POST /api/characters/123e4567-e89b-12d3-a456-426614174000/heartbeat
+    /// </code>
+    /// 
+    /// 响应示例（无离线）：
+    /// <code>
+    /// {
+    ///   "message": "心跳更新成功",
+    ///   "timestamp": "2025-10-15T10:30:00Z",
+    ///   "offlineSettlement": null
+    /// }
+    /// </code>
+    /// 
+    /// 响应示例（有离线结算）：
+    /// <code>
+    /// {
+    ///   "message": "心跳更新成功",
+    ///   "timestamp": "2025-10-15T10:30:00Z",
+    ///   "offlineSettlement": {
+    ///     "wasOffline": true,
+    ///     "offlineDuration": 3600,
+    ///     "settlement": { ... }
+    ///   }
+    /// }
+    /// </code>
+    /// 
+    /// 注意事项：
+    /// - 建议客户端每30秒调用一次
+    /// - 离线结算失败不会阻止心跳更新
+    /// - 结算错误会记录日志但不返回给客户端
+    /// </remarks>
     [HttpPost("{id:guid}/heartbeat")]
     public async Task<IActionResult> Heartbeat(Guid id)
     {
@@ -207,6 +386,17 @@ public class CharactersController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// 根据职业获取默认属性值
+    /// </summary>
+    /// <param name="p">职业类型</param>
+    /// <returns>元组包含力量、敏捷、智力、耐力的默认值</returns>
+    /// <remarks>
+    /// 职业默认属性配置：
+    /// - 战士(Warrior): 力量20, 敏捷10, 智力5, 耐力15 - 偏向近战物理输出
+    /// - 游侠(Ranger): 力量10, 敏捷20, 智力8, 耐力12 - 偏向远程物理输出
+    /// - 其他职业: 平衡属性 10, 10, 10, 10
+    /// </remarks>
     private static (int str, int agi, int intel, int sta) DefaultAttributesFor(Profession p)
         => p switch
         {
@@ -216,7 +406,15 @@ public class CharactersController : ControllerBase
         };
 }
 
-// 扩展创建 DTO：支持可选主属性（未传则按职业默认）
+/// <summary>
+/// 角色创建数据传输对象
+/// </summary>
+/// <param name="Name">角色名称（必需）</param>
+/// <param name="Profession">职业类型（必需）</param>
+/// <param name="Strength">力量属性（可选，未提供则使用职业默认值）</param>
+/// <param name="Agility">敏捷属性（可选，未提供则使用职业默认值）</param>
+/// <param name="Intellect">智力属性（可选，未提供则使用职业默认值）</param>
+/// <param name="Stamina">耐力属性（可选，未提供则使用职业默认值）</param>
 public record CreateCharacterDto(
     string Name,
     Profession Profession,
@@ -226,4 +424,8 @@ public record CreateCharacterDto(
     int? Stamina = null
 );
 
+/// <summary>
+/// 角色顺序调整数据传输对象
+/// </summary>
+/// <param name="RosterOrder">新的显示顺序值</param>
 public record ReorderDto(int RosterOrder);

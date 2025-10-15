@@ -1,3 +1,4 @@
+using BlazorIdle.Server.Domain.Common.Utilities;
 using BlazorIdle.Server.Domain.Equipment.Models;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -29,15 +30,8 @@ public class EquipmentService
     public async Task<EquipmentResult> EquipAsync(Guid characterId, Guid gearInstanceId)
     {
         // 参数验证
-        if (characterId == Guid.Empty)
-        {
-            throw new ArgumentException("角色ID不能为空", nameof(characterId));
-        }
-        
-        if (gearInstanceId == Guid.Empty)
-        {
-            throw new ArgumentException("装备ID不能为空", nameof(gearInstanceId));
-        }
+        ValidationHelper.ValidateGuid(characterId, nameof(characterId));
+        ValidationHelper.ValidateGuid(gearInstanceId, nameof(gearInstanceId));
         
         // 1. 获取装备实例
         var gear = await _context.Set<GearInstance>()
@@ -127,10 +121,7 @@ public class EquipmentService
     public async Task<EquipmentResult> UnequipAsync(Guid characterId, EquipmentSlot slot)
     {
         // 参数验证
-        if (characterId == Guid.Empty)
-        {
-            throw new ArgumentException("角色ID不能为空", nameof(characterId));
-        }
+        ValidationHelper.ValidateGuid(characterId, nameof(characterId));
         
         var gear = await _context.Set<GearInstance>()
             .FirstOrDefaultAsync(g => g.CharacterId == characterId 
@@ -160,10 +151,7 @@ public class EquipmentService
     public async Task<List<GearInstance>> GetEquippedGearAsync(Guid characterId)
     {
         // 参数验证
-        if (characterId == Guid.Empty)
-        {
-            throw new ArgumentException("角色ID不能为空", nameof(characterId));
-        }
+        ValidationHelper.ValidateGuid(characterId, nameof(characterId));
         
         return await _context.Set<GearInstance>()
             .Include(g => g.Definition)
@@ -181,10 +169,7 @@ public class EquipmentService
     public async Task<GearInstance?> GetEquippedGearInSlotAsync(Guid characterId, EquipmentSlot slot)
     {
         // 参数验证
-        if (characterId == Guid.Empty)
-        {
-            throw new ArgumentException("角色ID不能为空", nameof(characterId));
-        }
+        ValidationHelper.ValidateGuid(characterId, nameof(characterId));
         
         return await _context.Set<GearInstance>()
             .Include(g => g.Definition)
