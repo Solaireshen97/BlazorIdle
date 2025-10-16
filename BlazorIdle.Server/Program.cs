@@ -112,7 +112,10 @@ builder.Services.AddHostedService<SignalRStartupValidator>();
 // builder.Services.AddTransient<INotificationFilter, EventTypeFilter>();
 // builder.Services.AddTransient<INotificationFilter, RateLimitFilter>();
 
-// 5. 注册离线检测后台服务
+// 5. 注册后台服务
+// 数据库检查点服务（确保在应用关闭时正确清理 WAL 文件）
+builder.Services.AddHostedService<DatabaseCheckpointService>();
+// 离线检测后台服务
 builder.Services.AddHostedService<OfflineDetectionService>();
 
 // 6. CORS策略
@@ -143,12 +146,31 @@ using (var scope = app.Services.CreateScope())
 {
     var env = scope.ServiceProvider.GetRequiredService<IHostEnvironment>();
     var db = scope.ServiceProvider.GetRequiredService<GameDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    
     if (env.IsDevelopment())
     {
-        // 如果迁移或数据库异常，这里会执行
-        // dotnet ef migrations add InitBattle
-        // dotnet ef database update
-        db.Database.Migrate();
+        try
+        {
+            // 如果迁移或数据库异常，这里会执行
+            // dotnet ef migrations add InitBattle
+            // dotnet ef database update
+            logger.LogInformation("开始执行数据库迁移...");
+            db.Database.Migrate();
+            logger.LogInformation("数据库迁移完成");
+            
+            // 确保数据库使用 WAL 模式（如果还没有启用）
+            var journalMode = db.Database.ExecuteSqlRaw("PRAGMA journal_mode=WAL;");
+            logger.LogInformation("数据库已配置为 WAL 模式");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "数据库迁移失败。如果遇到 SQLite 文件锁定问题，请尝试：" +
+                "\n1. 关闭所有数据库连接" +
+                "\n2. 删除 gamedata.db-shm 和 gamedata.db-wal 文件" +
+                "\n3. 重新启动应用程序");
+            throw;
+        }
     }
     else
     {

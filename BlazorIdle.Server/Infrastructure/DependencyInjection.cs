@@ -20,6 +20,19 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         var conn = configuration.GetConnectionString("DefaultConnection") ?? "Data Source=gamedata.db";
+        
+        // 配置 SQLite 连接以提高 WAL 模式的稳定性
+        // 添加 Pooling=False 以避免连接池导致的锁定问题
+        // 添加 Cache=Shared 以提高并发性能
+        if (!conn.Contains("Pooling=") && !conn.Contains("pooling="))
+        {
+            conn += ";Pooling=False";
+        }
+        if (!conn.Contains("Cache=") && !conn.Contains("cache="))
+        {
+            conn += ";Cache=Shared";
+        }
+        
         services.AddDbContext<GameDbContext>(opt => opt.UseSqlite(conn));
 
         services.AddRepositories();
