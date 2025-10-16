@@ -2,10 +2,10 @@
 
 #nullable disable
 
-namespace BlazorIdle.Server.Infrastructure.Persistence.Migrations
+namespace BlazorIdle.Server.Migrations
 {
     /// <inheritdoc />
-    public partial class InitBattle : Migration
+    public partial class AddBattleStateToActivityPlan : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
