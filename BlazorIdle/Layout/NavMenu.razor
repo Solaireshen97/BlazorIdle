@@ -1,6 +1,6 @@
 ﻿<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="">BlazorIdle</a>
+        <a class="navbar-brand" href="/">BlazorIdle</a>
         <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
             <span class="navbar-toggler-icon"></span>
         </button>
@@ -10,8 +10,13 @@
 <div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
     <nav class="flex-column">
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <li><NavLink href="characters">角色/战斗测试</NavLink></li>
+            <NavLink class="nav-link" href="/" Match="NavLinkMatch.All">
+                主页
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="/characters" Match="NavLinkMatch.Prefix">
+                角色/战斗测试
             </NavLink>
         </div>
     </nav>

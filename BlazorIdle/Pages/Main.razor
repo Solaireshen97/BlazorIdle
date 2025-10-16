@@ -1,0 +1,20 @@
+﻿@page "/"
+@using BlazorIdle.Client.Services
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+
+<h3>主页</h3>
+<p>欢迎！请从左侧导航进入“角色/战斗测试”。</p>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthService.InitializeAsync();
+
+        // 未登录则跳转到登录页，登录后回到主页
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", replace: true);
+        }
+    }
+}
