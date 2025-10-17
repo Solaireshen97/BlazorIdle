@@ -35,6 +35,7 @@ public sealed class StepBattleSnapshotService
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<Infrastructure.Persistence.GameDbContext>();
+        var logger = scope.ServiceProvider.GetService<Microsoft.Extensions.Logging.ILogger<StepBattleSnapshotService>>();
 
         var dto = new StepBattleSnapshotDto(
             rb.Id,
@@ -84,18 +85,22 @@ public sealed class StepBattleSnapshotService
             row.SnapshotJson = json;
         }
 
-        await db.SaveChangesAsync(ct);
+        // 使用重试策略保存，防止数据库锁定导致失败
+        await Infrastructure.Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(db, ct, logger);
     }
 
     public async Task DeleteAsync(Guid stepBattleId, CancellationToken ct = default)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<Infrastructure.Persistence.GameDbContext>();
+        var logger = scope.ServiceProvider.GetService<Microsoft.Extensions.Logging.ILogger<StepBattleSnapshotService>>();
+        
         var row = await db.Set<RunningBattleSnapshotRecord>().FirstOrDefaultAsync(x => x.StepBattleId == stepBattleId, ct);
         if (row is not null)
         {
             db.Remove(row);
-            await db.SaveChangesAsync(ct);
+            // 使用重试策略删除，防止数据库锁定导致失败
+            await Infrastructure.Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(db, ct, logger);
         }
     }
 

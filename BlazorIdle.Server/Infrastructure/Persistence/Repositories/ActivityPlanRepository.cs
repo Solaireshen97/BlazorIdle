@@ -37,13 +37,13 @@ public class ActivityPlanRepository : IActivityPlanRepository
     public async Task AddAsync(ActivityPlan plan, CancellationToken ct = default)
     {
         _db.ActivityPlans.Add(plan);
-        await _db.SaveChangesAsync(ct);
+        await Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(_db, ct);
     }
 
     public async Task UpdateAsync(ActivityPlan plan, CancellationToken ct = default)
     {
         _db.ActivityPlans.Update(plan);
-        await _db.SaveChangesAsync(ct);
+        await Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(_db, ct);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
@@ -52,7 +52,7 @@ public class ActivityPlanRepository : IActivityPlanRepository
         if (plan is not null)
         {
             _db.ActivityPlans.Remove(plan);
-            await _db.SaveChangesAsync(ct);
+            await Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(_db, ct);
         }
     }
 

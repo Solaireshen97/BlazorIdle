@@ -103,12 +103,59 @@ public sealed class StepBattleHostedService : BackgroundService
                 await Task.Delay(50, stoppingToken);
             }
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException) 
+        { 
+            _logger.LogInformation("StepBattleHostedService 收到停止信号");
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "StepBattleHostedService loop failed.");
         }
+        
+        // 优雅关闭：保存所有运行中的战斗快照
+        _logger.LogInformation("StepBattleHostedService 正在优雅关闭，保存所有运行中的战斗快照...");
+        await SaveAllRunningBattleSnapshotsAsync(CancellationToken.None);
+        
         _logger.LogInformation("StepBattleHostedService stopped.");
+    }
+
+    /// <summary>
+    /// 优雅关闭时保存所有运行中的战斗快照
+    /// </summary>
+    private async Task SaveAllRunningBattleSnapshotsAsync(CancellationToken ct)
+    {
+        try
+        {
+            var savedCount = 0;
+            var failedCount = 0;
+            
+            foreach (var id in _coordinator.InternalIdsSnapshot())
+            {
+                if (_coordinator.TryGet(id, out var rb) && rb is not null && !rb.Completed)
+                {
+                    try
+                    {
+                        await _snapshot.SaveAsync(rb, ct);
+                        savedCount++;
+                        _logger.LogInformation("已保存战斗快照: {BattleId}", rb.Id);
+                    }
+                    catch (Exception ex)
+                    {
+                        failedCount++;
+                        _logger.LogError(ex, "保存战斗快照失败: {BattleId}", rb.Id);
+                    }
+                }
+            }
+            
+            _logger.LogInformation(
+                "战斗快照保存完成: 成功 {SavedCount} 个，失败 {FailedCount} 个",
+                savedCount,
+                failedCount);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "保存所有战斗快照时发生错误");
+        }
     }
 
 
