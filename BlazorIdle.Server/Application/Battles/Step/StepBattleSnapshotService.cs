@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Equipment.Services;
@@ -110,44 +110,144 @@ public sealed class StepBattleSnapshotService
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<Infrastructure.Persistence.GameDbContext>();
         var characters = scope.ServiceProvider.GetRequiredService<ICharacterRepository>();
+        var logger = scope.ServiceProvider.GetService<Microsoft.Extensions.Logging.ILogger<StepBattleSnapshotService>>();
 
         var rows = await db.Set<RunningBattleSnapshotRecord>()
             .OrderBy(x => x.UpdatedAtUtc)
             .ToListAsync(ct);
 
+        logger?.LogInformation("开始恢复战斗快照，共 {Count} 个快照", rows.Count);
+
+        int recoveredCount = 0;
+        int failedCount = 0;
+        var failedSnapshotIds = new List<Guid>();
+
         foreach (var row in rows)
         {
             try
             {
+                // 反序列化快照数据
                 var dto = JsonSerializer.Deserialize<StepBattleSnapshotDto>(row.SnapshotJson);
-                if (dto is null) continue;
+                if (dto is null)
+                {
+                    logger?.LogWarning("快照 {SnapshotId} 数据为空，将被删除", row.Id);
+                    failedSnapshotIds.Add(row.StepBattleId);
+                    failedCount++;
+                    continue;
+                }
 
-                // 重建 Stats（与 Start 时一致，包含装备加成）
+                // 验证角色是否存在
                 var ch = await characters.GetAsync(dto.CharacterId, ct);
-                if (ch is null) continue;
+                if (ch is null)
+                {
+                    logger?.LogWarning(
+                        "快照 {SnapshotId} 引用的角色 {CharacterId} 不存在，将被删除",
+                        row.Id, dto.CharacterId);
+                    failedSnapshotIds.Add(row.StepBattleId);
+                    failedCount++;
+                    continue;
+                }
 
                 var profession = (Shared.Models.Profession)dto.Profession;
                 var attrs = new PrimaryAttributes(ch.Strength, ch.Agility, ch.Intellect, ch.Stamina);
                 
                 // 使用装备集成服务构建完整属性
                 var equipmentStats = scope.ServiceProvider.GetRequiredService<EquipmentStatsIntegration>();
-                var stats = await equipmentStats.BuildStatsWithEquipmentAsync(dto.CharacterId, profession, attrs);
+                CharacterStats stats;
+                
+                try
+                {
+                    stats = await equipmentStats.BuildStatsWithEquipmentAsync(dto.CharacterId, profession, attrs);
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogWarning(ex,
+                        "快照 {SnapshotId} 构建角色属性失败（可能装备缺失），将被删除",
+                        row.Id);
+                    failedSnapshotIds.Add(row.StepBattleId);
+                    failedCount++;
+                    continue;
+                }
 
                 // 通过 Coordinator.Start 重建一个全新的 RunningBattle
-                var newId = coord.Start(dto.CharacterId, profession, stats, dto.TargetSeconds, dto.Seed, dto.EnemyId, dto.EnemyCount);
+                Guid newId;
+                try
+                {
+                    newId = coord.Start(dto.CharacterId, profession, stats, dto.TargetSeconds, dto.Seed, dto.EnemyId, dto.EnemyCount);
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogWarning(ex,
+                        "快照 {SnapshotId} 启动战斗失败（可能敌人配置错误），将被删除",
+                        row.Id);
+                    failedSnapshotIds.Add(row.StepBattleId);
+                    failedCount++;
+                    continue;
+                }
 
-                // 取回实例并快速“追帧到”快照时刻，然后替换 Segments
+                // 取回实例并快速"追帧到"快照时刻，然后替换 Segments
                 if (coord.TryGet(newId, out var rb) && rb is not null)
                 {
-                    rb.FastForwardTo(dto.SimulatedSeconds); // 快速推进到相同模拟时间
-                    rb.Segments.Clear();
-                    rb.Segments.AddRange(dto.Segments);
+                    try
+                    {
+                        rb.FastForwardTo(dto.SimulatedSeconds); // 快速推进到相同模拟时间
+                        rb.Segments.Clear();
+                        rb.Segments.AddRange(dto.Segments);
+                        
+                        recoveredCount++;
+                        logger?.LogInformation(
+                            "成功恢复快照 {SnapshotId}，战斗ID: {BattleId}，角色: {CharacterId}",
+                            row.Id, newId, dto.CharacterId);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger?.LogWarning(ex,
+                            "快照 {SnapshotId} 快进到模拟时间失败，将被删除",
+                            row.Id);
+                        failedSnapshotIds.Add(row.StepBattleId);
+                        failedCount++;
+                    }
+                }
+                else
+                {
+                    logger?.LogWarning(
+                        "快照 {SnapshotId} 无法获取运行中的战斗实例，将被删除",
+                        row.Id);
+                    failedSnapshotIds.Add(row.StepBattleId);
+                    failedCount++;
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // 忽略个别损坏快照
+                // 捕获所有未处理的异常
+                logger?.LogError(ex,
+                    "恢复快照 {SnapshotId} 时发生意外错误，将被删除",
+                    row.Id);
+                failedSnapshotIds.Add(row.StepBattleId);
+                failedCount++;
             }
         }
+
+        // 删除所有失败的快照
+        if (failedSnapshotIds.Count > 0)
+        {
+            logger?.LogWarning("清理 {Count} 个损坏的快照", failedSnapshotIds.Count);
+            
+            foreach (var failedId in failedSnapshotIds)
+            {
+                try
+                {
+                    await DeleteAsync(failedId, ct);
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogError(ex, "删除损坏快照 {SnapshotId} 失败", failedId);
+                }
+            }
+        }
+
+        logger?.LogInformation(
+            "战斗快照恢复完成: 成功 {RecoveredCount} 个，失败 {FailedCount} 个",
+            recoveredCount, failedCount);
     }
 }
