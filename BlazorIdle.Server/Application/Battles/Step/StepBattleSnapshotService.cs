@@ -110,21 +110,46 @@ public sealed class StepBattleSnapshotService
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<Infrastructure.Persistence.GameDbContext>();
         var characters = scope.ServiceProvider.GetRequiredService<ICharacterRepository>();
+        var logger = scope.ServiceProvider.GetService<Microsoft.Extensions.Logging.ILogger<StepBattleSnapshotService>>();
 
         var rows = await db.Set<RunningBattleSnapshotRecord>()
             .OrderBy(x => x.UpdatedAtUtc)
             .ToListAsync(ct);
+
+        if (rows.Count == 0)
+        {
+            logger?.LogInformation("没有需要恢复的战斗快照");
+            return;
+        }
+
+        logger?.LogInformation("开始恢复 {Count} 个战斗快照", rows.Count);
+        
+        var recoveredCount = 0;
+        var failedCount = 0;
+        var deletedCount = 0;
 
         foreach (var row in rows)
         {
             try
             {
                 var dto = JsonSerializer.Deserialize<StepBattleSnapshotDto>(row.SnapshotJson);
-                if (dto is null) continue;
+                if (dto is null)
+                {
+                    logger?.LogWarning("快照 {SnapshotId} 反序列化失败，将删除", row.Id);
+                    db.Set<RunningBattleSnapshotRecord>().Remove(row);
+                    deletedCount++;
+                    continue;
+                }
 
                 // 重建 Stats（与 Start 时一致，包含装备加成）
                 var ch = await characters.GetAsync(dto.CharacterId, ct);
-                if (ch is null) continue;
+                if (ch is null)
+                {
+                    logger?.LogWarning("快照 {SnapshotId} 的角色 {CharacterId} 不存在，将删除快照", row.Id, dto.CharacterId);
+                    db.Set<RunningBattleSnapshotRecord>().Remove(row);
+                    deletedCount++;
+                    continue;
+                }
 
                 var profession = (Shared.Models.Profession)dto.Profession;
                 var attrs = new PrimaryAttributes(ch.Strength, ch.Agility, ch.Intellect, ch.Stamina);
@@ -136,18 +161,64 @@ public sealed class StepBattleSnapshotService
                 // 通过 Coordinator.Start 重建一个全新的 RunningBattle
                 var newId = coord.Start(dto.CharacterId, profession, stats, dto.TargetSeconds, dto.Seed, dto.EnemyId, dto.EnemyCount);
 
-                // 取回实例并快速“追帧到”快照时刻，然后替换 Segments
+                // 取回实例并快速"追帧到"快照时刻，然后替换 Segments
                 if (coord.TryGet(newId, out var rb) && rb is not null)
                 {
                     rb.FastForwardTo(dto.SimulatedSeconds); // 快速推进到相同模拟时间
                     rb.Segments.Clear();
                     rb.Segments.AddRange(dto.Segments);
+                    
+                    logger?.LogInformation(
+                        "成功恢复战斗快照: 旧ID={OldBattleId}, 新ID={NewBattleId}, 角色={CharacterId}, 进度={Progress:F1}秒",
+                        dto.StepBattleId,
+                        newId,
+                        dto.CharacterId,
+                        dto.SimulatedSeconds);
+                    
+                    recoveredCount++;
+                    
+                    // 关键修复：删除旧快照，避免重复恢复
+                    db.Set<RunningBattleSnapshotRecord>().Remove(row);
+                    deletedCount++;
+                }
+                else
+                {
+                    logger?.LogWarning("恢复战斗快照失败: 无法获取新建的战斗实例 {NewBattleId}", newId);
+                    failedCount++;
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // 忽略个别损坏快照
+                logger?.LogError(ex, "恢复快照 {SnapshotId} 时发生错误", row.Id);
+                failedCount++;
+                
+                // 出错的快照也应该被删除，避免下次启动时再次尝试恢复
+                try
+                {
+                    db.Set<RunningBattleSnapshotRecord>().Remove(row);
+                    deletedCount++;
+                }
+                catch
+                {
+                    // 忽略删除失败
+                }
             }
+        }
+
+        // 保存所有更改（删除旧快照）
+        try
+        {
+            await Infrastructure.Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(db, ct, logger);
+            
+            logger?.LogInformation(
+                "战斗快照恢复完成: 成功 {RecoveredCount} 个，失败 {FailedCount} 个，删除旧快照 {DeletedCount} 个",
+                recoveredCount,
+                failedCount,
+                deletedCount);
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "保存快照清理更改时发生错误");
         }
     }
 }
