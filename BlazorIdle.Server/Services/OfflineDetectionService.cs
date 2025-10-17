@@ -34,21 +34,78 @@ public class OfflineDetectionService : BackgroundService
     {
         _logger.LogInformation("离线检测服务已启动");
 
-        while (!stoppingToken.IsCancellationRequested)
+        try
         {
-            try
+            while (!stoppingToken.IsCancellationRequested)
             {
-                await CheckAndPauseOfflinePlayers(stoppingToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "检测离线玩家时发生错误");
-            }
+                try
+                {
+                    await CheckAndPauseOfflinePlayers(stoppingToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "检测离线玩家时发生错误");
+                }
 
-            await Task.Delay(_checkInterval, stoppingToken);
+                await Task.Delay(_checkInterval, stoppingToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // 正常的取消操作，不记录错误
         }
 
+        // 优雅关闭：最后一次检查并暂停所有运行中的计划
+        _logger.LogInformation("离线检测服务正在关闭，执行最后一次检查...");
+        await ShutdownCheckAsync();
         _logger.LogInformation("离线检测服务已停止");
+    }
+
+    /// <summary>
+    /// 服务器关闭时的最后检查：暂停所有运行中的计划（不管玩家是否离线）
+    /// 这确保服务器重启后能够恢复所有计划
+    /// </summary>
+    private async Task ShutdownCheckAsync()
+    {
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var planRepository = scope.ServiceProvider.GetRequiredService<IActivityPlanRepository>();
+            var planService = scope.ServiceProvider.GetRequiredService<ActivityPlanService>();
+
+            var runningPlans = await planRepository.GetAllRunningPlansAsync(CancellationToken.None);
+            
+            if (runningPlans.Count > 0)
+            {
+                _logger.LogInformation("服务器关闭：发现 {Count} 个运行中的计划，正在暂停...", runningPlans.Count);
+
+                foreach (var plan in runningPlans)
+                {
+                    try
+                    {
+                        _logger.LogInformation(
+                            "服务器关闭：暂停计划 {PlanId} (角色 {CharacterId})",
+                            plan.Id, plan.CharacterId);
+
+                        await planService.PausePlanAsync(plan.Id, CancellationToken.None);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "服务器关闭：暂停计划 {PlanId} 时发生错误", plan.Id);
+                    }
+                }
+
+                _logger.LogInformation("服务器关闭：已完成暂停所有运行中的计划");
+            }
+            else
+            {
+                _logger.LogInformation("服务器关闭：没有运行中的计划需要暂停");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "服务器关闭时检查计划发生错误");
+        }
     }
 
     private async Task CheckAndPauseOfflinePlayers(CancellationToken ct)

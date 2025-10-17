@@ -108,7 +108,103 @@ public sealed class StepBattleHostedService : BackgroundService
         {
             _logger.LogError(ex, "StepBattleHostedService loop failed.");
         }
+
+        // 优雅关闭：保存所有运行中的战斗状态并暂停活动计划
+        _logger.LogInformation("StepBattleHostedService shutting down gracefully...");
+        await GracefulShutdownAsync();
         _logger.LogInformation("StepBattleHostedService stopped.");
+    }
+
+    /// <summary>
+    /// 优雅关闭：保存所有运行中的战斗快照并暂停所有运行中的活动计划
+    /// </summary>
+    private async Task GracefulShutdownAsync()
+    {
+        try
+        {
+            _logger.LogInformation("Starting graceful shutdown - saving running battles and pausing activity plans...");
+
+            // 1. 保存所有运行中的战斗快照
+            var savedCount = 0;
+            foreach (var id in _coordinator.InternalIdsSnapshot())
+            {
+                if (_coordinator.TryGet(id, out var rb) && rb is not null && !rb.Completed)
+                {
+                    try
+                    {
+                        await _snapshot.SaveAsync(rb, CancellationToken.None);
+                        savedCount++;
+                        _logger.LogDebug("Saved battle snapshot for {BattleId}", id);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to save snapshot for battle {BattleId} during shutdown", id);
+                    }
+                }
+            }
+            _logger.LogInformation("Saved {Count} running battle snapshots during shutdown", savedCount);
+
+            // 2. 暂停所有运行中的活动计划（保存战斗状态到计划）
+            await PauseAllRunningPlansAsync();
+
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during graceful shutdown");
+        }
+    }
+
+    /// <summary>
+    /// 暂停所有运行中的活动计划（服务器关闭时调用）
+    /// </summary>
+    private async Task PauseAllRunningPlansAsync()
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var activityPlanService = scope.ServiceProvider.GetService<ActivityPlanService>();
+            var planRepo = scope.ServiceProvider.GetService<BlazorIdle.Server.Application.Abstractions.IActivityPlanRepository>();
+            
+            if (activityPlanService == null || planRepo == null)
+            {
+                _logger.LogWarning("ActivityPlanService or PlanRepository not available during shutdown");
+                return;
+            }
+
+            // 获取所有运行中的计划
+            var runningPlans = await planRepo.GetAllRunningPlansAsync(CancellationToken.None);
+            
+            _logger.LogInformation("Found {Count} running plans to pause during shutdown", runningPlans.Count);
+
+            foreach (var plan in runningPlans)
+            {
+                try
+                {
+                    _logger.LogInformation("Pausing plan {PlanId} for character {CharacterId} during shutdown", 
+                        plan.Id, plan.CharacterId);
+                    
+                    var paused = await activityPlanService.PausePlanAsync(plan.Id, CancellationToken.None);
+                    if (paused)
+                    {
+                        _logger.LogDebug("Successfully paused plan {PlanId}", plan.Id);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Failed to pause plan {PlanId} (returned false)", plan.Id);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to pause plan {PlanId} during shutdown", plan.Id);
+                }
+            }
+
+            _logger.LogInformation("Completed pausing all running plans during shutdown");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in PauseAllRunningPlansAsync during shutdown");
+        }
     }
 
 

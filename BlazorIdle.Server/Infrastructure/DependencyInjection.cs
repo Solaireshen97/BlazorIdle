@@ -20,7 +20,20 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         var conn = configuration.GetConnectionString("DefaultConnection") ?? "Data Source=gamedata.db";
-        services.AddDbContext<GameDbContext>(opt => opt.UseSqlite(conn));
+        
+        // 配置 SQLite 连接字符串，添加安全选项防止数据库损坏
+        // - Journal Mode=WAL: 使用 Write-Ahead Logging 提高并发性能
+        // - Synchronous=NORMAL: 平衡性能和安全性（在大多数情况下足够安全）
+        // - Cache=Shared: 允许多个连接共享缓存
+        // - Foreign Keys=True: 启用外键约束
+        // - Pooling=True: 启用连接池
+        var connectionString = conn;
+        if (!connectionString.Contains("Journal Mode", StringComparison.OrdinalIgnoreCase))
+        {
+            connectionString += ";Journal Mode=WAL;Synchronous=NORMAL;Cache=Shared;Foreign Keys=True;Pooling=True";
+        }
+        
+        services.AddDbContext<GameDbContext>(opt => opt.UseSqlite(connectionString));
 
         services.AddRepositories();
 

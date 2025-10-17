@@ -115,6 +115,9 @@ builder.Services.AddHostedService<SignalRStartupValidator>();
 // 5. 注册离线检测后台服务
 builder.Services.AddHostedService<OfflineDetectionService>();
 
+// 5.1 注册数据库清理服务（确保优雅关闭时正确保存数据）
+builder.Services.AddHostedService<DatabaseCleanupService>();
+
 // 6. CORS策略
 // 目的：允许前端 Blazor WebAssembly（运行在其他端口）访问后端 API。
 // 注意：生产环境可改为精确来源，或者动态读取配置。如果需要携带凭据再加 AllowCredentials().
