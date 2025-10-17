@@ -35,7 +35,19 @@ public sealed class StepBattleHostedService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("StepBattleHostedService starting; recovering snapshots...");
+        // 第一步：清理孤立的运行中计划（服务器崩溃或异常关闭后的状态）
+        _logger.LogInformation("StepBattleHostedService starting; cleaning up orphaned running plans...");
+        try
+        {
+            await CleanupOrphanedRunningPlansAsync(stoppingToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CleanupOrphanedRunningPlansAsync failed.");
+        }
+
+        // 第二步：恢复战斗快照
+        _logger.LogInformation("Recovering battle snapshots...");
         try
         {
             await _snapshot.RecoverAllAsync(_coordinator, stoppingToken);
@@ -45,7 +57,7 @@ public sealed class StepBattleHostedService : BackgroundService
             _logger.LogError(ex, "RecoverAllAsync failed.");
         }
 
-        // 恢复暂停的计划（服务器重启后）
+        // 第三步：恢复暂停的计划（服务器重启后）
         _logger.LogInformation("Recovering paused plans...");
         try
         {
@@ -112,9 +124,10 @@ public sealed class StepBattleHostedService : BackgroundService
             _logger.LogError(ex, "StepBattleHostedService loop failed.");
         }
         
-        // 优雅关闭：保存所有运行中的战斗快照
-        _logger.LogInformation("StepBattleHostedService 正在优雅关闭，保存所有运行中的战斗快照...");
+        // 优雅关闭：保存所有运行中的战斗快照并暂停计划
+        _logger.LogInformation("StepBattleHostedService 正在优雅关闭，保存所有运行中的战斗快照并暂停计划...");
         await SaveAllRunningBattleSnapshotsAsync(CancellationToken.None);
+        await PauseAllRunningPlansAsync(CancellationToken.None);
         
         _logger.LogInformation("StepBattleHostedService stopped.");
     }
@@ -259,6 +272,132 @@ public sealed class StepBattleHostedService : BackgroundService
         }
     }
     // 本地节流器：记录最近一次保存时的“模拟时间”
+
+    /// <summary>
+    /// 清理孤立的运行中计划（服务器启动时）
+    /// 这些计划在上次服务器运行时处于Running状态，但没有对应的战斗实例
+    /// 将它们标记为Paused状态，以便后续恢复
+    /// </summary>
+    private async Task CleanupOrphanedRunningPlansAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<Infrastructure.Persistence.GameDbContext>();
+            
+            // 查找所有Running状态的计划
+            var runningPlans = await db.ActivityPlans
+                .Where(p => p.State == Domain.Activities.ActivityState.Running)
+                .ToListAsync(ct);
+
+            if (runningPlans.Count == 0)
+            {
+                _logger.LogInformation("没有发现孤立的运行中计划");
+                return;
+            }
+
+            _logger.LogWarning("发现 {Count} 个孤立的运行中计划，将它们标记为暂停状态", runningPlans.Count);
+
+            foreach (var plan in runningPlans)
+            {
+                try
+                {
+                    // 将计划标记为暂停状态
+                    plan.State = Domain.Activities.ActivityState.Paused;
+                    // 清除BattleId引用（因为内存中的战斗实例已经不存在）
+                    plan.BattleId = null;
+                    
+                    db.ActivityPlans.Update(plan);
+                    
+                    _logger.LogInformation(
+                        "已将孤立的计划 {PlanId} (角色 {CharacterId}) 标记为暂停状态",
+                        plan.Id, plan.CharacterId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "处理孤立计划 {PlanId} 时发生错误", plan.Id);
+                }
+            }
+
+            // 批量保存更改
+            await Infrastructure.Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(db, ct, _logger);
+            
+            _logger.LogInformation("孤立计划清理完成，已处理 {Count} 个计划", runningPlans.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CleanupOrphanedRunningPlansAsync failed");
+            // 不抛出异常，允许服务继续启动
+        }
+    }
+
+    /// <summary>
+    /// 暂停所有运行中的计划（服务器关闭时）
+    /// 确保所有计划都能在下次启动时正确恢复
+    /// </summary>
+    private async Task PauseAllRunningPlansAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var activityPlanService = scope.ServiceProvider.GetService<ActivityPlanService>();
+            var planRepo = scope.ServiceProvider.GetService<BlazorIdle.Server.Application.Abstractions.IActivityPlanRepository>();
+            
+            if (activityPlanService == null || planRepo == null)
+            {
+                _logger.LogWarning("无法获取ActivityPlanService或IActivityPlanRepository，跳过暂停计划");
+                return;
+            }
+
+            // 获取所有运行中的计划
+            var runningPlans = await planRepo.GetAllRunningPlansAsync(ct);
+            
+            if (runningPlans.Count == 0)
+            {
+                _logger.LogInformation("没有需要暂停的运行中计划");
+                return;
+            }
+
+            _logger.LogInformation("开始暂停 {Count} 个运行中的计划", runningPlans.Count);
+            
+            var pausedCount = 0;
+            var failedCount = 0;
+
+            foreach (var plan in runningPlans)
+            {
+                try
+                {
+                    var result = await activityPlanService.PausePlanAsync(plan.Id, ct);
+                    if (result)
+                    {
+                        pausedCount++;
+                        _logger.LogInformation("已暂停计划 {PlanId} (角色 {CharacterId})", plan.Id, plan.CharacterId);
+                    }
+                    else
+                    {
+                        failedCount++;
+                        _logger.LogWarning("无法暂停计划 {PlanId}", plan.Id);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    failedCount++;
+                    _logger.LogError(ex, "暂停计划 {PlanId} 时发生错误", plan.Id);
+                }
+            }
+            
+            _logger.LogInformation(
+                "计划暂停完成: 成功 {PausedCount} 个，失败 {FailedCount} 个",
+                pausedCount,
+                failedCount);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "PauseAllRunningPlansAsync failed");
+        }
+    }
+
+    // 本地节流器：记录最近一次保存时的"模拟时间"
     private static class SnapshotThrottler
     {
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, double> _lastSim = new();
