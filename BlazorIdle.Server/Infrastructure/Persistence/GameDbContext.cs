@@ -19,8 +19,10 @@ public class GameDbContext : DbContext
 {
     public GameDbContext(DbContextOptions<GameDbContext> options) : base(options)
     {
-        // �˴�ͨ��������ʱ����������ע���ѹ���� options�����Ӵ� / �ṩ���� / �������ȣ�
+        // 配置将通过连接字符串和 OnConfiguring 应用
     }
+
+
 
     // === �ۺϸ� / ʵ�弯�� ===
     // DbSet<T> ֻ�ǲ�ѯ/������ڣ�������ӳ��ϸ�����������Configuration��
@@ -45,6 +47,8 @@ public class GameDbContext : DbContext
     public DbSet<PurchaseRecord> PurchaseRecords => Set<PurchaseRecord>();
     public DbSet<PurchaseCounter> PurchaseCounters => Set<PurchaseCounter>();
 
+
+
     /// <summary>
     /// ģ�͹������ӣ����� Fluent ���á�
     /// ��ǰ�� ApplyConfigurationsFromAssembly �Զ�ɨ��ʵ�� IEntityTypeConfiguration<> �������ࡣ
@@ -65,5 +69,102 @@ public class GameDbContext : DbContext
         modelBuilder.SeedShops();
 
         base.OnModelCreating(modelBuilder);
+    }
+
+    /// <summary>
+    /// 重写 Dispose 以确保 WAL 检查点在关闭前执行
+    /// </summary>
+    public override void Dispose()
+    {
+        // 在关闭连接前执行 WAL 检查点，确保所有数据写入主数据库文件
+        ExecuteWalCheckpoint();
+        base.Dispose();
+    }
+
+    /// <summary>
+    /// 异步 Dispose 版本
+    /// </summary>
+    public override async ValueTask DisposeAsync()
+    {
+        // 在关闭连接前执行 WAL 检查点
+        await ExecuteWalCheckpointAsync();
+        await base.DisposeAsync();
+    }
+
+    /// <summary>
+    /// 执行 WAL 检查点（同步版本）
+    /// </summary>
+    private void ExecuteWalCheckpoint()
+    {
+        try
+        {
+            var connection = Database.GetDbConnection();
+            if (connection is Microsoft.Data.Sqlite.SqliteConnection sqliteConn)
+            {
+                var needsClose = false;
+                if (sqliteConn.State != System.Data.ConnectionState.Open)
+                {
+                    sqliteConn.Open();
+                    needsClose = true;
+                }
+
+                try
+                {
+                    using var cmd = sqliteConn.CreateCommand();
+                    // TRUNCATE 模式会尝试将所有 WAL 数据写入主数据库并截断 WAL 文件
+                    cmd.CommandText = "PRAGMA wal_checkpoint(TRUNCATE);";
+                    cmd.ExecuteNonQuery();
+                }
+                finally
+                {
+                    if (needsClose && sqliteConn.State == System.Data.ConnectionState.Open)
+                    {
+                        sqliteConn.Close();
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // 静默失败，不阻止 Dispose
+        }
+    }
+
+    /// <summary>
+    /// 执行 WAL 检查点（异步版本）
+    /// </summary>
+    private async Task ExecuteWalCheckpointAsync()
+    {
+        try
+        {
+            var connection = Database.GetDbConnection();
+            if (connection is Microsoft.Data.Sqlite.SqliteConnection sqliteConn)
+            {
+                var needsClose = false;
+                if (sqliteConn.State != System.Data.ConnectionState.Open)
+                {
+                    await sqliteConn.OpenAsync();
+                    needsClose = true;
+                }
+
+                try
+                {
+                    using var cmd = sqliteConn.CreateCommand();
+                    cmd.CommandText = "PRAGMA wal_checkpoint(TRUNCATE);";
+                    await cmd.ExecuteNonQueryAsync();
+                }
+                finally
+                {
+                    if (needsClose && sqliteConn.State == System.Data.ConnectionState.Open)
+                    {
+                        await sqliteConn.CloseAsync();
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // 静默失败，不阻止 Dispose
+        }
     }
 }

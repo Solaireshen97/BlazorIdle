@@ -124,7 +124,7 @@ public class CharactersController : ControllerBase
         };
 
         _db.Characters.Add(c);
-        await _db.SaveChangesAsync();
+        await Infrastructure.Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(_db);
         return Ok(new { c.Id, c.Name, c.RosterOrder });
     }
 
@@ -216,7 +216,7 @@ public class CharactersController : ControllerBase
         var characterCount = await _db.Characters.CountAsync(c => c.UserId == userId.Value);
         character.RosterOrder = characterCount;
 
-        await _db.SaveChangesAsync();
+        await Infrastructure.Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(_db);
         return Ok(new { message = "角色绑定成功" });
     }
 
@@ -266,7 +266,7 @@ public class CharactersController : ControllerBase
         }
 
         character.RosterOrder = dto.RosterOrder;
-        await _db.SaveChangesAsync();
+        await Infrastructure.Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(_db);
         return Ok(new { message = "角色顺序调整成功" });
     }
 
@@ -375,7 +375,7 @@ public class CharactersController : ControllerBase
         if (character != null)
         {
             character.LastSeenAtUtc = DateTime.UtcNow;
-            await _db.SaveChangesAsync();
+            await Infrastructure.Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(_db);
         }
         
         return Ok(new

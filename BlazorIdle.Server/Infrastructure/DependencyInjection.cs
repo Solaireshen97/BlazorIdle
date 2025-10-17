@@ -20,7 +20,30 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         var conn = configuration.GetConnectionString("DefaultConnection") ?? "Data Source=gamedata.db";
-        services.AddDbContext<GameDbContext>(opt => opt.UseSqlite(conn));
+        
+        // 配置 SQLite 连接以提高并发性和稳定性
+        var connectionStringBuilder = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder(conn)
+        {
+            Mode = Microsoft.Data.Sqlite.SqliteOpenMode.ReadWriteCreate,
+            Cache = Microsoft.Data.Sqlite.SqliteCacheMode.Shared,
+            // 设置繁忙超时为 30 秒，给予足够时间等待锁释放
+            DefaultTimeout = 30
+        };
+        
+        services.AddDbContext<GameDbContext>(opt => 
+        {
+            opt.UseSqlite(connectionStringBuilder.ToString(), sqliteOptions =>
+            {
+                // 启用连接池以重用连接
+                sqliteOptions.CommandTimeout(30);
+            });
+            
+            // 在开发环境启用敏感数据记录以便调试
+            if (configuration.GetValue<bool>("Logging:EnableSensitiveDataLogging", false))
+            {
+                opt.EnableSensitiveDataLogging();
+            }
+        });
 
         services.AddRepositories();
 

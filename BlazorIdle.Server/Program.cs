@@ -112,10 +112,13 @@ builder.Services.AddHostedService<SignalRStartupValidator>();
 // builder.Services.AddTransient<INotificationFilter, EventTypeFilter>();
 // builder.Services.AddTransient<INotificationFilter, RateLimitFilter>();
 
-// 5. 注册离线检测后台服务
+// 5. 注册优雅关闭协调器（必须在其他 HostedService 之前注册）
+builder.Services.AddHostedService<GracefulShutdownCoordinator>();
+
+// 6. 注册离线检测后台服务
 builder.Services.AddHostedService<OfflineDetectionService>();
 
-// 6. CORS策略
+// 7. CORS策略
 // 目的：允许前端 Blazor WebAssembly（运行在其他端口）访问后端 API。
 // 注意：生产环境可改为精确来源，或者动态读取配置。如果需要携带凭据再加 AllowCredentials().
 builder.Services.AddCors(options =>
@@ -135,7 +138,7 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// 6. 自动迁移（仅开发环境）
+// 8. 自动迁移（仅开发环境）
 // - 创建一个临时 Scope 取得 DbContext 和环境
 // - Development 下自动执行 Migrate() 方便快速迭代
 // - 生产环境建议：预先迁移（CI/CD、运维管理员手动执行）
@@ -160,7 +163,7 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// 7. 中间件管道
+// 9. 中间件管道
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();    // /swagger/v1/swagger.json
