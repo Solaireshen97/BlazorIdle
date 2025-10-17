@@ -39,24 +39,28 @@ public sealed class StepBattleHostedService : BackgroundService
         try
         {
             await _snapshot.RecoverAllAsync(_coordinator, stoppingToken);
+            _logger.LogInformation("Snapshots recovered successfully.");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "RecoverAllAsync failed.");
+            _logger.LogError(ex, "RecoverAllAsync failed. Service will continue without snapshot recovery.");
         }
 
         // 恢复暂停的计划（服务器重启后）
         _logger.LogInformation("Recovering paused plans...");
         try
         {
+            // 添加延迟以确保数据库完全就绪
+            await Task.Delay(1000, stoppingToken);
             await RecoverPausedPlansAsync(stoppingToken);
+            _logger.LogInformation("Paused plans recovered successfully.");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "RecoverPausedPlansAsync failed.");
+            _logger.LogError(ex, "RecoverPausedPlansAsync failed. Service will continue without plan recovery.");
         }
 
-        _logger.LogInformation("StepBattleHostedService started.");
+        _logger.LogInformation("StepBattleHostedService started successfully.");
         var lastSnapAt = DateTime.UtcNow;
         var lastPlanCheckAt = DateTime.UtcNow;
 
@@ -119,28 +123,45 @@ public sealed class StepBattleHostedService : BackgroundService
     /// </summary>
     private async Task RecoverPausedPlansAsync(CancellationToken ct)
     {
+        List<Guid> pausedPlanIds;
+        
         try
         {
-            using var scope = _scopeFactory.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<Infrastructure.Persistence.GameDbContext>();
-            var characterRepo = scope.ServiceProvider.GetRequiredService<BlazorIdle.Server.Application.Abstractions.ICharacterRepository>();
-            var activityPlanService = scope.ServiceProvider.GetService<ActivityPlanService>();
+            // 第一步：在一个独立的作用域中查询所有暂停的计划ID
+            using (var scope = _scopeFactory.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<Infrastructure.Persistence.GameDbContext>();
+                
+                pausedPlanIds = await db.ActivityPlans
+                    .Where(p => p.State == Domain.Activities.ActivityState.Paused)
+                    .Select(p => p.Id)
+                    .ToListAsync(ct);
+            }
             
-            if (activityPlanService == null)
-                return;
+            _logger.LogInformation("Found {Count} paused plans to recover", pausedPlanIds.Count);
 
-            // 查找所有暂停的计划
-            var pausedPlans = await db.ActivityPlans
-                .Where(p => p.State == Domain.Activities.ActivityState.Paused)
-                .ToListAsync(ct);
-
-            foreach (var plan in pausedPlans)
+            // 第二步：逐个恢复计划，每个计划使用独立的作用域
+            foreach (var planId in pausedPlanIds)
             {
                 if (ct.IsCancellationRequested)
                     break;
 
                 try
                 {
+                    // 为每个计划创建独立的作用域，避免DbContext冲突
+                    using var scope = _scopeFactory.CreateScope();
+                    var characterRepo = scope.ServiceProvider.GetRequiredService<BlazorIdle.Server.Application.Abstractions.ICharacterRepository>();
+                    var planRepo = scope.ServiceProvider.GetRequiredService<BlazorIdle.Server.Application.Abstractions.IActivityPlanRepository>();
+                    var activityPlanService = scope.ServiceProvider.GetService<ActivityPlanService>();
+                    
+                    if (activityPlanService == null)
+                        continue;
+
+                    // 重新获取计划（使用当前作用域的DbContext）
+                    var plan = await planRepo.GetAsync(planId, ct);
+                    if (plan == null || plan.State != Domain.Activities.ActivityState.Paused)
+                        continue;
+
                     // 检查玩家是否在线（最近60秒内有心跳）
                     var character = await characterRepo.GetAsync(plan.CharacterId, ct);
                     if (character?.LastSeenAtUtc != null)
@@ -154,6 +175,7 @@ public sealed class StepBattleHostedService : BackgroundService
                                 "服务器重启后恢复暂停的计划 {PlanId} (玩家 {CharacterId} 在线)",
                                 plan.Id, plan.CharacterId);
                             
+                            // 使用新的作用域启动计划
                             await activityPlanService.StartPlanAsync(plan.Id, ct);
                         }
                         // 否则保持暂停状态，等待玩家上线后通过离线结算恢复
@@ -161,13 +183,13 @@ public sealed class StepBattleHostedService : BackgroundService
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogDebug(ex, "Failed to recover paused plan {PlanId}", plan.Id);
+                    _logger.LogWarning(ex, "Failed to recover paused plan {PlanId}", planId);
                 }
             }
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "RecoverPausedPlansAsync failed");
+            _logger.LogError(ex, "RecoverPausedPlansAsync failed");
         }
     }
 
@@ -176,39 +198,48 @@ public sealed class StepBattleHostedService : BackgroundService
     /// </summary>
     private async Task CheckAndUpdateActivityPlansAsync(CancellationToken ct)
     {
+        List<Guid> runningPlanIds;
+        
         try
         {
-            using var scope = _scopeFactory.CreateScope();
-            var activityPlanService = scope.ServiceProvider.GetService<ActivityPlanService>();
-            if (activityPlanService == null)
-                return;
+            // 第一步：在一个独立的作用域中查询所有运行中的计划ID
+            using (var scope = _scopeFactory.CreateScope())
+            {
+                var planRepo = scope.ServiceProvider.GetService<BlazorIdle.Server.Application.Abstractions.IActivityPlanRepository>();
+                if (planRepo == null)
+                    return;
 
-            var planRepo = scope.ServiceProvider.GetService<BlazorIdle.Server.Application.Abstractions.IActivityPlanRepository>();
-            if (planRepo == null)
-                return;
-
-            // 获取所有运行中的计划
-            var runningPlans = await planRepo.GetAllRunningPlansAsync(ct);
+                // 获取所有运行中的计划ID
+                var runningPlans = await planRepo.GetAllRunningPlansAsync(ct);
+                runningPlanIds = runningPlans.Select(p => p.Id).ToList();
+            }
             
-            foreach (var plan in runningPlans)
+            // 第二步：逐个更新计划，每个计划使用独立的作用域
+            foreach (var planId in runningPlanIds)
             {
                 if (ct.IsCancellationRequested)
                     break;
 
                 try
                 {
+                    // 为每个计划创建独立的作用域，避免DbContext冲突
+                    using var scope = _scopeFactory.CreateScope();
+                    var activityPlanService = scope.ServiceProvider.GetService<ActivityPlanService>();
+                    if (activityPlanService == null)
+                        continue;
+
                     // 更新计划进度（会自动检查限制并停止）
-                    await activityPlanService.UpdatePlanProgressAsync(plan.Id, ct);
+                    await activityPlanService.UpdatePlanProgressAsync(planId, ct);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogDebug(ex, "Failed to update plan progress for {PlanId}", plan.Id);
+                    _logger.LogDebug(ex, "Failed to update plan progress for {PlanId}", planId);
                 }
             }
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "CheckAndUpdateActivityPlansAsync failed");
+            _logger.LogError(ex, "CheckAndUpdateActivityPlansAsync failed");
         }
     }
     // 本地节流器：记录最近一次保存时的“模拟时间”

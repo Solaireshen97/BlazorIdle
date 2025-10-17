@@ -143,6 +143,21 @@ using (var scope = app.Services.CreateScope())
 {
     var env = scope.ServiceProvider.GetRequiredService<IHostEnvironment>();
     var db = scope.ServiceProvider.GetRequiredService<GameDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    
+    try
+    {
+        // SQLite WAL 检查点：确保数据库一致性
+        // 在应用启动时执行 WAL 检查点，将 WAL 文件中的更改写入主数据库
+        logger.LogInformation("Executing SQLite WAL checkpoint...");
+        await db.Database.ExecuteSqlRawAsync("PRAGMA wal_checkpoint(TRUNCATE);");
+        logger.LogInformation("SQLite WAL checkpoint completed.");
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "SQLite WAL checkpoint failed, but continuing startup.");
+    }
+    
     if (env.IsDevelopment())
     {
         // 如果迁移或数据库异常，这里会执行
