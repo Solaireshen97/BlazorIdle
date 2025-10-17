@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using BlazorIdle.Server.Application.Activities;
+using BlazorIdle.Server.Domain.Records;
 
 namespace BlazorIdle.Server.Application.Battles.Step;
 
@@ -277,6 +278,7 @@ public sealed class StepBattleHostedService : BackgroundService
     /// 清理孤立的运行中计划（服务器启动时）
     /// 这些计划在上次服务器运行时处于Running状态，但没有对应的战斗实例
     /// 将它们标记为Paused状态，以便后续恢复
+    /// 同时清理孤立的战斗快照，防止重复恢复
     /// </summary>
     private async Task CleanupOrphanedRunningPlansAsync(CancellationToken ct)
     {
@@ -293,40 +295,107 @@ public sealed class StepBattleHostedService : BackgroundService
             if (runningPlans.Count == 0)
             {
                 _logger.LogInformation("没有发现孤立的运行中计划");
+            }
+            else
+            {
+                _logger.LogWarning("发现 {Count} 个孤立的运行中计划，将它们标记为暂停状态", runningPlans.Count);
+
+                foreach (var plan in runningPlans)
+                {
+                    try
+                    {
+                        // 将计划标记为暂停状态
+                        plan.State = Domain.Activities.ActivityState.Paused;
+                        // 清除BattleId引用（因为内存中的战斗实例已经不存在）
+                        plan.BattleId = null;
+                        
+                        db.ActivityPlans.Update(plan);
+                        
+                        _logger.LogInformation(
+                            "已将孤立的计划 {PlanId} (角色 {CharacterId}) 标记为暂停状态",
+                            plan.Id, plan.CharacterId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "处理孤立计划 {PlanId} 时发生错误", plan.Id);
+                    }
+                }
+
+                // 批量保存更改
+                await Infrastructure.Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(db, ct, _logger);
+                
+                _logger.LogInformation("孤立计划清理完成，已处理 {Count} 个计划", runningPlans.Count);
+            }
+
+            // 清理孤立的战斗快照
+            // 快照应该只在有对应的Running计划时存在
+            // 如果快照的BattleId没有被任何Running计划引用，则删除该快照
+            await CleanupOrphanedSnapshotsAsync(db, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CleanupOrphanedRunningPlansAsync failed");
+            // 不抛出异常，允许服务继续启动
+        }
+    }
+
+    /// <summary>
+    /// 清理孤立的战斗快照
+    /// 删除那些没有对应ActivityPlan的快照记录
+    /// </summary>
+    private async Task CleanupOrphanedSnapshotsAsync(Infrastructure.Persistence.GameDbContext db, CancellationToken ct)
+    {
+        try
+        {
+            // 获取所有快照
+            var snapshots = await db.Set<RunningBattleSnapshotRecord>().ToListAsync(ct);
+            
+            if (snapshots.Count == 0)
+            {
+                _logger.LogDebug("没有战斗快照需要清理");
                 return;
             }
 
-            _logger.LogWarning("发现 {Count} 个孤立的运行中计划，将它们标记为暂停状态", runningPlans.Count);
+            // 获取所有Running状态计划的BattleId
+            var activeBattleIds = await db.ActivityPlans
+                .Where(p => p.State == Domain.Activities.ActivityState.Running && p.BattleId != null)
+                .Select(p => p.BattleId!.Value)
+                .ToListAsync(ct);
 
-            foreach (var plan in runningPlans)
+            var orphanedSnapshots = snapshots
+                .Where(s => !activeBattleIds.Contains(s.StepBattleId))
+                .ToList();
+
+            if (orphanedSnapshots.Count == 0)
+            {
+                _logger.LogDebug("没有发现孤立的战斗快照");
+                return;
+            }
+
+            _logger.LogWarning("发现 {Count} 个孤立的战斗快照，将它们删除", orphanedSnapshots.Count);
+
+            foreach (var snapshot in orphanedSnapshots)
             {
                 try
                 {
-                    // 将计划标记为暂停状态
-                    plan.State = Domain.Activities.ActivityState.Paused;
-                    // 清除BattleId引用（因为内存中的战斗实例已经不存在）
-                    plan.BattleId = null;
-                    
-                    db.ActivityPlans.Update(plan);
-                    
-                    _logger.LogInformation(
-                        "已将孤立的计划 {PlanId} (角色 {CharacterId}) 标记为暂停状态",
-                        plan.Id, plan.CharacterId);
+                    db.Set<RunningBattleSnapshotRecord>().Remove(snapshot);
+                    _logger.LogInformation("已删除孤立的战斗快照 {BattleId} (角色 {CharacterId})", 
+                        snapshot.StepBattleId, snapshot.CharacterId);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "处理孤立计划 {PlanId} 时发生错误", plan.Id);
+                    _logger.LogError(ex, "删除孤立快照 {BattleId} 时发生错误", snapshot.StepBattleId);
                 }
             }
 
             // 批量保存更改
             await Infrastructure.Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(db, ct, _logger);
             
-            _logger.LogInformation("孤立计划清理完成，已处理 {Count} 个计划", runningPlans.Count);
+            _logger.LogInformation("孤立快照清理完成，已删除 {Count} 个快照", orphanedSnapshots.Count);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "CleanupOrphanedRunningPlansAsync failed");
+            _logger.LogError(ex, "CleanupOrphanedSnapshotsAsync failed");
             // 不抛出异常，允许服务继续启动
         }
     }
@@ -367,6 +436,20 @@ public sealed class StepBattleHostedService : BackgroundService
             {
                 try
                 {
+                    // 删除对应的快照（防止重复恢复）
+                    if (plan.BattleId.HasValue)
+                    {
+                        try
+                        {
+                            await _snapshot.DeleteAsync(plan.BattleId.Value, ct);
+                            _logger.LogDebug("已删除战斗快照 {BattleId} (计划 {PlanId})", plan.BattleId.Value, plan.Id);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "删除战斗快照失败 {BattleId}", plan.BattleId.Value);
+                        }
+                    }
+                    
                     var result = await activityPlanService.PausePlanAsync(plan.Id, ct);
                     if (result)
                     {
