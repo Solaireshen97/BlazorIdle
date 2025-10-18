@@ -153,6 +153,10 @@ public static class DependencyInjection
         services.AddSingleton<IMemoryStateManager<RunningBattleSnapshotRecord>, MemoryStateManager<RunningBattleSnapshotRecord>>();
         services.AddSingleton<IMemoryStateManager<ActivityPlan>, MemoryStateManager<ActivityPlan>>();
         
+        // 数据库性能指标收集器（单例 - 用于监控和诊断）
+        // Database metrics collector (singleton - for monitoring and diagnostics)
+        services.AddSingleton<DatabaseMetricsCollector>();
+        
         // 持久化协调器（后台服务 - 单例）
         // Persistence coordinator (background service - singleton)
         services.AddSingleton<IPersistenceCoordinator, PersistenceCoordinator>();
