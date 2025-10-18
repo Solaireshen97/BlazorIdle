@@ -1,15 +1,20 @@
 using BlazorIdle.Server.Domain.Equipment.ValueObjects;
+using BlazorIdle.Server.Infrastructure.DatabaseOptimization.Abstractions;
 
 namespace BlazorIdle.Server.Domain.Equipment.Models;
 
 /// <summary>
 /// 装备实例（运行时实体）
+/// Equipment instance (runtime entity)
+/// 
 /// 每个装备实例都是唯一的，包含Roll后的属性
+/// Each equipment instance is unique with rolled attributes
 /// </summary>
-public class GearInstance
+public class GearInstance : IEntity
 {
     /// <summary>
     /// 实例ID
+    /// Instance ID
     /// </summary>
     public Guid Id { get; set; }
     
