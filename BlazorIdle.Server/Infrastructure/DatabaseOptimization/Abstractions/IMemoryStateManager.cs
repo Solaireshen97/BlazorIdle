@@ -82,4 +82,84 @@ public interface IMemoryStateManager<T> where T : class, IEntity
     /// Get current count of dirty entities
     /// </summary>
     int DirtyCount { get; }
+    
+    #region 读取缓存增强功能 - Read Cache Enhancement Methods
+    
+    /// <summary>
+    /// 尝试获取实体（缓存优先，支持自定义数据库加载器）
+    /// Try to get entity (cache first, with custom database loader)
+    /// </summary>
+    /// <param name="id">实体 ID / Entity ID</param>
+    /// <param name="databaseLoader">数据库查询委托 / Database query delegate</param>
+    /// <param name="ct">取消令牌 / Cancellation token</param>
+    /// <returns>实体对象，未找到返回 null / Entity or null if not found</returns>
+    Task<T?> TryGetAsync(
+        Guid id,
+        Func<Guid, CancellationToken, Task<T?>> databaseLoader,
+        CancellationToken ct = default);
+    
+    /// <summary>
+    /// 批量预加载实体（不标记为 Dirty）
+    /// Batch preload entities (without marking as Dirty)
+    /// </summary>
+    /// <param name="entities">实体集合 / Entity collection</param>
+    void PreloadBatch(IEnumerable<T> entities);
+    
+    /// <summary>
+    /// 从数据库批量预加载
+    /// Batch preload from database
+    /// 
+    /// 注意：需要传入 GameDbContext 类型的实例
+    /// Note: Requires GameDbContext type instance
+    /// </summary>
+    /// <param name="dbContext">数据库上下文 / Database context</param>
+    /// <param name="batchSize">批量大小 / Batch size</param>
+    /// <param name="ct">取消令牌 / Cancellation token</param>
+    Task PreloadFromDatabaseAsync(
+        object dbContext,
+        int batchSize = 1000,
+        CancellationToken ct = default);
+    
+    /// <summary>
+    /// 获取缓存命中率
+    /// Get cache hit rate
+    /// </summary>
+    /// <returns>命中率（0.0-1.0） / Hit rate (0.0-1.0)</returns>
+    double GetCacheHitRate();
+    
+    /// <summary>
+    /// 获取缓存统计信息
+    /// Get cache statistics
+    /// </summary>
+    CacheStatistics GetCacheStatistics();
+    
+    /// <summary>
+    /// 清理过期缓存（基于 TTL）
+    /// Clear expired cache entries (based on TTL)
+    /// </summary>
+    /// <param name="ttlSeconds">过期时间（秒） / TTL in seconds</param>
+    /// <returns>移除的实体数量 / Number of entities removed</returns>
+    int ClearExpired(int ttlSeconds);
+    
+    /// <summary>
+    /// 清空所有缓存
+    /// Clear all cache
+    /// </summary>
+    void ClearAll();
+    
+    /// <summary>
+    /// 获取所有缓存的实体
+    /// Get all cached entities
+    /// </summary>
+    /// <returns>所有实体集合 / Collection of all entities</returns>
+    IEnumerable<T> GetAll();
+    
+    /// <summary>
+    /// 使特定实体缓存失效
+    /// Invalidate specific entity cache
+    /// </summary>
+    /// <param name="id">实体 ID / Entity ID</param>
+    void InvalidateCache(Guid id);
+    
+    #endregion
 }

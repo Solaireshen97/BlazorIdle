@@ -299,6 +299,95 @@ public class DatabaseMetricsCollector
         public int EvictedCount { get; set; }
         public int RemainingCount { get; set; }
     }
+    
+    #region 缓存监控功能 - Cache Monitoring Features
+    
+    /// <summary>
+    /// 缓存命中记录
+    /// Cache hit records
+    /// </summary>
+    private readonly ConcurrentDictionary<string, CacheMetricsData> _cacheMetrics 
+        = new ConcurrentDictionary<string, CacheMetricsData>();
+    
+    /// <summary>
+    /// 记录缓存命中
+    /// Record cache hit
+    /// </summary>
+    /// <param name="entityType">实体类型 / Entity type</param>
+    public void RecordCacheHit(string entityType)
+    {
+        var data = _cacheMetrics.GetOrAdd(entityType, _ => new CacheMetricsData());
+        Interlocked.Increment(ref data.Hits);
+    }
+    
+    /// <summary>
+    /// 记录缓存未命中
+    /// Record cache miss
+    /// </summary>
+    /// <param name="entityType">实体类型 / Entity type</param>
+    public void RecordCacheMiss(string entityType)
+    {
+        var data = _cacheMetrics.GetOrAdd(entityType, _ => new CacheMetricsData());
+        Interlocked.Increment(ref data.Misses);
+    }
+    
+    /// <summary>
+    /// 记录缓存大小
+    /// Record cache size
+    /// </summary>
+    /// <param name="entityType">实体类型 / Entity type</param>
+    /// <param name="cachedCount">缓存数量 / Cached count</param>
+    /// <param name="dirtyCount">Dirty 数量 / Dirty count</param>
+    public void RecordCacheSize(string entityType, int cachedCount, int dirtyCount)
+    {
+        var data = _cacheMetrics.GetOrAdd(entityType, _ => new CacheMetricsData());
+        data.CachedCount = cachedCount;
+        data.DirtyCount = dirtyCount;
+        data.LastUpdated = DateTime.UtcNow;
+    }
+    
+    /// <summary>
+    /// 获取缓存指标
+    /// Get cache metrics
+    /// </summary>
+    /// <returns>缓存指标字典 / Cache metrics dictionary</returns>
+    public Dictionary<string, CacheMetricsSummary> GetCacheMetrics()
+    {
+        return _cacheMetrics.ToDictionary(
+            kvp => kvp.Key,
+            kvp => new CacheMetricsSummary
+            {
+                EntityType = kvp.Key,
+                Hits = kvp.Value.Hits,
+                Misses = kvp.Value.Misses,
+                HitRate = kvp.Value.GetHitRate(),
+                CachedCount = kvp.Value.CachedCount,
+                DirtyCount = kvp.Value.DirtyCount,
+                LastUpdated = kvp.Value.LastUpdated
+            }
+        );
+    }
+    
+    /// <summary>
+    /// 缓存指标数据（内部）
+    /// Cache metrics data (internal)
+    /// </summary>
+    private class CacheMetricsData
+    {
+        public long Hits = 0;
+        public long Misses = 0;
+        public int CachedCount = 0;
+        public int DirtyCount = 0;
+        public DateTime LastUpdated = DateTime.UtcNow;
+        
+        public double GetHitRate()
+        {
+            var total = Hits + Misses;
+            return total > 0 ? (double)Hits / total : 0.0;
+        }
+    }
+    
+    #endregion
 }
 
 /// <summary>
@@ -357,4 +446,32 @@ public class EvictionSummary
     
     /// <summary>每次平均清理数 / Average entities per eviction</summary>
     public double AverageEntitiesPerEviction { get; set; }
+}
+
+/// <summary>
+/// 缓存指标摘要
+/// Cache Metrics Summary
+/// </summary>
+public class CacheMetricsSummary
+{
+    /// <summary>实体类型 / Entity type</summary>
+    public string EntityType { get; set; } = string.Empty;
+    
+    /// <summary>缓存命中次数 / Cache hits</summary>
+    public long Hits { get; set; }
+    
+    /// <summary>缓存未命中次数 / Cache misses</summary>
+    public long Misses { get; set; }
+    
+    /// <summary>缓存命中率 / Hit rate</summary>
+    public double HitRate { get; set; }
+    
+    /// <summary>缓存数量 / Cached count</summary>
+    public int CachedCount { get; set; }
+    
+    /// <summary>Dirty 数量 / Dirty count</summary>
+    public int DirtyCount { get; set; }
+    
+    /// <summary>最后更新时间 / Last updated</summary>
+    public DateTime LastUpdated { get; set; }
 }

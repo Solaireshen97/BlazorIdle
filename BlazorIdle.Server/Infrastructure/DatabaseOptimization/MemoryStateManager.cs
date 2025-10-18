@@ -354,17 +354,23 @@ public class MemoryStateManager<T> : IMemoryStateManager<T> where T : class, IEn
     /// <param name="batchSize">批量大小 / Batch size</param>
     /// <param name="ct">取消令牌 / Cancellation token</param>
     public async Task PreloadFromDatabaseAsync(
-        GameDbContext dbContext,
+        object dbContext,
         int batchSize = 1000,
         CancellationToken ct = default)
     {
+        if (dbContext is not GameDbContext gameDb)
+        {
+            _logger.LogError("Invalid dbContext type. Expected GameDbContext.");
+            return;
+        }
+        
         var skip = 0;
         int loaded;
         var totalLoaded = 0;
         
         do
         {
-            var batch = await dbContext.Set<T>()
+            var batch = await gameDb.Set<T>()
                 .Skip(skip)
                 .Take(batchSize)
                 .ToListAsync(ct);
