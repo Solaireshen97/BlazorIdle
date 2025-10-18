@@ -1,8 +1,9 @@
-﻿using System;
+﻿using BlazorIdle.Server.Infrastructure.DatabaseOptimization.Abstractions;
+using System;
 
 namespace BlazorIdle.Server.Domain.Records;
 
-public class RunningBattleSnapshotRecord
+public class RunningBattleSnapshotRecord : IEntity
 {
     public Guid Id { get; set; }                    // 行主键
     public Guid StepBattleId { get; set; }          // 正在运行的内存战斗 Id（RunningBattle.Id）
