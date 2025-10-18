@@ -469,7 +469,23 @@ public class PersistenceCoordinator : BackgroundService, IPersistenceCoordinator
             return;
         }
         
-        _logger.LogInformation("手动触发保存：{EntityType}", entityType);
+        // 验证实体类型以防止日志伪造
+        // Validate entity type to prevent log forging
+        var validEntityTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Character",
+            "BattleSnapshot",
+            "ActivityPlan",
+            "" // 空字符串表示所有类型
+        };
+        
+        if (!string.IsNullOrEmpty(entityType) && !validEntityTypes.Contains(entityType))
+        {
+            _logger.LogWarning("尝试保存无效的实体类型，已拒绝");
+            return;
+        }
+        
+        _logger.LogInformation("手动触发保存：{EntityType}", string.IsNullOrEmpty(entityType) ? "All" : entityType);
         
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<GameDbContext>();
@@ -496,15 +512,18 @@ public class PersistenceCoordinator : BackgroundService, IPersistenceCoordinator
                     break;
                     
                 default:
-                    _logger.LogWarning("未知的实体类型或管理器未启用：{EntityType}", entityType);
+                    var safeEntityType = string.IsNullOrEmpty(entityType) ? "All" : "Unknown";
+                    _logger.LogWarning("未知的实体类型或管理器未启用：{EntityType}", safeEntityType);
                     break;
             }
             
-            _logger.LogInformation("手动触发保存完成：{EntityType}，保存了 {Count} 个实体", entityType, saved);
+            _logger.LogInformation("手动触发保存完成：{EntityType}，保存了 {Count} 个实体", 
+                string.IsNullOrEmpty(entityType) ? "All" : entityType, saved);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "手动触发保存失败：{EntityType}", entityType);
+            _logger.LogError(ex, "手动触发保存失败：{EntityType}", 
+                string.IsNullOrEmpty(entityType) ? "All" : entityType);
             throw;
         }
     }

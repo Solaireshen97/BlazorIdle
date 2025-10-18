@@ -299,7 +299,20 @@ public class DatabaseHealthController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("手动触发立即保存，实体类型：{EntityType}", entityType ?? "All");
+            // 验证和清理实体类型参数以防止日志伪造
+            // Validate and sanitize entity type parameter to prevent log forging
+            var validEntityTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "Character",
+                "BattleSnapshot",
+                "ActivityPlan"
+            };
+            
+            var sanitizedEntityType = entityType != null && validEntityTypes.Contains(entityType)
+                ? entityType
+                : "All";
+            
+            _logger.LogInformation("手动触发立即保存，实体类型：{EntityType}", sanitizedEntityType);
             
             await _persistenceCoordinator.TriggerSaveAsync(entityType ?? string.Empty);
             
@@ -307,7 +320,7 @@ public class DatabaseHealthController : ControllerBase
             {
                 Message = "保存操作已触发 / Save operation triggered",
                 Timestamp = DateTime.UtcNow,
-                EntityType = entityType ?? "All",
+                EntityType = sanitizedEntityType,
                 LastSaveStatistics = _persistenceCoordinator.LastSaveStatistics
             });
         }
