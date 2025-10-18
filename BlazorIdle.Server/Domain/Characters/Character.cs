@@ -1,9 +1,10 @@
 ﻿using BlazorIdle.Shared.Models;
+using BlazorIdle.Server.Application.Abstractions;
 using System;
 
 namespace BlazorIdle.Server.Domain.Characters;
 
-public class Character
+public class Character : IEntity
 {
     public Guid Id { get; set; }
     

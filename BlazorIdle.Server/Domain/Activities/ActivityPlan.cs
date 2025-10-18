@@ -1,3 +1,4 @@
+using BlazorIdle.Server.Application.Abstractions;
 using System;
 
 namespace BlazorIdle.Server.Domain.Activities;
@@ -6,7 +7,7 @@ namespace BlazorIdle.Server.Domain.Activities;
 /// 活动计划实体
 /// 代表一个可执行的活动任务（如战斗、采集、制作等）
 /// </summary>
-public class ActivityPlan
+public class ActivityPlan : IEntity
 {
     /// <summary>计划唯一标识</summary>
     public Guid Id { get; set; }

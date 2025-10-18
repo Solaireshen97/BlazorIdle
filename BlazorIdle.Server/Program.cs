@@ -83,6 +83,42 @@ builder.Services.Configure<BattleMessageOptions>(builder.Configuration.GetSectio
 builder.Services.Configure<BlazorIdle.Server.Infrastructure.Configuration.CombatEngineOptions>(
     builder.Configuration.GetSection("CombatEngine"));
 
+// 4.7 数据库优化配置
+builder.Services.Configure<BlazorIdle.Server.Config.Persistence.PersistenceOptions>(
+    builder.Configuration.GetSection("Persistence"));
+builder.Services.Configure<BlazorIdle.Server.Config.Persistence.ShutdownOptions>(
+    builder.Configuration.GetSection("Shutdown"));
+builder.Services.Configure<BlazorIdle.Server.Config.Persistence.MemoryCacheOptions>(
+    builder.Configuration.GetSection("MemoryCache"));
+
+// 4.8 配置验证
+builder.Services.AddOptions<BlazorIdle.Server.Config.Persistence.PersistenceOptions>()
+    .Bind(builder.Configuration.GetSection("Persistence"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddOptions<BlazorIdle.Server.Config.Persistence.ShutdownOptions>()
+    .Bind(builder.Configuration.GetSection("Shutdown"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddOptions<BlazorIdle.Server.Config.Persistence.MemoryCacheOptions>()
+    .Bind(builder.Configuration.GetSection("MemoryCache"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+// 4.9 注册内存状态管理器（单例 - 全局共享）
+builder.Services.AddSingleton<BlazorIdle.Server.Application.Abstractions.IMemoryStateManager<BlazorIdle.Server.Domain.Characters.Character>, 
+    BlazorIdle.Server.Infrastructure.Memory.MemoryStateManager<BlazorIdle.Server.Domain.Characters.Character>>();
+builder.Services.AddSingleton<BlazorIdle.Server.Application.Abstractions.IMemoryStateManager<BlazorIdle.Server.Domain.Records.RunningBattleSnapshotRecord>,
+    BlazorIdle.Server.Infrastructure.Memory.MemoryStateManager<BlazorIdle.Server.Domain.Records.RunningBattleSnapshotRecord>>();
+builder.Services.AddSingleton<BlazorIdle.Server.Application.Abstractions.IMemoryStateManager<BlazorIdle.Server.Domain.Activities.ActivityPlan>,
+    BlazorIdle.Server.Infrastructure.Memory.MemoryStateManager<BlazorIdle.Server.Domain.Activities.ActivityPlan>>();
+
+// 4.10 注册持久化协调器（后台服务）
+builder.Services.AddSingleton<BlazorIdle.Server.Application.Abstractions.IPersistenceCoordinator, 
+    BlazorIdle.Server.Infrastructure.Memory.PersistenceCoordinator>();
+builder.Services.AddHostedService(sp => 
+    (BlazorIdle.Server.Infrastructure.Memory.PersistenceCoordinator)sp.GetRequiredService<BlazorIdle.Server.Application.Abstractions.IPersistenceCoordinator>());
+
 // 初始化战斗系统静态配置（静态类需要手动初始化）
 var combatOptions = Microsoft.Extensions.Options.Options.Create(
     builder.Configuration.GetSection("CombatEngine").Get<BlazorIdle.Server.Infrastructure.Configuration.CombatEngineOptions>() 
@@ -112,8 +148,9 @@ builder.Services.AddHostedService<SignalRStartupValidator>();
 // builder.Services.AddTransient<INotificationFilter, EventTypeFilter>();
 // builder.Services.AddTransient<INotificationFilter, RateLimitFilter>();
 
-// 5. 注册优雅关闭协调器（必须在其他 HostedService 之前注册）
-builder.Services.AddHostedService<GracefulShutdownCoordinator>();
+// 5. 注册增强的优雅关闭协调器（必须在其他 HostedService 之前注册，优先接收关闭信号）
+builder.Services.AddHostedService<EnhancedShutdownManager>();
+// 注意：原有的 GracefulShutdownCoordinator 已被 EnhancedShutdownManager 替代
 
 // 6. 注册离线检测后台服务
 builder.Services.AddHostedService<OfflineDetectionService>();
