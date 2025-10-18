@@ -43,6 +43,10 @@ public class PersistenceCoordinator : BackgroundService, IPersistenceCoordinator
     private readonly IMemoryStateManager<RunningBattleSnapshotRecord>? _battleSnapshotManager;
     private readonly IMemoryStateManager<ActivityPlan>? _activityPlanManager;
     
+    // 性能指标收集器（可选）
+    // Metrics collector (optional)
+    private readonly DatabaseMetricsCollector? _metricsCollector;
+    
     // 上次保存时间追踪（用于分实体类型的保存间隔）
     // Last save time tracking (for entity-specific save intervals)
     private readonly Dictionary<string, DateTime> _lastSaveTime = new();
@@ -60,7 +64,8 @@ public class PersistenceCoordinator : BackgroundService, IPersistenceCoordinator
         ILogger<PersistenceCoordinator> logger,
         IMemoryStateManager<Character>? characterManager = null,
         IMemoryStateManager<RunningBattleSnapshotRecord>? battleSnapshotManager = null,
-        IMemoryStateManager<ActivityPlan>? activityPlanManager = null)
+        IMemoryStateManager<ActivityPlan>? activityPlanManager = null,
+        DatabaseMetricsCollector? metricsCollector = null)
     {
         _scopeFactory = scopeFactory;
         _options = options.Value;
@@ -68,6 +73,7 @@ public class PersistenceCoordinator : BackgroundService, IPersistenceCoordinator
         _characterManager = characterManager;
         _battleSnapshotManager = battleSnapshotManager;
         _activityPlanManager = activityPlanManager;
+        _metricsCollector = metricsCollector;
         
         // 初始化上次保存时间
         _lastSaveTime["Character"] = DateTime.UtcNow;
@@ -191,6 +197,35 @@ public class PersistenceCoordinator : BackgroundService, IPersistenceCoordinator
             
             sw.Stop();
             
+            // 记录内存状态指标
+            // Record memory state metrics
+            if (_characterManager != null)
+            {
+                _metricsCollector?.RecordMemoryState(
+                    "Character",
+                    _characterManager.Count,
+                    _characterManager.DirtyCount
+                );
+            }
+            
+            if (_battleSnapshotManager != null)
+            {
+                _metricsCollector?.RecordMemoryState(
+                    "BattleSnapshot",
+                    _battleSnapshotManager.Count,
+                    _battleSnapshotManager.DirtyCount
+                );
+            }
+            
+            if (_activityPlanManager != null)
+            {
+                _metricsCollector?.RecordMemoryState(
+                    "ActivityPlan",
+                    _activityPlanManager.Count,
+                    _activityPlanManager.DirtyCount
+                );
+            }
+            
             // 记录统计信息
             _lastSaveStatistics = new SaveStatistics(
                 DateTime.UtcNow,
@@ -305,6 +340,7 @@ public class PersistenceCoordinator : BackgroundService, IPersistenceCoordinator
         var batches = dirtyEntities.Chunk(maxBatchSize);
         int totalSaved = 0;
         int attemptCount = 0;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         
         foreach (var batch in batches)
         {
@@ -343,6 +379,14 @@ public class PersistenceCoordinator : BackgroundService, IPersistenceCoordinator
                         batch.Length,
                         attempt,
                         _options.SaveRetryAttempts
+                    );
+                    
+                    // 记录成功指标
+                    _metricsCollector?.RecordSaveOperation(
+                        entityTypeName,
+                        batch.Length,
+                        sw.ElapsedMilliseconds,
+                        true
                     );
                     
                     break; // 成功，退出重试循环
@@ -385,6 +429,14 @@ public class PersistenceCoordinator : BackgroundService, IPersistenceCoordinator
             
             if (!success)
             {
+                // 记录失败指标
+                _metricsCollector?.RecordSaveOperation(
+                    entityTypeName,
+                    batch.Length,
+                    sw.ElapsedMilliseconds,
+                    false
+                );
+                
                 _logger.LogError(
                     lastException,
                     "保存 {EntityType} 批次失败（已重试 {Attempts} 次），跳过此批次",
