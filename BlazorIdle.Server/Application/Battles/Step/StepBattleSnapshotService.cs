@@ -36,6 +36,7 @@ public sealed class StepBattleSnapshotService
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<Infrastructure.Persistence.GameDbContext>();
         var logger = scope.ServiceProvider.GetService<Microsoft.Extensions.Logging.ILogger<StepBattleSnapshotService>>();
+        var configuration = scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>();
 
         var dto = new StepBattleSnapshotDto(
             rb.Id,
@@ -85,8 +86,42 @@ public sealed class StepBattleSnapshotService
             row.SnapshotJson = json;
         }
 
-        // 使用重试策略保存，防止数据库锁定导致失败
-        await Infrastructure.Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(db, ct, logger);
+        // 检查是否启用内存缓冲
+        var enableMemoryBuffering = configuration.GetValue<bool>("Persistence:EnableMemoryBuffering", false);
+        if (enableMemoryBuffering)
+        {
+            // 使用内存缓冲：只更新内存中的实体，标记为dirty
+            // PersistenceCoordinator 会根据配置的SaveIntervalMs定期批量保存
+            var snapshotManager = scope.ServiceProvider
+                .GetService<Infrastructure.DatabaseOptimization.Abstractions.IMemoryStateManager<RunningBattleSnapshotRecord>>();
+                
+            if (snapshotManager != null)
+            {
+                // 如果是新记录，先添加到内存；否则更新
+                if (row.Id == Guid.Empty || !await db.Set<RunningBattleSnapshotRecord>().AnyAsync(x => x.Id == row.Id, ct))
+                {
+                    // 确保ID已设置
+                    if (row.Id == Guid.Empty)
+                        row.Id = Guid.NewGuid();
+                    snapshotManager.Add(row);
+                }
+                else
+                {
+                    snapshotManager.Update(row);
+                }
+                // 不再调用 SaveChangesAsync，让后台服务批量保存
+            }
+            else
+            {
+                // Fallback: 如果无法获取MemoryStateManager，直接保存
+                await Infrastructure.Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(db, ct, logger);
+            }
+        }
+        else
+        {
+            // 未启用内存缓冲：保持原有的立即保存行为
+            await Infrastructure.Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(db, ct, logger);
+        }
     }
 
     public async Task DeleteAsync(Guid stepBattleId, CancellationToken ct = default)
