@@ -112,8 +112,11 @@ builder.Services.AddHostedService<SignalRStartupValidator>();
 // builder.Services.AddTransient<INotificationFilter, EventTypeFilter>();
 // builder.Services.AddTransient<INotificationFilter, RateLimitFilter>();
 
-// 5. 注册优雅关闭协调器（必须在其他 HostedService 之前注册）
-builder.Services.AddHostedService<GracefulShutdownCoordinator>();
+// 5. 注册优雅关闭管理器（必须在其他 HostedService 之前注册）
+// Register graceful shutdown manager (must be registered before other HostedServices)
+// 注意：EnhancedShutdownManager 已替换原有的 GracefulShutdownCoordinator，提供更完善的关闭流程
+// Note: EnhancedShutdownManager replaces the original GracefulShutdownCoordinator with enhanced shutdown procedures
+builder.Services.AddHostedService<BlazorIdle.Server.Infrastructure.DatabaseOptimization.EnhancedShutdownManager>();
 
 // 6. 注册离线检测后台服务
 builder.Services.AddHostedService<OfflineDetectionService>();
