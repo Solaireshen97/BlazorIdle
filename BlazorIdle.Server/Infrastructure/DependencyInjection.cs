@@ -147,6 +147,11 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
         
+        services.AddOptions<MonitoringOptions>()
+            .Bind(configuration.GetSection("Monitoring"))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        
         // 内存状态管理器（单例 - 全局共享）
         // Memory state managers (singletons - globally shared)
         services.AddSingleton<IMemoryStateManager<Character>, MemoryStateManager<Character>>();
