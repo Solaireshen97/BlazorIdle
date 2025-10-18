@@ -1,5 +1,8 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using BlazorIdle.Server.Config.DatabaseOptimization;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace BlazorIdle.Server.Infrastructure.DatabaseOptimization;
 
@@ -28,8 +31,25 @@ public class DatabaseMetricsCollector
     private readonly ConcurrentDictionary<string, MetricCounter> _counters = new();
     private readonly ConcurrentQueue<SaveOperationMetric> _recentSaves = new();
     private readonly ConcurrentQueue<EvictionMetric> _recentEvictions = new();
+    private readonly MonitoringOptions _options;
+    private readonly ILogger<DatabaseMetricsCollector> _logger;
     
-    private const int MaxRecentItems = 100;
+    /// <summary>
+    /// 构造函数
+    /// Constructor
+    /// </summary>
+    public DatabaseMetricsCollector(
+        IOptions<MonitoringOptions> options,
+        ILogger<DatabaseMetricsCollector> logger)
+    {
+        _options = options.Value;
+        _logger = logger;
+        
+        _logger.LogInformation(
+            "DatabaseMetricsCollector 已初始化，MaxRecentOperations={MaxRecent}, EnableDetailedLogging={DetailedLogging}",
+            _options.MaxRecentOperations, _options.EnableDetailedLogging
+        );
+    }
     
     /// <summary>
     /// 记录保存操作指标
@@ -54,9 +74,19 @@ public class DatabaseMetricsCollector
         
         // 限制队列大小
         // Limit queue size
-        while (_recentSaves.Count > MaxRecentItems)
+        while (_recentSaves.Count > _options.MaxRecentOperations)
         {
             _recentSaves.TryDequeue(out _);
+        }
+        
+        // 详细日志（如果启用）
+        // Detailed logging (if enabled)
+        if (_options.EnableDetailedLogging)
+        {
+            _logger.LogDebug(
+                "保存操作记录: {EntityType}, Count={Count}, Duration={Duration}ms, Success={Success}",
+                entityType, entityCount, durationMs, success
+            );
         }
         
         // 更新计数器
@@ -94,9 +124,19 @@ public class DatabaseMetricsCollector
         _recentEvictions.Enqueue(metric);
         
         // 限制队列大小
-        while (_recentEvictions.Count > MaxRecentItems)
+        while (_recentEvictions.Count > _options.MaxRecentOperations)
         {
             _recentEvictions.TryDequeue(out _);
+        }
+        
+        // 详细日志（如果启用）
+        // Detailed logging (if enabled)
+        if (_options.EnableDetailedLogging)
+        {
+            _logger.LogDebug(
+                "清理操作记录: {EntityType}, Evicted={Evicted}, Remaining={Remaining}",
+                entityType, evictedCount, remainingCount
+            );
         }
         
         // 更新计数器
