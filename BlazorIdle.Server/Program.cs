@@ -65,6 +65,24 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = jwtAudience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecretKey))
         };
+        
+        // SignalR sends JWT token via query string for WebSocket connections
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                
+                // If the request is for SignalR Hub
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.AddAuthorization();
@@ -132,10 +150,12 @@ builder.Services.AddCors(options =>
             .WithOrigins(
                 "https://localhost:5001", // 如果这是本地 HTTPS 静态资源或开发服务器
                 "http://localhost:5001",  // HTTP 版本
-                "http://localhost:5000")  // HTTP 版本
+                "http://localhost:5000",  // HTTP 版本
+                "https://localhost:7056", // 客户端实际运行端口
+                "http://localhost:5056")  // 客户端 HTTP 版本
             .AllowAnyHeader()
-            .AllowAnyMethod();
-        // .AllowCredentials(); // 若未来使用 Cookie/授权头需要携带凭据
+            .AllowAnyMethod()
+            .AllowCredentials(); // SignalR 需要凭据支持
     });
 });
 
