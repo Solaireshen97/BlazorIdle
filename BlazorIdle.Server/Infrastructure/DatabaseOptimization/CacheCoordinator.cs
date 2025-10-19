@@ -6,6 +6,7 @@ using BlazorIdle.Server.Domain.Records;
 using BlazorIdle.Server.Infrastructure.DatabaseOptimization.Abstractions;
 using BlazorIdle.Server.Infrastructure.Persistence;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Configuration;
 
 namespace BlazorIdle.Server.Infrastructure.DatabaseOptimization;
 
@@ -25,6 +26,7 @@ public class CacheCoordinator : BackgroundService
     private readonly IOptions<CacheConfiguration> _cacheConfig;
     private readonly ILogger<CacheCoordinator> _logger;
     private readonly DatabaseMetricsCollector? _metricsCollector;
+    private readonly IConfiguration _configuration;
     
     // 各类型实体的内存管理器 - Memory managers for each entity type
     private readonly IMemoryStateManager<Character>? _characterManager;
@@ -40,6 +42,7 @@ public class CacheCoordinator : BackgroundService
         IServiceScopeFactory scopeFactory,
         IOptions<CacheConfiguration> cacheConfig,
         ILogger<CacheCoordinator> logger,
+        IConfiguration configuration,
         DatabaseMetricsCollector? metricsCollector = null,
         IMemoryStateManager<Character>? characterManager = null,
         IMemoryStateManager<ActivityPlan>? activityPlanManager = null,
@@ -48,6 +51,7 @@ public class CacheCoordinator : BackgroundService
         _scopeFactory = scopeFactory;
         _cacheConfig = cacheConfig;
         _logger = logger;
+        _configuration = configuration;
         _metricsCollector = metricsCollector;
         _characterManager = characterManager;
         _activityPlanManager = activityPlanManager;
@@ -303,14 +307,40 @@ public class CacheCoordinator : BackgroundService
         
         var stats = manager.GetCacheStatistics();
         
-        _logger.LogInformation(
-            "{EntityType}: 缓存 {CachedCount} 个, Dirty {DirtyCount} 个, " +
-            "命中 {Hits} 次, 未命中 {Misses} 次, 命中率 {HitRate:P}",
-            entityType, stats.CachedCount, stats.DirtyCount,
-            stats.CacheHits, stats.CacheMisses, stats.HitRate
-        );
+        // 检查命中率阈值
+        var hitRateThreshold = _configuration.GetValue<double>(
+            "Monitoring:CacheMonitoring:CacheHitRateThreshold", 70.0);
+        var hitRatePercentage = stats.HitRate * 100.0;
+        
+        if (hitRatePercentage < hitRateThreshold && stats.CacheHits + stats.CacheMisses > 100)
+        {
+            _logger.LogWarning(
+                "⚠️  {EntityType}: 缓存命中率过低 ({HitRate:F2}% < {Threshold:F2}%), " +
+                "缓存 {CachedCount} 个, Dirty {DirtyCount} 个, " +
+                "命中 {Hits} 次, 未命中 {Misses} 次",
+                entityType, hitRatePercentage, hitRateThreshold,
+                stats.CachedCount, stats.DirtyCount,
+                stats.CacheHits, stats.CacheMisses
+            );
+        }
+        else
+        {
+            _logger.LogInformation(
+                "{EntityType}: 缓存 {CachedCount} 个, Dirty {DirtyCount} 个, " +
+                "命中 {Hits} 次, 未命中 {Misses} 次, 命中率 {HitRate:P}",
+                entityType, stats.CachedCount, stats.DirtyCount,
+                stats.CacheHits, stats.CacheMisses, stats.HitRate
+            );
+        }
         
         // 记录到监控指标
-        _metricsCollector?.RecordCacheHit(entityType); // 这里简化了，实际应该分开记录
+        if (_metricsCollector != null)
+        {
+            for (int i = 0; i < stats.CacheHits; i++)
+                _metricsCollector.RecordCacheHit(entityType);
+            for (int i = 0; i < stats.CacheMisses; i++)
+                _metricsCollector.RecordCacheMiss(entityType);
+            _metricsCollector.RecordCacheSize(entityType, stats.CachedCount, stats.DirtyCount);
+        }
     }
 }
