@@ -289,6 +289,118 @@ public class DatabaseHealthController : ControllerBase
     }
     
     /// <summary>
+    /// 获取缓存统计信息
+    /// Get cache statistics
+    /// </summary>
+    /// <returns>缓存命中率、缓存大小等统计信息 / Cache hit rate, cache size and other statistics</returns>
+    /// <response code="200">返回缓存统计信息 / Returns cache statistics</response>
+    [HttpGet("cache-stats")]
+    [ProducesResponseType(typeof(CacheStatsResponse), StatusCodes.Status200OK)]
+    public IActionResult GetCacheStats()
+    {
+        try
+        {
+            // 从 MemoryStateManager 获取缓存统计
+            // Get cache statistics from MemoryStateManager
+            var entityStats = new Dictionary<string, object>();
+            
+            if (_characterManager != null)
+            {
+                var stats = _characterManager.GetCacheStatistics();
+                entityStats["Character"] = new
+                {
+                    stats.CachedCount,
+                    stats.DirtyCount,
+                    stats.CacheHits,
+                    stats.CacheMisses,
+                    HitRate = Math.Round(stats.HitRate * 100, 2)
+                };
+            }
+            
+            if (_battleSnapshotManager != null)
+            {
+                var stats = _battleSnapshotManager.GetCacheStatistics();
+                entityStats["BattleSnapshot"] = new
+                {
+                    stats.CachedCount,
+                    stats.DirtyCount,
+                    stats.CacheHits,
+                    stats.CacheMisses,
+                    HitRate = Math.Round(stats.HitRate * 100, 2)
+                };
+            }
+            
+            if (_activityPlanManager != null)
+            {
+                var stats = _activityPlanManager.GetCacheStatistics();
+                entityStats["ActivityPlan"] = new
+                {
+                    stats.CachedCount,
+                    stats.DirtyCount,
+                    stats.CacheHits,
+                    stats.CacheMisses,
+                    HitRate = Math.Round(stats.HitRate * 100, 2)
+                };
+            }
+            
+            // 从 DatabaseMetricsCollector 获取指标（如果可用）
+            // Get metrics from DatabaseMetricsCollector (if available)
+            var metricsCollectorData = _metricsCollector?.GetCacheMetrics();
+            
+            // 计算总体命中率
+            // Calculate overall hit rate
+            long totalHits = 0;
+            long totalMisses = 0;
+            
+            if (_characterManager != null)
+            {
+                var s = _characterManager.GetCacheStatistics();
+                totalHits += s.CacheHits;
+                totalMisses += s.CacheMisses;
+            }
+            if (_battleSnapshotManager != null)
+            {
+                var s = _battleSnapshotManager.GetCacheStatistics();
+                totalHits += s.CacheHits;
+                totalMisses += s.CacheMisses;
+            }
+            if (_activityPlanManager != null)
+            {
+                var s = _activityPlanManager.GetCacheStatistics();
+                totalHits += s.CacheHits;
+                totalMisses += s.CacheMisses;
+            }
+            
+            var totalRequests = totalHits + totalMisses;
+            var overallHitRate = totalRequests > 0 
+                ? Math.Round((double)totalHits / totalRequests * 100, 2) 
+                : 0.0;
+            
+            var response = new
+            {
+                Timestamp = DateTime.UtcNow,
+                CacheEnabled = true,
+                EntityMetrics = entityStats,
+                MetricsCollectorData = metricsCollectorData,
+                OverallStatistics = new
+                {
+                    TotalHits = totalHits,
+                    TotalMisses = totalMisses,
+                    TotalRequests = totalRequests,
+                    OverallHitRate = overallHitRate
+                }
+            };
+            
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取缓存统计信息失败");
+            return StatusCode(500, new { error = "获取缓存统计信息失败 / Failed to get cache statistics" });
+        }
+    }
+    
+    /// <summary>
     /// 触发立即保存（用于维护和紧急情况）
     /// Trigger immediate save (for maintenance and emergency situations)
     /// </summary>
@@ -330,4 +442,17 @@ public class DatabaseHealthController : ControllerBase
             return StatusCode(500, new { Status = "error", Message = ex.Message });
         }
     }
+}
+
+/// <summary>
+/// 缓存统计响应
+/// Cache Statistics Response
+/// </summary>
+public class CacheStatsResponse
+{
+    public DateTime Timestamp { get; set; }
+    public bool CacheEnabled { get; set; }
+    public Dictionary<string, object> EntityMetrics { get; set; } = new();
+    public Dictionary<string, object> MetricsCollectorData { get; set; } = new();
+    public object OverallStatistics { get; set; } = new { };
 }
