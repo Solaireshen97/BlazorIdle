@@ -159,7 +159,7 @@ Connected to SignalR Hub: https://localhost:7056/hubs/battle
 
 ### 启用详细日志 (Enable Detailed Logging)
 
-1. 在服务器端 `BlazorIdle.Server/appsettings.Development.json` 中：
+1. 在服务器端 (Server-side) `BlazorIdle.Server/appsettings.Development.json` 中：
 ```json
 {
   "Logging": {
@@ -176,7 +176,7 @@ Connected to SignalR Hub: https://localhost:7056/hubs/battle
 }
 ```
 
-2. 在客户端 `BlazorIdle/wwwroot/appsettings.json` 中：
+2. 在客户端 (Client-side) `BlazorIdle/wwwroot/appsettings.json` 中：
 ```json
 {
   "ApiBaseUrl": "https://localhost:7056",
