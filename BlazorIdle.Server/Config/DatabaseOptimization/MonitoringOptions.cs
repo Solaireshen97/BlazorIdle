@@ -63,4 +63,53 @@ public class MonitoringOptions
     /// </remarks>
     [Range(0, 3600, ErrorMessage = "MemoryStateSnapshotIntervalSeconds must be between 0 and 3600")]
     public int MemoryStateSnapshotIntervalSeconds { get; set; } = 0;
+
+    /// <summary>
+    /// 缓存监控配置
+    /// Cache monitoring configuration
+    /// </summary>
+    public CacheMonitoringSettings CacheMonitoring { get; set; } = new CacheMonitoringSettings();
+}
+
+/// <summary>
+/// 缓存监控配置
+/// Cache Monitoring Configuration
+/// </summary>
+public class CacheMonitoringSettings
+{
+    /// <summary>
+    /// 是否启用缓存指标收集
+    /// Enable cache metrics collection
+    /// </summary>
+    public bool EnableCacheMetrics { get; set; } = true;
+    
+    /// <summary>
+    /// 是否跟踪每个实体类型的指标
+    /// Track per-entity metrics
+    /// </summary>
+    public bool TrackPerEntityMetrics { get; set; } = true;
+    
+    /// <summary>
+    /// 缓存指标记录间隔（秒）
+    /// Cache metrics interval in seconds
+    /// </summary>
+    [Range(10, 600)]
+    public int CacheMetricsIntervalSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// 是否记录缓存访问详细日志
+    /// Log detailed cache access information
+    /// </summary>
+    public bool LogCacheAccess { get; set; } = false;
+
+    /// <summary>
+    /// 缓存命中率阈值告警（百分比）
+    /// Cache hit rate threshold for alerting (percentage)
+    /// </summary>
+    /// <remarks>
+    /// 当缓存命中率低于此阈值时，输出警告日志
+    /// Outputs warning log when cache hit rate falls below this threshold
+    /// </remarks>
+    [Range(0, 100)]
+    public double CacheHitRateThreshold { get; set; } = 70.0;
 }
