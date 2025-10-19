@@ -334,13 +334,11 @@ public class CacheCoordinator : BackgroundService
         }
         
         // 记录到监控指标
-        if (_metricsCollector != null)
-        {
-            for (int i = 0; i < stats.CacheHits; i++)
-                _metricsCollector.RecordCacheHit(entityType);
-            for (int i = 0; i < stats.CacheMisses; i++)
-                _metricsCollector.RecordCacheMiss(entityType);
-            _metricsCollector.RecordCacheSize(entityType, stats.CachedCount, stats.DirtyCount);
-        }
+        // Record to monitoring metrics
+        // 注意：不直接记录累计的 Hits/Misses 次数，因为这些是累计值
+        // Note: Don't record cumulative Hits/Misses as they are cumulative values
+        // 仅记录当前缓存大小，命中/未命中会在实际访问时由 MemoryStateManager 记录
+        // Only record current cache size; hits/misses are recorded by MemoryStateManager during actual access
+        _metricsCollector?.RecordCacheSize(entityType, stats.CachedCount, stats.DirtyCount);
     }
 }

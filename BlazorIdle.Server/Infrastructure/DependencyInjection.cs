@@ -152,6 +152,18 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
         
+        // 缓存配置（读取优化）
+        // Cache configuration (read optimization)
+        services.Configure<CacheConfiguration>(configuration.GetSection("CacheConfiguration"));
+        services.AddOptions<CacheConfiguration>()
+            .Bind(configuration.GetSection("CacheConfiguration"))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        
+        // 缓存配置验证器（高级验证逻辑）
+        // Cache configuration validator (advanced validation logic)
+        services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<CacheConfiguration>, CacheConfigurationValidator>();
+        
         // 内存状态管理器（单例 - 全局共享）
         // Memory state managers (singletons - globally shared)
         services.AddSingleton<IMemoryStateManager<Character>, MemoryStateManager<Character>>();
@@ -161,6 +173,11 @@ public static class DependencyInjection
         // 数据库性能指标收集器（单例 - 用于监控和诊断）
         // Database metrics collector (singleton - for monitoring and diagnostics)
         services.AddSingleton<DatabaseMetricsCollector>();
+        
+        // 缓存协调器（后台服务 - 单例）
+        // Cache coordinator (background service - singleton)
+        services.AddSingleton<CacheCoordinator>();
+        services.AddHostedService(sp => sp.GetRequiredService<CacheCoordinator>());
         
         // 持久化协调器（后台服务 - 单例）
         // Persistence coordinator (background service - singleton)
