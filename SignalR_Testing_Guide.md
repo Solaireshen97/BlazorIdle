@@ -9,7 +9,7 @@ cd BlazorIdle.Server
 dotnet run
 ```
 
-服务器应该在以下端口启动 (Server should start on):
+服务器（后端API）应该在以下端口启动 (Server/Backend API should start on):
 - HTTPS: `https://localhost:7056`
 - HTTP: `http://localhost:5056`
 
@@ -22,9 +22,12 @@ cd BlazorIdle
 dotnet run
 ```
 
-客户端应该在以下端口启动 (Client should start on):
+客户端（前端 Blazor WebAssembly）应该在以下端口启动 (Client/Frontend should start on):
 - HTTPS: `https://localhost:5001`
 - HTTP: `http://localhost:5000`
+
+**注意**: 客户端会连接到服务器的 7056 端口，这在客户端的 `appsettings.json` 中配置。
+**Note**: The client connects to the server on port 7056, as configured in the client's `appsettings.json`.
 
 ### 3. 登录并测试 SignalR (Login and Test SignalR)
 
@@ -156,19 +159,30 @@ Connected to SignalR Hub: https://localhost:7056/hubs/battle
 
 ### 启用详细日志 (Enable Detailed Logging)
 
-1. 在 `appsettings.Development.json` 中：
+1. 在服务器端 `BlazorIdle.Server/appsettings.Development.json` 中：
 ```json
 {
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning",
+      "BlazorIdle.Server.Services.BattleNotificationService": "Debug",
+      "BlazorIdle.Server.Hubs.BattleNotificationHub": "Debug"
+    }
+  },
   "SignalR": {
     "EnableDetailedLogging": true
   }
 }
 ```
 
-2. 在客户端 `appsettings.json` 中：
+2. 在客户端 `BlazorIdle/wwwroot/appsettings.json` 中：
 ```json
 {
+  "ApiBaseUrl": "https://localhost:7056",
   "SignalR": {
+    "HubEndpoint": "/hubs/battle",
+    "EnableSignalR": true,
     "EnableDetailedLogging": true
   }
 }
