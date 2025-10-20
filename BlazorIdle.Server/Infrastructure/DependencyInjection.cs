@@ -15,6 +15,8 @@ using BlazorIdle.Server.Infrastructure.Configuration;
 using BlazorIdle.Server.Config.DatabaseOptimization;
 using BlazorIdle.Server.Infrastructure.DatabaseOptimization;
 using BlazorIdle.Server.Infrastructure.DatabaseOptimization.Abstractions;
+using BlazorIdle.Server.Infrastructure.DatabaseOptimization.Caching;
+using BlazorIdle.Server.Infrastructure.DatabaseOptimization.Caching.Abstractions;
 using BlazorIdle.Server.Domain.Characters;
 using BlazorIdle.Server.Domain.Records;
 using BlazorIdle.Server.Domain.Activities;
@@ -151,6 +153,31 @@ public static class DependencyInjection
             .Bind(configuration.GetSection("Monitoring"))
             .ValidateDataAnnotations()
             .ValidateOnStart();
+        
+        // ===== 读缓存配置选项 =====
+        // Read Cache Configuration Options
+        services.Configure<ReadCacheOptions>(configuration.GetSection("ReadCache"));
+        
+        services.AddOptions<ReadCacheOptions>()
+            .Bind(configuration.GetSection("ReadCache"))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        
+        // ===== 读缓存核心服务 =====
+        // Read Cache Core Services
+        
+        // 多层缓存管理器（单例 - 全局共享）
+        // Multi-tier cache manager (singleton - globally shared)
+        services.AddSingleton<IMultiTierCacheManager, MultiTierCacheManager>();
+        
+        // 缓存失效协调器（单例 - 管理缓存失效逻辑）
+        // Cache invalidation coordinator (singleton - manages cache invalidation)
+        services.AddSingleton<ICacheInvalidationCoordinator, CacheInvalidationCoordinator>();
+        
+        // 静态配置加载器（单例 + HostedService - 启动时加载静态配置）
+        // Static config loader (singleton + HostedService - loads static configs on startup)
+        services.AddSingleton<IStaticConfigLoader, StaticConfigLoader>();
+        services.AddHostedService(sp => (StaticConfigLoader)sp.GetRequiredService<IStaticConfigLoader>());
         
         // 内存状态管理器（单例 - 全局共享）
         // Memory state managers (singletons - globally shared)
