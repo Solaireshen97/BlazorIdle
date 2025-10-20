@@ -54,6 +54,12 @@ public static class DependencyInjection
         });
 
         services.AddRepositories();
+        
+        // ===== 缓存感知仓储（Phase 5）=====
+        // Cache-aware repositories (Phase 5)
+        // 如果启用了读缓存，将原始Repository替换为缓存装饰器
+        // If read cache is enabled, replace original repositories with cache decorators
+        services.AddCacheAwareRepositories(configuration);
 
         // Step 异步战斗后台
         services.AddSingleton<StepBattleCoordinator>();

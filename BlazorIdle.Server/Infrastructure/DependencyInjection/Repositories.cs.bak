@@ -1,18 +1,12 @@
-using BlazorIdle.Server.Application.Abstractions;
-using BlazorIdle.Server.Config.DatabaseOptimization;
-using BlazorIdle.Server.Infrastructure.DatabaseOptimization.Caching;
-using BlazorIdle.Server.Infrastructure.DatabaseOptimization.Caching.Abstractions;
+﻿using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Infrastructure.Persistence.Repositories;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace BlazorIdle.Server.Infrastructure;
 
 /// <summary>
 /// 仓储（Repository）实现的集中注册扩展。
-/// 目的：把所有"数据访问实现"在一个地方统一注入到 DI 容器，
+/// 目的：把所有“数据访问实现”在一个地方统一注入到 DI 容器，
 /// 避免在 Program.cs 里到处写 AddScoped。
 /// </summary>
 public static class RepositoryRegistration
@@ -45,7 +39,7 @@ public static class RepositoryRegistration
 
         return services;
     }
-    
+}
     /// <summary>
     /// 注册缓存感知的仓储装饰器
     /// Register cache-aware repository decorators
