@@ -12,6 +12,12 @@ using BlazorIdle.Server.Application.Battles;
 using BlazorIdle.Server.Application.Activities;
 using BlazorIdle.Server.Domain.Equipment.Services;
 using BlazorIdle.Server.Infrastructure.Configuration;
+using BlazorIdle.Server.Config.DatabaseOptimization;
+using BlazorIdle.Server.Infrastructure.DatabaseOptimization;
+using BlazorIdle.Server.Infrastructure.DatabaseOptimization.Abstractions;
+using BlazorIdle.Server.Domain.Characters;
+using BlazorIdle.Server.Domain.Records;
+using BlazorIdle.Server.Domain.Activities;
 
 namespace BlazorIdle.Server.Infrastructure;
 
@@ -114,6 +120,52 @@ public static class DependencyInjection
         
         // 库存系统服务
         services.AddScoped<BlazorIdle.Server.Application.Abstractions.IInventoryService, BlazorIdle.Server.Application.Inventory.InventoryService>();
+
+        // ===== 数据库优化组件注册 =====
+        // Database Optimization Components Registration
+        
+        // 配置选项（从 appsettings.json 加载）
+        // Configuration options (loaded from appsettings.json)
+        services.Configure<PersistenceOptions>(configuration.GetSection("Persistence"));
+        services.Configure<ShutdownOptions>(configuration.GetSection("Shutdown"));
+        services.Configure<MemoryCacheOptions>(configuration.GetSection("MemoryCache"));
+        
+        // 配置验证（确保配置值在合理范围内）
+        // Configuration validation (ensure values are in valid range)
+        services.AddOptions<PersistenceOptions>()
+            .Bind(configuration.GetSection("Persistence"))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        
+        services.AddOptions<ShutdownOptions>()
+            .Bind(configuration.GetSection("Shutdown"))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        
+        services.AddOptions<MemoryCacheOptions>()
+            .Bind(configuration.GetSection("MemoryCache"))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        
+        services.AddOptions<MonitoringOptions>()
+            .Bind(configuration.GetSection("Monitoring"))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        
+        // 内存状态管理器（单例 - 全局共享）
+        // Memory state managers (singletons - globally shared)
+        services.AddSingleton<IMemoryStateManager<Character>, MemoryStateManager<Character>>();
+        services.AddSingleton<IMemoryStateManager<RunningBattleSnapshotRecord>, MemoryStateManager<RunningBattleSnapshotRecord>>();
+        services.AddSingleton<IMemoryStateManager<ActivityPlan>, MemoryStateManager<ActivityPlan>>();
+        
+        // 数据库性能指标收集器（单例 - 用于监控和诊断）
+        // Database metrics collector (singleton - for monitoring and diagnostics)
+        services.AddSingleton<DatabaseMetricsCollector>();
+        
+        // 持久化协调器（后台服务 - 单例）
+        // Persistence coordinator (background service - singleton)
+        services.AddSingleton<IPersistenceCoordinator, PersistenceCoordinator>();
+        services.AddHostedService(sp => (PersistenceCoordinator)sp.GetRequiredService<IPersistenceCoordinator>());
 
         return services;
     }

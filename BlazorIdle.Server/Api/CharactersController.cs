@@ -369,13 +369,39 @@ public class CharactersController : ControllerBase
             }
         }
         
-        // 更新心跳时间（如果 CheckAndSettleAsync 还没更新的话）
+        // 更新心跳时间
+        // 优化：使用内存缓冲，仅标记为dirty，由PersistenceCoordinator定期批量保存
         // CheckAndSettleAsync 会更新 LastSeenAtUtc，所以这里需要重新获取
         character = await _db.Characters.FirstOrDefaultAsync(c => c.Id == id);
         if (character != null)
         {
             character.LastSeenAtUtc = DateTime.UtcNow;
-            await Infrastructure.Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(_db);
+            
+            // 检查是否启用内存缓冲
+            var enableMemoryBuffering = _configuration.GetValue<bool>("Persistence:EnableMemoryBuffering", false);
+            if (enableMemoryBuffering)
+            {
+                // 使用内存缓冲：只更新内存中的实体，标记为dirty
+                // PersistenceCoordinator 会根据配置的SaveIntervalMs定期批量保存
+                var characterManager = HttpContext.RequestServices
+                    .GetService<Infrastructure.DatabaseOptimization.Abstractions.IMemoryStateManager<Domain.Characters.Character>>();
+                    
+                if (characterManager != null)
+                {
+                    characterManager.Update(character);
+                    // 不再调用 SaveChangesAsync，让后台服务批量保存
+                }
+                else
+                {
+                    // Fallback: 如果无法获取MemoryStateManager，直接保存
+                    await Infrastructure.Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(_db);
+                }
+            }
+            else
+            {
+                // 未启用内存缓冲：保持原有的立即保存行为
+                await Infrastructure.Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(_db);
+            }
         }
         
         return Ok(new

@@ -1,6 +1,8 @@
 using BlazorIdle.Server.Application.Abstractions;
 using BlazorIdle.Server.Domain.Activities;
+using BlazorIdle.Server.Infrastructure.DatabaseOptimization.Abstractions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,12 +13,23 @@ namespace BlazorIdle.Server.Infrastructure.Persistence.Repositories;
 
 /// <summary>
 /// 活动计划仓储实现
+/// Activity plan repository implementation
 /// </summary>
 public class ActivityPlanRepository : IActivityPlanRepository
 {
     private readonly GameDbContext _db;
+    private readonly IConfiguration _configuration;
+    private readonly IMemoryStateManager<ActivityPlan>? _memoryStateManager;
 
-    public ActivityPlanRepository(GameDbContext db) => _db = db;
+    public ActivityPlanRepository(
+        GameDbContext db,
+        IConfiguration configuration,
+        IMemoryStateManager<ActivityPlan>? memoryStateManager = null)
+    {
+        _db = db;
+        _configuration = configuration;
+        _memoryStateManager = memoryStateManager;
+    }
 
     public Task<ActivityPlan?> GetAsync(Guid id, CancellationToken ct = default) =>
         _db.ActivityPlans.FirstOrDefaultAsync(p => p.Id == id, ct);
@@ -37,13 +50,39 @@ public class ActivityPlanRepository : IActivityPlanRepository
     public async Task AddAsync(ActivityPlan plan, CancellationToken ct = default)
     {
         _db.ActivityPlans.Add(plan);
-        await Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(_db, ct);
+        
+        // 检查是否启用内存缓冲
+        var enableMemoryBuffering = _configuration.GetValue<bool>("Persistence:EnableMemoryBuffering", false);
+        if (enableMemoryBuffering && _memoryStateManager != null)
+        {
+            // 使用内存缓冲：将实体添加到内存，标记为dirty
+            _memoryStateManager.Add(plan);
+            // 不立即调用 SaveChangesAsync，由 PersistenceCoordinator 批量保存
+        }
+        else
+        {
+            // 未启用内存缓冲：保持原有的立即保存行为
+            await Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(_db, ct);
+        }
     }
 
     public async Task UpdateAsync(ActivityPlan plan, CancellationToken ct = default)
     {
         _db.ActivityPlans.Update(plan);
-        await Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(_db, ct);
+        
+        // 检查是否启用内存缓冲
+        var enableMemoryBuffering = _configuration.GetValue<bool>("Persistence:EnableMemoryBuffering", false);
+        if (enableMemoryBuffering && _memoryStateManager != null)
+        {
+            // 使用内存缓冲：更新内存中的实体，标记为dirty
+            _memoryStateManager.Update(plan);
+            // 不立即调用 SaveChangesAsync，由 PersistenceCoordinator 批量保存
+        }
+        else
+        {
+            // 未启用内存缓冲：保持原有的立即保存行为
+            await Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(_db, ct);
+        }
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
@@ -52,7 +91,21 @@ public class ActivityPlanRepository : IActivityPlanRepository
         if (plan is not null)
         {
             _db.ActivityPlans.Remove(plan);
-            await Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(_db, ct);
+            
+            // 检查是否启用内存缓冲
+            var enableMemoryBuffering = _configuration.GetValue<bool>("Persistence:EnableMemoryBuffering", false);
+            if (enableMemoryBuffering && _memoryStateManager != null)
+            {
+                // 使用内存缓冲：从内存中移除
+                _memoryStateManager.Remove(id);
+                // 标记 EF Core 实体为删除状态，但不立即保存
+                // 由 PersistenceCoordinator 批量保存删除操作
+            }
+            else
+            {
+                // 未启用内存缓冲：保持原有的立即保存行为
+                await Persistence.DatabaseRetryPolicy.SaveChangesWithRetryAsync(_db, ct);
+            }
         }
     }
 
