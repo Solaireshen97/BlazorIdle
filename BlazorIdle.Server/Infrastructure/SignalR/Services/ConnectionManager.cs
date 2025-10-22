@@ -68,7 +68,7 @@ public class ConnectionManager : IConnectionManager
                 
                 _logger.LogDebug(
                     "移除用户 {UserId} 的连接 {ConnectionId}，剩余连接数：{Count}",
-                    connectionId, userId, session.ConnectionIds.Count);
+                    userId, connectionId, session.ConnectionIds.Count);
 
                 // 如果没有活跃连接了，移除整个会话
                 if (session.ConnectionIds.Count == 0)
