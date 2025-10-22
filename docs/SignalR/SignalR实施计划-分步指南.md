@@ -63,8 +63,8 @@
 ### 进度追踪
 
 - [x] 第1步：环境准备（第1天）- ✅ 已完成 (2025-10-22)
-- [ ] 第2步：实现GameHub（第1-2天）
-- [ ] 第3步：实现ConnectionManager（第2-3天）
+- [x] 第2步：实现GameHub（第1-2天）- ✅ 已完成 (2025-10-22)
+- [x] 第3步：实现ConnectionManager（第2-3天）- ✅ 已完成 (2025-10-22，在第2步中一并完成)
 - [ ] 第4步：实现SignalRDispatcher（第3-5天）
 - [ ] 第5步：客户端连接管理（第5-7天）
 
@@ -138,14 +138,14 @@ mkdir -p BlazorIdle/Services/SignalR
 
 ---
 
-### 第2步：实现GameHub（第1-2天）
+### 第2步：实现GameHub（第1-2天）✅ 已完成
 
 #### 任务清单
 
-- [ ] 创建GameHub基类
-- [ ] 实现连接管理方法
-- [ ] 实现Group订阅方法
-- [ ] 配置SignalR中间件
+- [x] 创建GameHub基类
+- [x] 实现连接管理方法
+- [x] 实现Group订阅方法
+- [x] 配置SignalR中间件
 
 #### 详细步骤
 
@@ -387,16 +387,24 @@ app.UseCors("AllowBlazorClient");
 - ✅ Hub端点可访问（/hubs/game）
 - ✅ 日志正常输出
 
+**实施日期**: 2025年10月22日  
+**实施状态**: ✅ 完成  
+**详细文档**: 
+- [Phase1-Step2-实施记录.md](./Phase1-Step2-实施记录.md)
+- [Phase1-Step2-验证报告.md](./Phase1-Step2-验证报告.md)
+
 ---
 
-### 第3步：实现ConnectionManager（第2-3天）
+### 第3步：实现ConnectionManager（第2-3天）✅ 已完成
+
+**注意**: 此步骤已在第2步中一并完成，以提高开发效率。
 
 #### 任务清单
 
-- [ ] 创建IConnectionManager接口
-- [ ] 实现ConnectionManager
-- [ ] 创建UserSession模型
-- [ ] 注册服务
+- [x] 创建IConnectionManager接口
+- [x] 实现ConnectionManager
+- [x] 创建UserSession模型
+- [x] 注册服务
 
 #### 详细步骤
 
@@ -604,6 +612,10 @@ builder.Services.AddSingleton<IConnectionManager, ConnectionManager>();
 - ✅ 服务注册成功
 - ✅ 编译无错误
 - ✅ 单元测试通过（可选）
+
+**实施日期**: 2025年10月22日  
+**实施状态**: ✅ 完成（在第2步中一并实现）  
+**详细文档**: 参见 [Phase1-Step2-实施记录.md](./Phase1-Step2-实施记录.md)
 
 ---
 
