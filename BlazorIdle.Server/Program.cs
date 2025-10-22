@@ -22,31 +22,46 @@ builder.Services
     .AddApplication();                          // 注册应用层：命令/查询处理器等
 
 // 3.5 SignalR服务配置
+// 加载SignalR配置
+var signalROptions = new SignalROptions();
+builder.Configuration.GetSection(SignalROptions.SectionName).Bind(signalROptions);
+signalROptions.Validate(); // 验证配置有效性
+builder.Services.AddSingleton(signalROptions);
+
 // 添加SignalR核心服务和连接管理
 builder.Services.AddSingleton<IConnectionManager, ConnectionManager>();
+builder.Services.AddSingleton<ISignalRDispatcher, SignalRDispatcher>();
+
 builder.Services.AddSignalR(options =>
 {
-    // 开发环境启用详细错误信息，便于调试
-    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+    // 从配置文件读取详细错误设置，开发环境可以覆盖
+    options.EnableDetailedErrors = signalROptions.EnableDetailedErrors || builder.Environment.IsDevelopment();
 
-    // 最大消息大小：100KB，防止过大的消息影响性能
-    options.MaximumReceiveMessageSize = 102400;
+    // 最大消息大小，防止过大的消息影响性能
+    options.MaximumReceiveMessageSize = signalROptions.MaximumReceiveMessageSize;
 
-    // 握手超时时间：15秒
-    options.HandshakeTimeout = TimeSpan.FromSeconds(15);
+    // 握手超时时间
+    options.HandshakeTimeout = TimeSpan.FromSeconds(signalROptions.HandshakeTimeoutSeconds);
 
-    // 心跳间隔：15秒，用于检测连接是否活跃
-    options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+    // 心跳间隔，用于检测连接是否活跃
+    options.KeepAliveInterval = TimeSpan.FromSeconds(signalROptions.KeepAliveIntervalSeconds);
 
-    // 客户端超时时间：30秒，超过此时间未收到心跳则断开连接
-    options.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
+    // 客户端超时时间，超过此时间未收到心跳则断开连接
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(signalROptions.ClientTimeoutSeconds);
 })
 .AddMessagePackProtocol(options =>
 {
     // 使用MessagePack协议提升性能
-    // Lz4Block压缩算法可以减少30-50%的数据传输量
-    options.SerializerOptions = MessagePack.MessagePackSerializerOptions.Standard
-        .WithCompression(MessagePack.MessagePackCompression.Lz4Block);
+    // 根据配置决定是否启用Lz4Block压缩
+    if (signalROptions.EnableMessagePackCompression)
+    {
+        options.SerializerOptions = MessagePack.MessagePackSerializerOptions.Standard
+            .WithCompression(MessagePack.MessagePackCompression.Lz4Block);
+    }
+    else
+    {
+        options.SerializerOptions = MessagePack.MessagePackSerializerOptions.Standard;
+    }
 });
 
 // 4. CORS 配置
