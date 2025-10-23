@@ -3,6 +3,7 @@ using BlazorIdle.Server.Infrastructure;
 using BlazorIdle.Server.Infrastructure.SignalR;
 using BlazorIdle.Server.Infrastructure.SignalR.Hubs;
 using BlazorIdle.Server.Infrastructure.SignalR.Services;
+using BlazorIdle.Server.Auth;
 using BlazorIdle.Server.Auth.Services;
 using Microsoft.EntityFrameworkCore;
 using BlazorIdle.Server.Infrastructure.Persistence;
@@ -25,6 +26,15 @@ builder.Services
 // 3.1 用户认证系统服务注册
 // 注册用户存储服务（Singleton确保测试账户在应用生命周期内保持）
 builder.Services.AddSingleton<IUserStore, InMemoryUserStore>();
+
+// 配置JWT选项（从appsettings.json读取）
+var jwtOptions = new JwtOptions();
+builder.Configuration.GetSection(JwtOptions.SectionName).Bind(jwtOptions);
+jwtOptions.Validate(); // 验证配置有效性
+builder.Services.AddSingleton(jwtOptions);
+
+// 注册认证服务（Scoped生命周期，每个请求独立实例）
+builder.Services.AddScoped<IAuthService, AuthService>();
 
 // 3.5 SignalR服务配置
 // 加载SignalR配置
