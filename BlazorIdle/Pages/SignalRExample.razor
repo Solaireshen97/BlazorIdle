@@ -1,0 +1,259 @@
+@page "/signalr-example"
+@using BlazorIdle.Client.Services.SignalR
+@inject SignalRConnectionManager SignalR
+@implements IAsyncDisposable
+
+<h3>SignalR连接示例</h3>
+
+<div class="card mt-3">
+    <div class="card-header">
+        <h5>连接状态</h5>
+    </div>
+    <div class="card-body">
+        <p><strong>连接状态:</strong> @SignalR.State</p>
+        <p><strong>是否已连接:</strong> @(SignalR.IsConnected ? "是" : "否")</p>
+        <p><strong>连接ID:</strong> @(SignalR.ConnectionId ?? "未连接")</p>
+        
+        <div class="btn-group mt-2" role="group">
+            @if (!SignalR.IsConnected)
+            {
+                <button class="btn btn-primary" @onclick="ConnectAsync" disabled="@isConnecting">
+                    @if (isConnecting)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                    }
+                    连接
+                </button>
+            }
+            else
+            {
+                <button class="btn btn-danger" @onclick="DisconnectAsync">断开连接</button>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="card mt-3">
+    <div class="card-header">
+        <h5>连接日志</h5>
+    </div>
+    <div class="card-body">
+        <div style="max-height: 300px; overflow-y: auto;">
+            @foreach (var log in logs)
+            {
+                <div class="mb-1">
+                    <span class="text-muted">[@log.Time]</span>
+                    <span class="@GetLogClass(log.Type)">@log.Message</span>
+                </div>
+            }
+        </div>
+        <button class="btn btn-sm btn-secondary mt-2" @onclick="ClearLogs">清空日志</button>
+    </div>
+</div>
+
+<div class="card mt-3">
+    <div class="card-header">
+        <h5>测试消息</h5>
+    </div>
+    <div class="card-body">
+        <div class="mb-3">
+            <label class="form-label">战斗ID:</label>
+            <input type="text" class="form-control" @bind="battleId" placeholder="例如: battle-123" />
+        </div>
+        <div class="btn-group" role="group">
+            <button class="btn btn-success" @onclick="SubscribeToBattleAsync" disabled="@(!SignalR.IsConnected)">
+                订阅战斗
+            </button>
+            <button class="btn btn-warning" @onclick="UnsubscribeFromBattleAsync" disabled="@(!SignalR.IsConnected)">
+                取消订阅
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<LogEntry> logs = new();
+    private bool isConnecting = false;
+    private string battleId = "battle-123";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 订阅连接事件
+        SignalR.Connected += OnConnected;
+        SignalR.Disconnected += OnDisconnected;
+        SignalR.Reconnecting += OnReconnecting;
+        SignalR.Reconnected += OnReconnected;
+
+        AddLog(LogType.Info, "组件已初始化");
+    }
+
+    private async Task ConnectAsync()
+    {
+        try
+        {
+            isConnecting = true;
+            AddLog(LogType.Info, "开始连接...");
+
+            // 初始化连接（如果尚未初始化）
+            if (SignalR.State == Microsoft.AspNetCore.SignalR.Client.HubConnectionState.Disconnected && 
+                SignalR.ConnectionId == null)
+            {
+                await SignalR.InitializeAsync();
+                AddLog(LogType.Success, "连接已初始化");
+            }
+
+            // 启动连接
+            await SignalR.StartAsync();
+            AddLog(LogType.Success, $"连接成功！ConnectionId: {SignalR.ConnectionId}");
+        }
+        catch (Exception ex)
+        {
+            AddLog(LogType.Error, $"连接失败: {ex.Message}");
+        }
+        finally
+        {
+            isConnecting = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task DisconnectAsync()
+    {
+        try
+        {
+            AddLog(LogType.Info, "正在断开连接...");
+            await SignalR.StopAsync();
+            AddLog(LogType.Success, "连接已断开");
+        }
+        catch (Exception ex)
+        {
+            AddLog(LogType.Error, $"断开连接失败: {ex.Message}");
+        }
+        finally
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task SubscribeToBattleAsync()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(battleId))
+            {
+                AddLog(LogType.Warning, "请输入战斗ID");
+                return;
+            }
+
+            AddLog(LogType.Info, $"订阅战斗: {battleId}");
+            await SignalR.SubscribeToBattleAsync(battleId);
+            AddLog(LogType.Success, $"已订阅战斗: {battleId}");
+        }
+        catch (Exception ex)
+        {
+            AddLog(LogType.Error, $"订阅失败: {ex.Message}");
+        }
+    }
+
+    private async Task UnsubscribeFromBattleAsync()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(battleId))
+            {
+                AddLog(LogType.Warning, "请输入战斗ID");
+                return;
+            }
+
+            AddLog(LogType.Info, $"取消订阅战斗: {battleId}");
+            await SignalR.UnsubscribeFromBattleAsync(battleId);
+            AddLog(LogType.Success, $"已取消订阅战斗: {battleId}");
+        }
+        catch (Exception ex)
+        {
+            AddLog(LogType.Error, $"取消订阅失败: {ex.Message}");
+        }
+    }
+
+    private async Task OnConnected()
+    {
+        AddLog(LogType.Success, "SignalR已连接");
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnDisconnected(Exception? ex)
+    {
+        var message = ex != null ? $"连接断开: {ex.Message}" : "连接已断开";
+        AddLog(LogType.Warning, message);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnReconnecting(string reason)
+    {
+        AddLog(LogType.Info, $"正在重连... 原因: {reason}");
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnReconnected(string? connectionId)
+    {
+        AddLog(LogType.Success, $"重连成功！新ConnectionId: {connectionId}");
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void AddLog(LogType type, string message)
+    {
+        logs.Insert(0, new LogEntry
+        {
+            Time = DateTime.Now.ToString("HH:mm:ss"),
+            Type = type,
+            Message = message
+        });
+
+        // 保留最近50条日志
+        if (logs.Count > 50)
+        {
+            logs.RemoveRange(50, logs.Count - 50);
+        }
+
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void ClearLogs()
+    {
+        logs.Clear();
+        StateHasChanged();
+    }
+
+    private string GetLogClass(LogType type) => type switch
+    {
+        LogType.Success => "text-success",
+        LogType.Error => "text-danger",
+        LogType.Warning => "text-warning",
+        LogType.Info => "text-info",
+        _ => ""
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        // 取消订阅事件
+        SignalR.Connected -= OnConnected;
+        SignalR.Disconnected -= OnDisconnected;
+        SignalR.Reconnecting -= OnReconnecting;
+        SignalR.Reconnected -= OnReconnected;
+    }
+
+    private class LogEntry
+    {
+        public string Time { get; set; } = "";
+        public LogType Type { get; set; }
+        public string Message { get; set; } = "";
+    }
+
+    private enum LogType
+    {
+        Info,
+        Success,
+        Warning,
+        Error
+    }
+}
