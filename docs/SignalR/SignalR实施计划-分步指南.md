@@ -65,7 +65,7 @@
 - [x] 第1步：环境准备（第1天）- ✅ 已完成 (2025-10-22)
 - [x] 第2步：实现GameHub（第1-2天）- ✅ 已完成 (2025-10-22)
 - [x] 第3步：实现ConnectionManager（第2-3天）- ✅ 已完成 (2025-10-22，在第2步中一并完成)
-- [ ] 第4步：实现SignalRDispatcher（第3-5天）
+- [x] 第4步：实现SignalRDispatcher（第3-5天）- ✅ 已完成 (2025-10-22)
 - [ ] 第5步：客户端连接管理（第5-7天）
 
 ---
@@ -619,14 +619,18 @@ builder.Services.AddSingleton<IConnectionManager, ConnectionManager>();
 
 ---
 
-### 第4步：实现SignalRDispatcher（第3-5天）
+### 第4步：实现SignalRDispatcher（第3-5天）✅ 已完成
 
 #### 任务清单
 
-- [ ] 创建ISignalRDispatcher接口
-- [ ] 实现SignalRDispatcher
-- [ ] 实现消息队列和批量发送
-- [ ] 实现优先级调度
+- [x] 创建消息优先级枚举
+- [x] 创建ISignalRDispatcher接口
+- [x] 实现SignalRDispatcher
+- [x] 实现消息队列和批量发送
+- [x] 实现优先级调度
+- [x] 创建配置类和配置文件
+- [x] 注册服务
+- [x] 编写单元测试
 
 #### 详细步骤
 
@@ -926,10 +930,58 @@ builder.Services.AddSingleton<ISignalRDispatcher, SignalRDispatcher>();
 #### 验收标准
 
 - ✅ 消息队列正常工作
+  - 基于Channel实现的有界队列，容量10000条消息
+  - 支持背压控制，队列满时自动等待
+  - 异步写入和批量处理机制
 - ✅ 批量发送功能正常
+  - 批量大小配置：100条消息/批次
+  - 时间窗口配置：50毫秒
+  - 智能刷新逻辑：达到批量或时间窗口即触发发送
 - ✅ 优先级调度正确
+  - 四级优先级：Critical > High > Normal > Low
+  - 批次内按优先级排序后发送
+  - 高优先级消息确保优先传输
 - ✅ 监控指标可获取
+  - 队列深度实时统计
+  - 发送成功/失败计数
+  - 平均延迟计算（最近1000条消息）
 - ✅ 异常不影响其他消息
+  - 单条消息失败不中断批处理
+  - 失败消息单独记录和统计
+  - 错误日志完整记录
+- ✅ 配置系统完善
+  - SignalROptions配置类支持appsettings.json
+  - 配置验证机制确保参数有效性
+  - 开发环境和生产环境分离配置
+- ✅ 单元测试完整
+  - 13个测试用例，覆盖所有核心功能
+  - 测试通过率：100%（13/13）
+  - 包含并发测试、错误处理测试、性能测试
+
+**实施日期**: 2025年10月22日  
+**实施状态**: ✅ 完成  
+**代码文件**: 
+- BlazorIdle.Server/Infrastructure/SignalR/Models/MessagePriority.cs
+- BlazorIdle.Server/Infrastructure/SignalR/ISignalRDispatcher.cs
+- BlazorIdle.Server/Infrastructure/SignalR/Services/SignalRDispatcher.cs
+- BlazorIdle.Server/Infrastructure/SignalR/SignalROptions.cs
+- BlazorIdle.Server/appsettings.json（添加SignalR配置节）
+- BlazorIdle.Server/appsettings.Development.json（开发环境配置）
+- BlazorIdle.Server/Program.cs（注册服务和加载配置）
+
+**测试文件**:
+- tests/BlazorIdle.Tests/SignalR/SignalRDispatcherTests.cs（13个测试用例）
+
+**关键技术实现**:
+1. **异步消息队列**: 使用System.Threading.Channels实现高性能、线程安全的消息队列
+2. **智能批量发送**: 结合批量大小和时间窗口的双重触发机制，确保实时性和效率
+3. **优先级调度**: 批次发送前按优先级排序，保证关键消息优先传输
+4. **性能监控**: 实时统计队列深度、成功/失败数和平均延迟
+5. **配置驱动**: 所有关键参数可通过配置文件调整，无需修改代码
+6. **线程安全**: 使用Interlocked原子操作和锁机制确保多线程安全
+7. **资源管理**: 实现IDisposable接口，确保正确释放资源和停止后台任务
+
+**下一步**: 进入第5步 - 客户端连接管理
 
 ---
 
