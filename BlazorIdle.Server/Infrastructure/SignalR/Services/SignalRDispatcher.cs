@@ -365,7 +365,16 @@ public class SignalRDispatcher : ISignalRDispatcher, IDisposable
         _messageChannel.Writer.Complete();
         
         // 等待处理任务完成（最多5秒）
-        if (!_processingTask.Wait(TimeSpan.FromSeconds(5)))
+        bool completed = false;
+        try
+        {
+            completed = _processingTask.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Exception while waiting for processing task to complete");
+        }
+        if (!completed)
         {
             _logger.LogWarning("Processing task did not complete within timeout");
         }
