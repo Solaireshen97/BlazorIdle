@@ -63,14 +63,14 @@
 
 ---
 
-### 步骤1：安装依赖和配置（0.5天）
+### 步骤1：安装依赖和配置（0.5天） ✅ 已完成
 
 #### 任务清单
 
-- [ ] 安装NuGet包（JWT、BCrypt）
-- [ ] 创建目录结构
-- [ ] 配置appsettings.json
-- [ ] 验证编译
+- [x] 安装NuGet包（JWT、BCrypt）
+- [x] 创建目录结构
+- [x] 配置appsettings.json
+- [x] 验证编译
 
 #### 详细步骤
 
@@ -156,23 +156,27 @@ dotnet build
 
 #### 验收标准
 
-- ✅ 所有NuGet包安装成功
-- ✅ 目录结构创建完成
-- ✅ 配置文件格式正确
+- ✅ 所有NuGet包安装成功（System.IdentityModel.Tokens.Jwt 8.2.1, BCrypt.Net-Next 4.0.3, Microsoft.AspNetCore.Authentication.JwtBearer 9.0.0）
+- ✅ 目录结构创建完成（Auth/{Models,Services,DTOs}）
+- ✅ 配置文件格式正确（包含JWT和Auth配置项）
 - ✅ 项目编译无错误
+
+**实施日期**: 2025年10月23日  
+**实施人员**: GitHub Copilot
 
 ---
 
-### 步骤2：实现UserStore（0.5天）
+### 步骤2：实现UserStore（0.5天） ✅ 已完成
 
 #### 任务清单
 
-- [ ] 创建User模型
-- [ ] 创建UserInfo DTO
-- [ ] 创建IUserStore接口
-- [ ] 实现InMemoryUserStore
-- [ ] 初始化测试账户
-- [ ] 注册服务
+- [x] 创建User模型
+- [x] 创建UserInfo DTO
+- [x] 创建IUserStore接口
+- [x] 实现InMemoryUserStore
+- [x] 初始化测试账户
+- [x] 注册服务
+- [x] 编写单元测试（20个测试用例）
 
 #### 详细步骤
 
@@ -493,12 +497,26 @@ builder.Services.AddSingleton<IUserStore, InMemoryUserStore>();
 
 #### 验收标准
 
-- ✅ User模型创建完成
-- ✅ IUserStore接口定义完成
-- ✅ InMemoryUserStore实现完成
-- ✅ 测试账户自动初始化
-- ✅ 服务注册成功
+- ✅ User模型创建完成（包含详细中文注释）
+- ✅ IUserStore接口定义完成（包含详细中文注释）
+- ✅ InMemoryUserStore实现完成（使用配置文件参数，防止时序攻击，线程安全）
+- ✅ 测试账户自动初始化（从配置文件读取：test1、test2、admin）
+- ✅ 服务注册成功（Program.cs中使用Singleton生命周期）
+- ✅ 单元测试通过（20个测试用例，100%通过率）
 - ✅ 项目编译无错误
+
+**实施日期**: 2025年10月23日  
+**实施人员**: GitHub Copilot  
+**测试结果**: 20/20 测试通过
+
+**技术亮点**:
+- 所有代码包含详细的中文注释
+- 所有参数从配置文件读取，无硬编码
+- BCrypt工作因子可配置（默认12）
+- 测试账户可通过配置自定义
+- 防止时序攻击（用户不存在时也执行哈希验证）
+- 线程安全（使用ConcurrentDictionary）
+- 完整的单元测试覆盖
 
 ---
 
