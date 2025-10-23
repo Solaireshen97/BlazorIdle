@@ -3,6 +3,7 @@ using BlazorIdle.Server.Infrastructure;
 using BlazorIdle.Server.Infrastructure.SignalR;
 using BlazorIdle.Server.Infrastructure.SignalR.Hubs;
 using BlazorIdle.Server.Infrastructure.SignalR.Services;
+using BlazorIdle.Server.Auth.Services;
 using Microsoft.EntityFrameworkCore;
 using BlazorIdle.Server.Infrastructure.Persistence;
 
@@ -20,6 +21,10 @@ builder.Services.AddSwaggerGen();           // 生成 swagger.json 与 UI（开�
 builder.Services
     .AddInfrastructure(builder.Configuration)   // 注册基础设施：DbContext、仓储等（内部会调用 AddRepositories 等）
     .AddApplication();                          // 注册应用层：命令/查询处理器等
+
+// 3.1 用户认证系统服务注册
+// 注册用户存储服务（Singleton确保测试账户在应用生命周期内保持）
+builder.Services.AddSingleton<IUserStore, InMemoryUserStore>();
 
 // 3.5 SignalR服务配置
 // 加载SignalR配置
