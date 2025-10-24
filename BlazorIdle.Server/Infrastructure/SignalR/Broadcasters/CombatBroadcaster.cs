@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using BlazorIdle.Server.Infrastructure.SignalR.Models;
+using BlazorIdle.Server.Infrastructure.SignalR.Services;
 using BlazorIdle.Shared.Messages.Battle;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -17,6 +18,7 @@ public class CombatBroadcaster : BackgroundService
     private readonly ISignalRDispatcher _dispatcher;
     private readonly ILogger<CombatBroadcaster> _logger;
     private readonly CombatBroadcasterOptions _options;
+    private readonly BattleFrameBufferOptions _bufferOptions;
     
     // 活跃战斗配置字典
     // Key: 战斗ID, Value: 战斗帧配置
@@ -25,14 +27,17 @@ public class CombatBroadcaster : BackgroundService
     public CombatBroadcaster(
         ISignalRDispatcher dispatcher,
         ILogger<CombatBroadcaster> logger,
-        IOptions<CombatBroadcasterOptions> options)
+        IOptions<CombatBroadcasterOptions> options,
+        IOptions<BattleFrameBufferOptions> bufferOptions)
     {
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _bufferOptions = bufferOptions?.Value ?? throw new ArgumentNullException(nameof(bufferOptions));
         
         // 验证配置
         _options.Validate();
+        _bufferOptions.Validate();
     }
 
     /// <summary>
@@ -134,8 +139,14 @@ public class CombatBroadcaster : BackgroundService
             // TODO: 生成帧数据
             // var frame = battle.GenerateFrameTick();
             
-            // TODO: 缓存帧用于补发（下一步骤实现）
-            // config.FrameBuffer?.AddFrame(frame);
+            // 缓存帧用于补发
+            // 获取或创建该战斗的帧缓冲区
+            // if (config.FrameBuffer == null)
+            // {
+            //     config.FrameBuffer = new BattleFrameBuffer(_bufferOptions, _logger);
+            //     _logger.LogDebug("为战斗 {BattleId} 创建帧缓冲区", battleId);
+            // }
+            // config.FrameBuffer.AddFrame(frame);
 
             // 推送到战斗组
             var groupName = $"battle:{battleId}";
@@ -220,18 +231,21 @@ public class CombatBroadcaster : BackgroundService
         {
             Frequency = actualFrequency,
             LastBroadcast = DateTime.UtcNow.AddSeconds(-1), // 立即触发第一帧
-            FrameCount = 0
+            FrameCount = 0,
+            FrameBuffer = new BattleFrameBuffer(_bufferOptions.MaxSize)
         };
 
         if (_activeBattles.TryAdd(battleId, config))
         {
             _logger.LogInformation(
-                "开始广播战斗 {BattleId}，频率={Frequency}Hz，当前活跃战斗数={Count}",
-                battleId, actualFrequency, _activeBattles.Count);
+                "开始广播战斗 {BattleId}，频率={Frequency}Hz，缓冲区容量={BufferSize}，当前活跃战斗数={Count}",
+                battleId, actualFrequency, _bufferOptions.MaxSize, _activeBattles.Count);
         }
         else
         {
-            // 战斗已存在，更新频率
+            // 战斗已存在，更新频率但保留缓冲区
+            var oldConfig = _activeBattles[battleId];
+            config.FrameBuffer = oldConfig.FrameBuffer; // 保留现有缓冲区
             _activeBattles[battleId] = config;
             _logger.LogInformation(
                 "更新战斗 {BattleId} 的广播配置，新频率={Frequency}Hz",
@@ -376,6 +390,57 @@ public class CombatBroadcaster : BackgroundService
         _activeBattles.TryGetValue(battleId, out var config);
         return config;
     }
+
+    /// <summary>
+    /// 获取指定战斗的历史帧
+    /// 用于断线重连时的增量补发
+    /// </summary>
+    /// <param name="battleId">战斗ID</param>
+    /// <param name="fromVersion">起始版本号</param>
+    /// <param name="toVersion">结束版本号</param>
+    /// <returns>帧列表，如果有缺失则返回空列表</returns>
+    public List<FrameTick> GetDeltaFrames(string battleId, long fromVersion, long toVersion)
+    {
+        if (string.IsNullOrWhiteSpace(battleId))
+            return new List<FrameTick>();
+
+        if (!_activeBattles.TryGetValue(battleId, out var config))
+        {
+            _logger.LogWarning("尝试获取不存在的战斗 {BattleId} 的历史帧", battleId);
+            return new List<FrameTick>();
+        }
+
+        if (config.FrameBuffer == null)
+        {
+            _logger.LogWarning("战斗 {BattleId} 的帧缓冲区未初始化", battleId);
+            return new List<FrameTick>();
+        }
+
+        var frames = config.FrameBuffer.GetFrames(fromVersion, toVersion);
+        
+        _logger.LogDebug(
+            "获取战斗 {BattleId} 的历史帧: {From}-{To}，返回{Count}帧",
+            battleId, fromVersion, toVersion, frames.Count);
+
+        return frames;
+    }
+
+    /// <summary>
+    /// 获取指定战斗缓冲区的统计信息
+    /// 用于监控和调试
+    /// </summary>
+    /// <param name="battleId">战斗ID</param>
+    /// <returns>统计信息，如果战斗不存在则返回null</returns>
+    public BufferStatistics? GetBufferStatistics(string battleId)
+    {
+        if (string.IsNullOrWhiteSpace(battleId))
+            return null;
+
+        if (!_activeBattles.TryGetValue(battleId, out var config))
+            return null;
+
+        return config.FrameBuffer?.GetStatistics();
+    }
 }
 
 /// <summary>
@@ -407,4 +472,10 @@ public class BattleFrameConfig
     /// 用于断线重连时的状态恢复
     /// </summary>
     public BattleSnapshot? LastSnapshot { get; set; }
+    
+    /// <summary>
+    /// 帧缓冲区
+    /// 用于存储历史帧数据，支持断线重连后的补发
+    /// </summary>
+    public BattleFrameBuffer? FrameBuffer { get; set; }
 }
