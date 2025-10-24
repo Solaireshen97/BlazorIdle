@@ -241,7 +241,8 @@
                 
                 // 跳转到返回URL或首页
                 var targetUrl = !string.IsNullOrEmpty(ReturnUrl) ? ReturnUrl : "/";
-                Logger.LogDebug("跳转到：{Url}", targetUrl);
+                // 安全地记录URL，避免日志伪造攻击
+                Logger.LogDebug("用户登录成功，准备跳转");
                 Navigation.NavigateTo(targetUrl);
             }
             else
@@ -287,7 +288,8 @@
                 
                 // 注册成功后跳转到返回URL或首页
                 var targetUrl = !string.IsNullOrEmpty(ReturnUrl) ? ReturnUrl : "/";
-                Logger.LogDebug("跳转到：{Url}", targetUrl);
+                // 安全地记录URL，避免日志伪造攻击
+                Logger.LogDebug("用户注册成功，准备跳转");
                 Navigation.NavigateTo(targetUrl);
             }
             else
