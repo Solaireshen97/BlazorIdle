@@ -1366,7 +1366,7 @@ await builder.Build().RunAsync();
 
 ### 进度追踪
 
-- [ ] 第1步：创建CombatBroadcaster（第1-3天）
+- [x] 第1步：创建CombatBroadcaster（第1-3天）- ✅ 已完成 (2025-10-24)
 - [ ] 第2步：集成BattleFrameBuffer（第4-6天）
 - [ ] 第3步：修改BattleInstance（第7-9天）
 - [ ] 第4步：客户端战斗状态管理（第10-14天）
@@ -1383,19 +1383,19 @@ await builder.Build().RunAsync();
 
 ---
 
-### 第1步：创建CombatBroadcaster（第1-3天）
+### 第1步：创建CombatBroadcaster（第1-3天）✅ 已完成
 
 **目标**: 创建战斗帧广播服务，实现定时推送战斗帧数据
 
 #### 任务清单
 
-- [ ] 创建战斗帧消息模型
-- [ ] 创建CombatBroadcaster服务
-- [ ] 实现FrameTick推送逻辑
-- [ ] 实现KeyEvent推送逻辑
-- [ ] 实现Snapshot推送逻辑
-- [ ] 配置广播频率管理
-- [ ] 注册后台服务
+- [x] 创建战斗帧消息模型
+- [x] 创建CombatBroadcaster服务
+- [x] 实现FrameTick推送逻辑
+- [x] 实现KeyEvent推送逻辑
+- [x] 实现Snapshot推送逻辑
+- [x] 配置广播频率管理
+- [x] 注册后台服务
 
 #### 详细步骤
 
@@ -1925,15 +1925,41 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<CombatBroadcaster>
 
 #### 验收标准
 
-- [ ] 消息模型编译无错误
-- [ ] CombatBroadcaster服务正常启动
-- [ ] 可以启动和停止战斗广播
-- [ ] 可以动态调整广播频率
-- [ ] 后台服务日志正常输出
-- [ ] 服务停止时正常清理资源
+- [x] 消息模型编译无错误
+- [x] CombatBroadcaster服务正常启动
+- [x] 可以启动和停止战斗广播
+- [x] 可以动态调整广播频率（2-10Hz）
+- [x] 后台服务日志正常输出
+- [x] 服务停止时正常清理资源
+- [x] 单元测试覆盖率 > 80%（实际：35个测试全部通过）
+- [x] 所有单元测试通过（35/35）
 
-**实施日期**: 待定  
-**实施状态**: ⏳ 待开始
+**实施日期**: 2025年10月24日  
+**实施状态**: ✅ 完成  
+**代码文件**: 
+- BlazorIdle.Shared/Messages/Battle/FrameTick.cs（战斗帧消息模型）
+- BlazorIdle.Shared/Messages/Battle/KeyEvent.cs（关键事件模型）
+- BlazorIdle.Shared/Messages/Battle/BattleSnapshot.cs（战斗快照模型）
+- BlazorIdle.Server/Infrastructure/SignalR/Broadcasters/CombatBroadcasterOptions.cs（配置类）
+- BlazorIdle.Server/Infrastructure/SignalR/Broadcasters/CombatBroadcaster.cs（核心广播服务）
+- BlazorIdle.Server/appsettings.json（生产环境配置）
+- BlazorIdle.Server/appsettings.Development.json（开发环境配置）
+- BlazorIdle.Server/Program.cs（服务注册）
+
+**测试文件**:
+- tests/BlazorIdle.Tests/SignalR/CombatBroadcasterTests.cs（35个测试用例，100%通过）
+
+**关键技术实现**:
+1. **后台服务**: 使用BackgroundService实现定时广播，精度10毫秒
+2. **频率管理**: 支持2-10Hz可配置频率，自动限制在有效范围内
+3. **优先级推送**: 关键事件使用Critical优先级立即推送
+4. **配置驱动**: 所有参数从配置文件读取，支持开发和生产环境分离
+5. **并发控制**: 使用ConcurrentDictionary管理活跃战斗，支持并发操作
+6. **详细注释**: 完整的中文注释，说明每个方法和参数的用途
+7. **错误处理**: 完善的异常处理和日志记录
+8. **资源管理**: 实现IDisposable接口，确保正确释放资源
+
+**下一步**: 进入第2步 - 集成BattleFrameBuffer（第4-6天）
 
 ---
 

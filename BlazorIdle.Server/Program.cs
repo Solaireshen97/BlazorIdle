@@ -3,6 +3,7 @@ using BlazorIdle.Server.Infrastructure;
 using BlazorIdle.Server.Infrastructure.SignalR;
 using BlazorIdle.Server.Infrastructure.SignalR.Hubs;
 using BlazorIdle.Server.Infrastructure.SignalR.Services;
+using BlazorIdle.Server.Infrastructure.SignalR.Broadcasters;
 using BlazorIdle.Server.Auth;
 using BlazorIdle.Server.Auth.Services;
 using Microsoft.EntityFrameworkCore;
@@ -151,6 +152,19 @@ builder.Services.AddSignalR(options =>
         options.SerializerOptions = MessagePack.MessagePackSerializerOptions.Standard;
     }
 });
+
+// 3.6 CombatBroadcaster服务配置
+// 加载CombatBroadcaster配置
+var combatBroadcasterOptions = new CombatBroadcasterOptions();
+builder.Configuration.GetSection(CombatBroadcasterOptions.SectionName).Bind(combatBroadcasterOptions);
+combatBroadcasterOptions.Validate(); // 验证配置有效性
+builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(combatBroadcasterOptions));
+
+// 注册CombatBroadcaster为单例和后台服务
+// 单例确保整个应用程序共享同一个广播器实例
+// 后台服务使其在应用启动时自动运行
+builder.Services.AddSingleton<CombatBroadcaster>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<CombatBroadcaster>());
 
 // 4. CORS 配置
 // 目的：允许前端 Blazor WebAssembly（本地开发端口）访问 API
