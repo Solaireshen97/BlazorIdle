@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
+using BlazorIdle.Services.Auth;
 
 namespace BlazorIdle.Client.Services.SignalR;
 
@@ -12,6 +13,7 @@ public class SignalRConnectionManager : IAsyncDisposable
 {
     private readonly ILogger<SignalRConnectionManager> _logger;
     private readonly SignalRClientOptions _options;
+    private readonly IAuthenticationService _authService;
     private HubConnection? _connection;
     private PeriodicTimer? _heartbeatTimer;
     private Task? _heartbeatTask;
@@ -62,10 +64,12 @@ public class SignalRConnectionManager : IAsyncDisposable
 
     public SignalRConnectionManager(
         ILogger<SignalRConnectionManager> logger,
-        SignalRClientOptions options)
+        SignalRClientOptions options,
+        IAuthenticationService authService)
     {
         _logger = logger;
         _options = options;
+        _authService = authService;
         
         // 验证配置有效性
         _options.Validate();
@@ -76,10 +80,10 @@ public class SignalRConnectionManager : IAsyncDisposable
     /// <summary>
     /// 初始化SignalR连接
     /// 配置连接参数、重连策略、事件处理等
+    /// 自动从认证服务获取JWT Token并附加到连接
     /// </summary>
-    /// <param name="accessToken">访问令牌，用于身份验证（可选）</param>
     /// <returns>异步任务</returns>
-    public async Task InitializeAsync(string? accessToken = null)
+    public async Task InitializeAsync()
     {
         if (_isDisposed)
         {
@@ -95,14 +99,31 @@ public class SignalRConnectionManager : IAsyncDisposable
 
         _logger.LogInformation("开始初始化SignalR连接...");
 
+        // 从认证服务获取JWT Token
+        // 这个Token用于SignalR连接的身份验证
+        var token = await _authService.GetTokenAsync();
+        
+        if (string.IsNullOrEmpty(token))
+        {
+            _logger.LogWarning("未找到JWT Token，SignalR连接可能因为未授权而失败");
+        }
+        else
+        {
+            _logger.LogInformation("已获取JWT Token，将附加到SignalR连接进行身份验证");
+        }
+
         // 创建连接构建器
         var builder = new HubConnectionBuilder()
             .WithUrl(_options.HubUrl, options =>
             {
-                // 如果提供了访问令牌，配置身份验证
-                if (!string.IsNullOrEmpty(accessToken))
+                // 配置JWT Token提供器
+                // SignalR会在建立连接时调用此函数获取Token
+                // Token会通过查询字符串参数access_token传递给服务器
+                // 这是SignalR推荐的身份验证方式（因为WebSocket不支持自定义HTTP头）
+                if (!string.IsNullOrEmpty(token))
                 {
-                    options.AccessTokenProvider = () => Task.FromResult<string?>(accessToken);
+                    options.AccessTokenProvider = () => Task.FromResult<string?>(token);
+                    _logger.LogDebug("已配置AccessTokenProvider，Token将通过查询字符串传递");
                 }
             });
 

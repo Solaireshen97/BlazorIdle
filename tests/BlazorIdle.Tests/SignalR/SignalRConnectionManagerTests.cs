@@ -1,4 +1,5 @@
 using BlazorIdle.Client.Services.SignalR;
+using BlazorIdle.Services.Auth;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -8,17 +9,22 @@ namespace BlazorIdle.Tests.SignalR;
 
 /// <summary>
 /// SignalRConnectionManager单元测试
-/// 测试连接管理器的核心功能
+/// 测试连接管理器的核心功能和JWT认证集成
 /// </summary>
 public class SignalRConnectionManagerTests : IDisposable
 {
     private readonly Mock<ILogger<SignalRConnectionManager>> _loggerMock;
+    private readonly Mock<IAuthenticationService> _authServiceMock;
     private readonly SignalRClientOptions _options;
     private SignalRConnectionManager? _manager;
 
     public SignalRConnectionManagerTests()
     {
         _loggerMock = new Mock<ILogger<SignalRConnectionManager>>();
+        _authServiceMock = new Mock<IAuthenticationService>();
+        
+        // 默认设置：模拟未登录状态（无Token）
+        _authServiceMock.Setup(x => x.GetTokenAsync()).ReturnsAsync((string?)null);
         
         // 使用测试配置
         _options = new SignalRClientOptions
@@ -36,7 +42,7 @@ public class SignalRConnectionManagerTests : IDisposable
     public void Constructor_ValidOptions_ShouldCreateInstance()
     {
         // Arrange & Act - 使用有效配置创建实例
-        _manager = new SignalRConnectionManager(_loggerMock.Object, _options);
+        _manager = new SignalRConnectionManager(_loggerMock.Object, _options, _authServiceMock.Object);
 
         // Assert - 实例应成功创建
         Assert.NotNull(_manager);
@@ -53,14 +59,14 @@ public class SignalRConnectionManagerTests : IDisposable
 
         // Act & Assert - 构造函数应抛出异常
         Assert.Throws<InvalidOperationException>(() =>
-            new SignalRConnectionManager(_loggerMock.Object, invalidOptions));
+            new SignalRConnectionManager(_loggerMock.Object, invalidOptions, _authServiceMock.Object));
     }
 
     [Fact]
     public async Task InitializeAsync_ShouldConfigureConnection()
     {
         // Arrange
-        _manager = new SignalRConnectionManager(_loggerMock.Object, _options);
+        _manager = new SignalRConnectionManager(_loggerMock.Object, _options, _authServiceMock.Object);
 
         // Act - 初始化连接
         await _manager.InitializeAsync();
@@ -68,27 +74,34 @@ public class SignalRConnectionManagerTests : IDisposable
         // Assert - 连接应该被配置，但尚未启动
         Assert.Equal(HubConnectionState.Disconnected, _manager.State);
         Assert.False(_manager.IsConnected);
+        
+        // 验证已调用GetTokenAsync获取认证Token
+        _authServiceMock.Verify(x => x.GetTokenAsync(), Times.Once);
     }
 
     [Fact]
-    public async Task InitializeAsync_WithAccessToken_ShouldConfigureAuth()
+    public async Task InitializeAsync_WithValidToken_ShouldConfigureAuth()
     {
         // Arrange
-        _manager = new SignalRConnectionManager(_loggerMock.Object, _options);
-        var accessToken = "test-token-123";
+        _manager = new SignalRConnectionManager(_loggerMock.Object, _options, _authServiceMock.Object);
+        var testToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test";
+        
+        // 模拟已登录状态（有Token）
+        _authServiceMock.Setup(x => x.GetTokenAsync()).ReturnsAsync(testToken);
 
-        // Act - 使用访问令牌初始化
-        await _manager.InitializeAsync(accessToken);
+        // Act - 初始化连接
+        await _manager.InitializeAsync();
 
-        // Assert - 连接应该被配置
+        // Assert - 连接应该被配置，并附加了Token
         Assert.Equal(HubConnectionState.Disconnected, _manager.State);
+        _authServiceMock.Verify(x => x.GetTokenAsync(), Times.Once);
     }
 
     [Fact]
     public async Task StartAsync_WithoutInitialize_ShouldThrow()
     {
         // Arrange
-        _manager = new SignalRConnectionManager(_loggerMock.Object, _options);
+        _manager = new SignalRConnectionManager(_loggerMock.Object, _options, _authServiceMock.Object);
 
         // Act & Assert - 未初始化就启动应抛出异常
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
@@ -99,7 +112,7 @@ public class SignalRConnectionManagerTests : IDisposable
     public async Task SendAsync_WithoutConnection_ShouldThrow()
     {
         // Arrange
-        _manager = new SignalRConnectionManager(_loggerMock.Object, _options);
+        _manager = new SignalRConnectionManager(_loggerMock.Object, _options, _authServiceMock.Object);
         await _manager.InitializeAsync();
 
         // Act & Assert - 未连接时发送消息应抛出异常
@@ -111,7 +124,7 @@ public class SignalRConnectionManagerTests : IDisposable
     public async Task InvokeAsync_WithoutConnection_ShouldThrow()
     {
         // Arrange
-        _manager = new SignalRConnectionManager(_loggerMock.Object, _options);
+        _manager = new SignalRConnectionManager(_loggerMock.Object, _options, _authServiceMock.Object);
         await _manager.InitializeAsync();
 
         // Act & Assert - 未连接时调用方法应抛出异常
@@ -123,7 +136,7 @@ public class SignalRConnectionManagerTests : IDisposable
     public async Task On_WithoutInitialize_ShouldThrow()
     {
         // Arrange
-        _manager = new SignalRConnectionManager(_loggerMock.Object, _options);
+        _manager = new SignalRConnectionManager(_loggerMock.Object, _options, _authServiceMock.Object);
 
         // Act & Assert - 未初始化就注册处理器应抛出异常
         Assert.Throws<InvalidOperationException>(() =>
@@ -134,7 +147,7 @@ public class SignalRConnectionManagerTests : IDisposable
     public async Task On_AfterInitialize_ShouldRegisterHandler()
     {
         // Arrange
-        _manager = new SignalRConnectionManager(_loggerMock.Object, _options);
+        _manager = new SignalRConnectionManager(_loggerMock.Object, _options, _authServiceMock.Object);
         await _manager.InitializeAsync();
         var handlerCalled = false;
 
@@ -154,7 +167,7 @@ public class SignalRConnectionManagerTests : IDisposable
     public async Task DisposeAsync_ShouldCleanupResources()
     {
         // Arrange
-        _manager = new SignalRConnectionManager(_loggerMock.Object, _options);
+        _manager = new SignalRConnectionManager(_loggerMock.Object, _options, _authServiceMock.Object);
         await _manager.InitializeAsync();
 
         // Act - 释放资源
@@ -168,7 +181,7 @@ public class SignalRConnectionManagerTests : IDisposable
     public async Task DisposeAsync_AfterDispose_OperationsShouldThrow()
     {
         // Arrange
-        _manager = new SignalRConnectionManager(_loggerMock.Object, _options);
+        _manager = new SignalRConnectionManager(_loggerMock.Object, _options, _authServiceMock.Object);
         await _manager.InitializeAsync();
         await _manager.DisposeAsync();
 
@@ -181,7 +194,7 @@ public class SignalRConnectionManagerTests : IDisposable
     public void State_BeforeInitialize_ShouldBeDisconnected()
     {
         // Arrange & Act
-        _manager = new SignalRConnectionManager(_loggerMock.Object, _options);
+        _manager = new SignalRConnectionManager(_loggerMock.Object, _options, _authServiceMock.Object);
 
         // Assert
         Assert.Equal(HubConnectionState.Disconnected, _manager.State);
@@ -191,7 +204,7 @@ public class SignalRConnectionManagerTests : IDisposable
     public void IsConnected_BeforeConnection_ShouldBeFalse()
     {
         // Arrange & Act
-        _manager = new SignalRConnectionManager(_loggerMock.Object, _options);
+        _manager = new SignalRConnectionManager(_loggerMock.Object, _options, _authServiceMock.Object);
 
         // Assert
         Assert.False(_manager.IsConnected);
@@ -201,7 +214,7 @@ public class SignalRConnectionManagerTests : IDisposable
     public void ConnectionId_BeforeConnection_ShouldBeNull()
     {
         // Arrange & Act
-        _manager = new SignalRConnectionManager(_loggerMock.Object, _options);
+        _manager = new SignalRConnectionManager(_loggerMock.Object, _options, _authServiceMock.Object);
 
         // Assert
         Assert.Null(_manager.ConnectionId);
@@ -211,7 +224,7 @@ public class SignalRConnectionManagerTests : IDisposable
     public async Task SubscribeToBattleAsync_WithoutConnection_ShouldThrow()
     {
         // Arrange
-        _manager = new SignalRConnectionManager(_loggerMock.Object, _options);
+        _manager = new SignalRConnectionManager(_loggerMock.Object, _options, _authServiceMock.Object);
         await _manager.InitializeAsync();
 
         // Act & Assert - 未连接时订阅应抛出异常
@@ -223,7 +236,7 @@ public class SignalRConnectionManagerTests : IDisposable
     public async Task UnsubscribeFromBattleAsync_WithoutConnection_ShouldThrow()
     {
         // Arrange
-        _manager = new SignalRConnectionManager(_loggerMock.Object, _options);
+        _manager = new SignalRConnectionManager(_loggerMock.Object, _options, _authServiceMock.Object);
         await _manager.InitializeAsync();
 
         // Act & Assert - 未连接时取消订阅应抛出异常
@@ -235,7 +248,7 @@ public class SignalRConnectionManagerTests : IDisposable
     public async Task SubscribeToPartyAsync_WithoutConnection_ShouldThrow()
     {
         // Arrange
-        _manager = new SignalRConnectionManager(_loggerMock.Object, _options);
+        _manager = new SignalRConnectionManager(_loggerMock.Object, _options, _authServiceMock.Object);
         await _manager.InitializeAsync();
 
         // Act & Assert - 未连接时订阅应抛出异常
@@ -247,7 +260,7 @@ public class SignalRConnectionManagerTests : IDisposable
     public async Task RequestBattleSyncAsync_WithoutConnection_ShouldThrow()
     {
         // Arrange
-        _manager = new SignalRConnectionManager(_loggerMock.Object, _options);
+        _manager = new SignalRConnectionManager(_loggerMock.Object, _options, _authServiceMock.Object);
         await _manager.InitializeAsync();
 
         // Act & Assert - 未连接时请求同步应抛出异常
@@ -259,7 +272,7 @@ public class SignalRConnectionManagerTests : IDisposable
     public async Task MultipleInitialize_ShouldDisposeOldConnection()
     {
         // Arrange
-        _manager = new SignalRConnectionManager(_loggerMock.Object, _options);
+        _manager = new SignalRConnectionManager(_loggerMock.Object, _options, _authServiceMock.Object);
         await _manager.InitializeAsync();
 
         // Act - 多次初始化应该正确处理旧连接
@@ -268,13 +281,15 @@ public class SignalRConnectionManagerTests : IDisposable
 
         // Assert - 连接应该被重新配置
         Assert.Equal(HubConnectionState.Disconnected, _manager.State);
+        // 验证每次初始化都会获取Token
+        _authServiceMock.Verify(x => x.GetTokenAsync(), Times.Exactly(3));
     }
 
     [Fact]
     public async Task Events_ShouldBeSubscribable()
     {
         // Arrange
-        _manager = new SignalRConnectionManager(_loggerMock.Object, _options);
+        _manager = new SignalRConnectionManager(_loggerMock.Object, _options, _authServiceMock.Object);
         var connectedCalled = false;
         var disconnectedCalled = false;
         var reconnectingCalled = false;
