@@ -160,6 +160,13 @@ builder.Configuration.GetSection(CombatBroadcasterOptions.SectionName).Bind(comb
 combatBroadcasterOptions.Validate(); // 验证配置有效性
 builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(combatBroadcasterOptions));
 
+// 3.7 BattleFrameBuffer配置
+// 加载BattleFrameBuffer配置
+var battleFrameBufferOptions = new BattleFrameBufferOptions();
+builder.Configuration.GetSection(BattleFrameBufferOptions.SectionName).Bind(battleFrameBufferOptions);
+battleFrameBufferOptions.Validate(); // 验证配置有效性
+builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(battleFrameBufferOptions));
+
 // 注册CombatBroadcaster为单例和后台服务
 // 单例确保整个应用程序共享同一个广播器实例
 // 后台服务使其在应用启动时自动运行
