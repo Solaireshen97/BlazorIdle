@@ -1,3 +1,4 @@
+using BlazorIdle.Server.Application.Battles.Step;
 using BlazorIdle.Server.Infrastructure.SignalR;
 using BlazorIdle.Server.Infrastructure.SignalR.Broadcasters;
 using BlazorIdle.Server.Infrastructure.SignalR.Services;
@@ -17,6 +18,7 @@ namespace BlazorIdle.Tests.SignalR;
 public class CombatBroadcasterTests : IDisposable
 {
     private readonly Mock<ISignalRDispatcher> _mockDispatcher;
+    private readonly Mock<StepBattleCoordinator> _mockCoordinator;
     private readonly Mock<ILogger<CombatBroadcaster>> _mockLogger;
     private readonly CombatBroadcasterOptions _options;
     private readonly BattleFrameBufferOptions _bufferOptions;
@@ -25,6 +27,7 @@ public class CombatBroadcasterTests : IDisposable
     public CombatBroadcasterTests()
     {
         _mockDispatcher = new Mock<ISignalRDispatcher>();
+        _mockCoordinator = new Mock<StepBattleCoordinator>();
         _mockLogger = new Mock<ILogger<CombatBroadcaster>>();
         
         // 使用默认配置
@@ -51,6 +54,7 @@ public class CombatBroadcasterTests : IDisposable
 
         _broadcaster = new CombatBroadcaster(
             _mockDispatcher.Object,
+            _mockCoordinator.Object,
             _mockLogger.Object,
             Options.Create(_options),
             Options.Create(_bufferOptions));
@@ -75,7 +79,7 @@ public class CombatBroadcasterTests : IDisposable
     {
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() =>
-            new CombatBroadcaster(null!, _mockLogger.Object, Options.Create(_options), Options.Create(_bufferOptions)));
+            new CombatBroadcaster(null!, _mockCoordinator.Object, _mockLogger.Object, Options.Create(_options), Options.Create(_bufferOptions)));
     }
 
     [Fact]
@@ -83,7 +87,7 @@ public class CombatBroadcasterTests : IDisposable
     {
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() =>
-            new CombatBroadcaster(_mockDispatcher.Object, null!, Options.Create(_options), Options.Create(_bufferOptions)));
+            new CombatBroadcaster(_mockDispatcher.Object, _mockCoordinator.Object, null!, Options.Create(_options), Options.Create(_bufferOptions)));
     }
 
     [Fact]
@@ -91,7 +95,7 @@ public class CombatBroadcasterTests : IDisposable
     {
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() =>
-            new CombatBroadcaster(_mockDispatcher.Object, _mockLogger.Object, null!, Options.Create(_bufferOptions)));
+            new CombatBroadcaster(_mockDispatcher.Object, _mockCoordinator.Object, _mockLogger.Object, null!, Options.Create(_bufferOptions)));
     }
 
     #endregion
@@ -203,6 +207,7 @@ public class CombatBroadcasterTests : IDisposable
         };
         var broadcaster = new CombatBroadcaster(
             _mockDispatcher.Object,
+            _mockCoordinator.Object,
             _mockLogger.Object,
             Options.Create(options),
             Options.Create(_bufferOptions));
