@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using BlazorIdle.Server.Application.Battles.Step;
 using BlazorIdle.Server.Infrastructure.SignalR.Models;
 using BlazorIdle.Server.Infrastructure.SignalR.Services;
 using BlazorIdle.Shared.Messages.Battle;
@@ -16,6 +17,7 @@ namespace BlazorIdle.Server.Infrastructure.SignalR.Broadcasters;
 public class CombatBroadcaster : BackgroundService
 {
     private readonly ISignalRDispatcher _dispatcher;
+    private readonly StepBattleCoordinator _coordinator;
     private readonly ILogger<CombatBroadcaster> _logger;
     private readonly CombatBroadcasterOptions _options;
     private readonly BattleFrameBufferOptions _bufferOptions;
@@ -26,11 +28,13 @@ public class CombatBroadcaster : BackgroundService
 
     public CombatBroadcaster(
         ISignalRDispatcher dispatcher,
+        StepBattleCoordinator coordinator,
         ILogger<CombatBroadcaster> logger,
         IOptions<CombatBroadcasterOptions> options,
         IOptions<BattleFrameBufferOptions> bufferOptions)
     {
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+        _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _bufferOptions = bufferOptions?.Value ?? throw new ArgumentNullException(nameof(bufferOptions));
@@ -122,35 +126,42 @@ public class CombatBroadcaster : BackgroundService
     {
         try
         {
-            // TODO: 从BattleManager获取战斗实例
-            // 当前阶段暂时不实现，等待与战斗系统集成
-            // var battle = await _battleManager.GetBattleAsync(battleId);
-            // if (battle == null)
-            // {
-            //     // 战斗已结束，停止广播
-            //     if (_options.AutoCleanupFinishedBattles)
-            //     {
-            //         _ = Task.Delay(TimeSpan.FromSeconds(_options.CleanupDelaySeconds))
-            //             .ContinueWith(_ => StopBroadcast(battleId));
-            //     }
-            //     return;
-            // }
+            // 从Coordinator获取战斗实例
+            if (!Guid.TryParse(battleId, out var battleGuid))
+            {
+                _logger.LogWarning("无效的战斗ID格式: {BattleId}", battleId);
+                return;
+            }
 
-            // TODO: 生成帧数据
-            // var frame = battle.GenerateFrameTick();
+            if (!_coordinator.TryGet(battleGuid, out var battle) || battle == null)
+            {
+                // 战斗已结束或不存在，停止广播
+                if (_options.AutoCleanupFinishedBattles)
+                {
+                    _logger.LogInformation("战斗 {BattleId} 不存在或已结束，将在{Delay}秒后停止广播", 
+                        battleId, _options.CleanupDelaySeconds);
+                    _ = Task.Delay(TimeSpan.FromSeconds(_options.CleanupDelaySeconds))
+                        .ContinueWith(_ => StopBroadcast(battleId));
+                }
+                return;
+            }
+
+            // 生成帧数据
+            var frame = battle.GenerateFrameTick();
             
             // 缓存帧用于补发
             // 获取或创建该战斗的帧缓冲区
-            // if (config.FrameBuffer == null)
-            // {
-            //     config.FrameBuffer = new BattleFrameBuffer(_bufferOptions, _logger);
-            //     _logger.LogDebug("为战斗 {BattleId} 创建帧缓冲区", battleId);
-            // }
-            // config.FrameBuffer.AddFrame(frame);
+            if (config.FrameBuffer == null)
+            {
+                config.FrameBuffer = new BattleFrameBuffer(_bufferOptions.MaxSize);
+                _logger.LogDebug("为战斗 {BattleId} 创建帧缓冲区，容量={MaxSize}", 
+                    battleId, _bufferOptions.MaxSize);
+            }
+            config.FrameBuffer.AddFrame(frame);
 
             // 推送到战斗组
             var groupName = $"battle:{battleId}";
-            // await _dispatcher.SendToGroupAsync(groupName, "BattleFrame", frame, MessagePriority.High);
+            await _dispatcher.SendToGroupAsync(groupName, "BattleFrame", frame, MessagePriority.High);
 
             // 更新帧计数
             config.FrameCount++;
@@ -158,15 +169,15 @@ public class CombatBroadcaster : BackgroundService
             // 定期生成快照
             if (config.FrameCount % _options.SnapshotIntervalFrames == 0)
             {
-                await GenerateAndBroadcastSnapshot(battleId, config);
+                await GenerateAndBroadcastSnapshot(battle, config);
             }
 
             // 详细日志（仅在启用时）
             if (_options.EnableDetailedLogging)
             {
                 _logger.LogDebug(
-                    "已广播战斗 {BattleId} 的第 {FrameCount} 帧，频率={Frequency}Hz",
-                    battleId, config.FrameCount, config.Frequency);
+                    "已广播战斗 {BattleId} 的第 {FrameCount} 帧（版本={Version}），频率={Frequency}Hz",
+                    battleId, config.FrameCount, frame.Version, config.Frequency);
             }
         }
         catch (Exception ex)
@@ -179,25 +190,25 @@ public class CombatBroadcaster : BackgroundService
     /// 生成并广播战斗快照
     /// 快照包含完整的战斗状态，用于断线重连
     /// </summary>
-    private async Task GenerateAndBroadcastSnapshot(string battleId, BattleFrameConfig config)
+    private async Task GenerateAndBroadcastSnapshot(RunningBattle battle, BattleFrameConfig config)
     {
         try
         {
-            // TODO: 生成快照
-            // var snapshot = battle.GenerateSnapshot();
-            // config.LastSnapshot = snapshot;
+            // 生成快照
+            var snapshot = battle.GenerateSnapshot();
+            config.LastSnapshot = snapshot;
 
             // 推送快照
-            var groupName = $"battle:{battleId}";
-            // await _dispatcher.SendToGroupAsync(groupName, "BattleSnapshot", snapshot, MessagePriority.High);
+            var groupName = $"battle:{battle.Id}";
+            await _dispatcher.SendToGroupAsync(groupName, "BattleSnapshot", snapshot, MessagePriority.High);
 
             _logger.LogInformation(
-                "为战斗 {BattleId} 生成并广播快照，帧计数={FrameCount}",
-                battleId, config.FrameCount);
+                "为战斗 {BattleId} 生成并广播快照，帧计数={FrameCount}，版本={Version}",
+                battle.Id, config.FrameCount, snapshot.Version);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "生成或广播战斗 {BattleId} 的快照时出错", battleId);
+            _logger.LogError(ex, "生成或广播战斗 {BattleId} 的快照时出错", battle.Id);
         }
     }
 
