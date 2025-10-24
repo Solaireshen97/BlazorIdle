@@ -1,0 +1,309 @@
+@page "/login"
+@using BlazorIdle.Models.Auth
+@using BlazorIdle.Services.Auth
+@inject IAuthenticationService AuthService
+@inject NavigationManager Navigation
+@inject ILogger<Login> Logger
+
+<!-- 登录/注册页面 -->
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            <div class="card shadow">
+                <!-- 标签页切换：登录/注册 -->
+                <div class="card-header">
+                    <ul class="nav nav-tabs card-header-tabs">
+                        <li class="nav-item">
+                            <a class="nav-link @(isLoginMode ? "active" : "")" 
+                               @onclick="() => SwitchMode(true)" 
+                               href="javascript:void(0)"
+                               role="button">
+                                <i class="bi bi-box-arrow-in-right"></i> 登录
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @(!isLoginMode ? "active" : "")" 
+                               @onclick="() => SwitchMode(false)" 
+                               href="javascript:void(0)"
+                               role="button">
+                                <i class="bi bi-person-plus"></i> 注册
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="card-body">
+                    <!-- 错误提示 -->
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill"></i> @errorMessage
+                            <button type="button" class="btn-close" @onclick="ClearError" aria-label="关闭"></button>
+                        </div>
+                    }
+
+                    <!-- 成功提示 -->
+                    @if (!string.IsNullOrEmpty(successMessage))
+                    {
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                            <i class="bi bi-check-circle-fill"></i> @successMessage
+                            <button type="button" class="btn-close" @onclick="ClearSuccess" aria-label="关闭"></button>
+                        </div>
+                    }
+
+                    <!-- 登录表单 -->
+                    @if (isLoginMode)
+                    {
+                        <EditForm Model="loginModel" OnValidSubmit="HandleLogin">
+                            <DataAnnotationsValidator />
+
+                            <div class="mb-3">
+                                <label for="login-username" class="form-label">用户名</label>
+                                <InputText id="login-username"
+                                          @bind-Value="loginModel.Username" 
+                                          class="form-control" 
+                                          placeholder="请输入用户名"
+                                          autocomplete="username" />
+                                <ValidationMessage For="@(() => loginModel.Username)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="login-password" class="form-label">密码</label>
+                                <InputText id="login-password"
+                                          @bind-Value="loginModel.Password" 
+                                          type="password" 
+                                          class="form-control" 
+                                          placeholder="请输入密码"
+                                          autocomplete="current-password" />
+                                <ValidationMessage For="@(() => loginModel.Password)" />
+                            </div>
+
+                            <button type="submit" 
+                                    class="btn btn-primary w-100" 
+                                    disabled="@isLoading">
+                                @if (isLoading)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    <span>登录中...</span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-box-arrow-in-right"></i>
+                                    <span>登录</span>
+                                }
+                            </button>
+                        </EditForm>
+
+                        <!-- 测试账户信息 -->
+                        <div class="mt-3 p-3 bg-light rounded">
+                            <small class="text-muted">
+                                <strong><i class="bi bi-info-circle"></i> 测试账户：</strong><br/>
+                                用户名: test123, 密码: test123123<br/>
+                                用户名: admin, 密码: admin123
+                            </small>
+                        </div>
+                    }
+                    else
+                    {
+                        <!-- 注册表单 -->
+                        <EditForm Model="registerModel" OnValidSubmit="HandleRegister">
+                            <DataAnnotationsValidator />
+
+                            <div class="mb-3">
+                                <label for="register-username" class="form-label">用户名</label>
+                                <InputText id="register-username"
+                                          @bind-Value="registerModel.Username" 
+                                          class="form-control" 
+                                          placeholder="请输入用户名（3-20字符）"
+                                          autocomplete="username" />
+                                <ValidationMessage For="@(() => registerModel.Username)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="register-password" class="form-label">密码</label>
+                                <InputText id="register-password"
+                                          @bind-Value="registerModel.Password" 
+                                          type="password" 
+                                          class="form-control" 
+                                          placeholder="请输入密码（至少6字符）"
+                                          autocomplete="new-password" />
+                                <ValidationMessage For="@(() => registerModel.Password)" />
+                            </div>
+
+                            <button type="submit" 
+                                    class="btn btn-success w-100" 
+                                    disabled="@isLoading">
+                                @if (isLoading)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    <span>注册中...</span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-person-plus"></i>
+                                    <span>注册</span>
+                                }
+                            </button>
+                        </EditForm>
+
+                        <!-- 注册提示 -->
+                        <div class="mt-3">
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle"></i> 注册后将自动登录
+                            </small>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    // 登录表单模型
+    private LoginRequest loginModel = new();
+    
+    // 注册表单模型
+    private RegisterRequest registerModel = new();
+    
+    // 错误消息
+    private string? errorMessage;
+    
+    // 成功消息
+    private string? successMessage;
+    
+    // 加载状态
+    private bool isLoading;
+    
+    // 当前模式：true=登录，false=注册
+    private bool isLoginMode = true;
+
+    // 从URL查询参数获取返回URL
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+
+    /// <summary>
+    /// 切换登录/注册模式
+    /// </summary>
+    /// <param name="toLogin">true切换到登录模式，false切换到注册模式</param>
+    private void SwitchMode(bool toLogin)
+    {
+        isLoginMode = toLogin;
+        errorMessage = null;
+        successMessage = null;
+        
+        // 清空表单
+        loginModel = new();
+        registerModel = new();
+        
+        Logger.LogDebug("切换到{Mode}模式", toLogin ? "登录" : "注册");
+    }
+
+    /// <summary>
+    /// 清除错误消息
+    /// </summary>
+    private void ClearError()
+    {
+        errorMessage = null;
+    }
+
+    /// <summary>
+    /// 清除成功消息
+    /// </summary>
+    private void ClearSuccess()
+    {
+        successMessage = null;
+    }
+
+    /// <summary>
+    /// 处理登录提交
+    /// </summary>
+    private async Task HandleLogin()
+    {
+        errorMessage = null;
+        successMessage = null;
+        isLoading = true;
+
+        try
+        {
+            Logger.LogInformation("开始登录：用户名={Username}", loginModel.Username);
+            
+            // 调用认证服务进行登录
+            var result = await AuthService.LoginAsync(loginModel.Username, loginModel.Password);
+
+            if (result.Success)
+            {
+                Logger.LogInformation("用户登录成功：{Username}", loginModel.Username);
+                successMessage = "登录成功！正在跳转...";
+                
+                // 短暂延迟以显示成功消息
+                await Task.Delay(500);
+                
+                // 跳转到返回URL或首页
+                var targetUrl = !string.IsNullOrEmpty(ReturnUrl) ? ReturnUrl : "/";
+                Logger.LogDebug("跳转到：{Url}", targetUrl);
+                Navigation.NavigateTo(targetUrl);
+            }
+            else
+            {
+                errorMessage = result.Message ?? "登录失败，请检查用户名和密码";
+                Logger.LogWarning("登录失败：{Username}，原因：{Message}", loginModel.Username, errorMessage);
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "登录过程中发生错误，请稍后重试";
+            Logger.LogError(ex, "登录过程中发生异常：{Username}", loginModel.Username);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// 处理注册提交
+    /// </summary>
+    private async Task HandleRegister()
+    {
+        errorMessage = null;
+        successMessage = null;
+        isLoading = true;
+
+        try
+        {
+            Logger.LogInformation("开始注册：用户名={Username}", registerModel.Username);
+            
+            // 调用认证服务进行注册
+            var result = await AuthService.RegisterAsync(registerModel.Username, registerModel.Password);
+
+            if (result.Success)
+            {
+                Logger.LogInformation("用户注册成功：{Username}", registerModel.Username);
+                successMessage = "注册成功！正在跳转...";
+                
+                // 短暂延迟以显示成功消息
+                await Task.Delay(500);
+                
+                // 注册成功后跳转到返回URL或首页
+                var targetUrl = !string.IsNullOrEmpty(ReturnUrl) ? ReturnUrl : "/";
+                Logger.LogDebug("跳转到：{Url}", targetUrl);
+                Navigation.NavigateTo(targetUrl);
+            }
+            else
+            {
+                errorMessage = result.Message ?? "注册失败，用户名可能已存在";
+                Logger.LogWarning("注册失败：{Username}，原因：{Message}", registerModel.Username, errorMessage);
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "注册过程中发生错误，请稍后重试";
+            Logger.LogError(ex, "注册过程中发生异常：{Username}", registerModel.Username);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

@@ -1,4 +1,6 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
+@using BlazorIdle.Components
+
+<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="">BlazorIdle</a>
         <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
@@ -11,13 +13,22 @@
     <nav class="flex-column">
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <li><NavLink href="characters">角色/战斗测试</NavLink></li>
+                <span class="bi bi-house-door-fill" aria-hidden="true"></span> 首页
             </NavLink>
         </div>
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <li><NavLink href="signalr-example">SignalR 连接示例</NavLink></li>
+            <NavLink class="nav-link" href="characters">
+                <span class="bi bi-person-fill" aria-hidden="true"></span> 角色/战斗测试
             </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="signalr-example">
+                <span class="bi bi-broadcast" aria-hidden="true"></span> SignalR 连接示例
+            </NavLink>
+        </div>
+        <div class="nav-item px-3 mt-3">
+            <!-- 登录状态组件 -->
+            <LoginStatus />
         </div>
     </nav>
 </div>

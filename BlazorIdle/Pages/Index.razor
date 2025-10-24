@@ -1,0 +1,101 @@
+@page "/"
+@using BlazorIdle.Services.Auth
+@using BlazorIdle.Models.Auth
+@inject IAuthenticationService AuthService
+
+<PageTitle>BlazorIdle - 首页</PageTitle>
+
+<!-- 使用认证守卫保护页面内容 -->
+<AuthenticationGuard>
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="jumbotron bg-light p-5 rounded">
+                    <h1 class="display-4">欢迎来到 BlazorIdle！</h1>
+                    <p class="lead">这是一个基于 Blazor WebAssembly 的放置类游戏。</p>
+                    <hr class="my-4">
+                    <p>您已成功登录！现在可以开始探索游戏功能。</p>
+                    
+                    @if (currentUser != null)
+                    {
+                        <div class="alert alert-success" role="alert">
+                            <h4 class="alert-heading">欢迎，@currentUser.Username！</h4>
+                            <p>账户创建时间：@currentUser.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</p>
+                            @if (currentUser.LastLoginAt.HasValue)
+                            {
+                                <p class="mb-0">上次登录时间：@currentUser.LastLoginAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</p>
+                            }
+                        </div>
+                    }
+                    
+                    <div class="mt-4">
+                        <h3>功能导航</h3>
+                        <div class="list-group">
+                            <a href="/characters" class="list-group-item list-group-item-action">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h5 class="mb-1"><i class="bi bi-person-fill"></i> 角色/战斗测试</h5>
+                                </div>
+                                <p class="mb-1">查看角色信息和测试战斗系统。</p>
+                            </a>
+                            <a href="/signalr-example" class="list-group-item list-group-item-action">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h5 class="mb-1"><i class="bi bi-broadcast"></i> SignalR 连接示例</h5>
+                                </div>
+                                <p class="mb-1">测试实时通信功能。</p>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-shield-check"></i> JWT 认证</h5>
+                        <p class="card-text">使用 JWT Token 进行身份认证，保护您的游戏数据。</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-broadcast-pin"></i> SignalR 实时通信</h5>
+                        <p class="card-text">基于 SignalR 的实时游戏状态同步。</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-lightning-fill"></i> 高性能</h5>
+                        <p class="card-text">使用 .NET 9 和 Blazor WebAssembly 构建的高性能应用。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</AuthenticationGuard>
+
+@code {
+    // 当前用户信息
+    private UserInfo? currentUser;
+
+    /// <summary>
+    /// 组件初始化时加载用户信息
+    /// </summary>
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // 获取当前登录用户信息
+            currentUser = await AuthService.GetCurrentUserAsync();
+        }
+        catch (Exception)
+        {
+            // 忽略错误，AuthenticationGuard 会处理未登录的情况
+            currentUser = null;
+        }
+    }
+}
