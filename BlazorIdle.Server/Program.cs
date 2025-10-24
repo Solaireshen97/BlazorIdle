@@ -7,6 +7,9 @@ using BlazorIdle.Server.Auth;
 using BlazorIdle.Server.Auth.Services;
 using Microsoft.EntityFrameworkCore;
 using BlazorIdle.Server.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -35,6 +38,76 @@ builder.Services.AddSingleton(jwtOptions);
 
 // 注册认证服务（Scoped生命周期，每个请求独立实例）
 builder.Services.AddScoped<IAuthService, AuthService>();
+
+// 3.2 配置JWT Bearer认证
+// 配置ASP.NET Core身份认证系统使用JWT Bearer令牌方案
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        // 配置JWT令牌验证参数
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            // 验证JWT发行者（Issuer），确保令牌来自受信任的源
+            ValidateIssuer = true,
+            ValidIssuer = jwtOptions.Issuer,
+
+            // 验证JWT受众（Audience），确保令牌是为此应用程序签发的
+            ValidateAudience = true,
+            ValidAudience = jwtOptions.Audience,
+
+            // 验证JWT过期时间，确保令牌未过期
+            ValidateLifetime = true,
+
+            // 验证JWT签名密钥，确保令牌未被篡改
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(jwtOptions.SecretKey)),
+
+            // 移除默认的5分钟时钟偏移（ClockSkew）
+            // 默认情况下，ASP.NET Core会允许5分钟的时间误差
+            // 设置为Zero使令牌过期时间更加精确
+            ClockSkew = TimeSpan.Zero
+        };
+
+        // 配置JWT Bearer事件处理器
+        options.Events = new JwtBearerEvents
+        {
+            // 当接收到消息时触发，用于从查询字符串中提取Token
+            // 主要用于SignalR连接，因为WebSocket无法设置自定义HTTP头
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+
+                // 如果请求路径是SignalR Hub（/hubs/*），从查询字符串读取Token
+                // 这是SignalR推荐的Token传递方式
+                if (!string.IsNullOrEmpty(accessToken) &&
+                    path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+
+                return Task.CompletedTask;
+            },
+
+            // 当认证失败时触发
+            OnAuthenticationFailed = context =>
+            {
+                // 如果是因为Token过期导致的认证失败
+                // 在响应头中添加标记，客户端可以据此判断是否需要刷新Token
+                if (context.Exception is SecurityTokenExpiredException)
+                {
+                    context.Response.Headers.Append("Token-Expired", "true");
+                }
+                return Task.CompletedTask;
+            }
+        };
+    });
+
+// 3.3 配置授权策略
+// 添加授权服务，支持基于策略的访问控制
+builder.Services.AddAuthorization();
 
 // 3.5 SignalR服务配置
 // 加载SignalR配置
@@ -132,6 +205,13 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();       // 强制重定向到 HTTPS，确保 swagger 也通过 https 访问
 app.UseCors("AllowBlazorClient"); // 必须在 MapControllers 之前；按需与认证/授权中间件配合
+
+// 6.1 启用认证和授权中间件
+// 注意：必须按照以下顺序调用，且必须在MapControllers和MapHub之前
+// UseAuthentication: 从请求中提取JWT令牌并验证，设置HttpContext.User
+// UseAuthorization: 根据授权策略检查用户是否有权限访问资源
+app.UseAuthentication();
+app.UseAuthorization();
 
 // 若启用身份验证，请遵循调用顺序：UseAuthentication -> UseAuthorization
 app.MapControllers(); // 映射控制器端点到路由表
