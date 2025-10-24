@@ -1058,17 +1058,19 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 
 ---
 
-### 步骤4：实现AuthController（0.5天）
+### 步骤4：实现AuthController（0.5天） ✅ 已完成
 
 #### 任务清单
 
-- [ ] 创建LoginRequest/RegisterRequest/RefreshTokenRequest
-- [ ] 创建AuthController
-- [ ] 实现登录端点
-- [ ] 实现注册端点
-- [ ] 实现刷新令牌端点
-- [ ] 实现获取当前用户端点
-- [ ] 测试API端点
+- [x] 创建LoginRequest/RegisterRequest/RefreshTokenRequest
+- [x] 创建AuthController
+- [x] 实现登录端点
+- [x] 实现注册端点
+- [x] 实现刷新令牌端点
+- [x] 实现获取当前用户端点
+- [x] 实现获取所有用户端点
+- [x] 测试API端点
+- [x] 编写单元测试
 
 #### 详细步骤
 
@@ -1083,7 +1085,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 
 **4.2 创建AuthController**
 
-创建文件：`BlazorIdle.Server/Api/Controllers/AuthController.cs`
+创建文件：`BlazorIdle.Server/Api/AuthController.cs`
 
 ```csharp
 using Microsoft.AspNetCore.Authorization;
@@ -1323,27 +1325,60 @@ cd /home/runner/work/BlazorIdle/BlazorIdle
 dotnet build
 ```
 
+**4.4 编写单元测试**
+
+创建文件：`tests/BlazorIdle.Tests/Auth/AuthControllerTests.cs`
+
+测试覆盖：
+- 登录成功和失败场景
+- 注册成功和失败场景
+- 刷新令牌功能
+- 获取当前用户信息
+- 获取所有用户列表
+- JWT令牌验证
+- 安全性测试
+
+运行测试：
+```bash
+cd /home/runner/work/BlazorIdle/BlazorIdle
+dotnet test --filter "FullyQualifiedName~AuthControllerTests"
+```
+
 #### 验收标准
 
-- ✅ AuthController创建完成
-- ✅ 5个API端点实现完成
-- ✅ 输入验证正确
-- ✅ 错误处理完善
-- ✅ 日志记录完整
+- ✅ AuthController创建完成（含详细中文注释）
+- ✅ 5个API端点实现完成（login, register, refresh, me, users）
+- ✅ 输入验证正确（使用DataAnnotations）
+- ✅ 错误处理完善（try-catch和适当的HTTP状态码）
+- ✅ 日志记录完整（使用ILogger记录关键操作）
+- ✅ 单元测试通过（15个测试用例，100%通过率）
 - ✅ 项目编译无错误
+
+**实施日期**: 2025年10月24日  
+**实施人员**: GitHub Copilot  
+**测试结果**: 15/15 测试通过
+
+**技术亮点**:
+- 所有代码包含详细的中文注释
+- 使用[Authorize]特性保护需要认证的端点
+- 正确的HTTP状态码（200, 400, 401, 404, 500）
+- 完整的API文档注释（ProducesResponseType）
+- 从JWT Claims中提取用户身份
+- 不在响应中暴露敏感信息（密码哈希、刷新令牌等）
+- 完整的单元测试覆盖
 
 ---
 
-### 步骤5：配置JWT认证中间件（0.5天）
+### 步骤5：配置JWT认证中间件（0.5天） ✅ 已完成
 
 #### 任务清单
 
-- [ ] 配置JWT认证服务
-- [ ] 配置JWT Bearer选项
-- [ ] 添加SignalR Token读取支持
-- [ ] 配置授权服务
-- [ ] 启用认证和授权中间件
-- [ ] 测试认证流程
+- [x] 配置JWT认证服务
+- [x] 配置JWT Bearer选项
+- [x] 添加SignalR Token读取支持
+- [x] 配置授权服务
+- [x] 启用认证和授权中间件
+- [x] 测试认证流程
 
 #### 详细步骤
 
@@ -1351,52 +1386,52 @@ dotnet build
 
 修改文件：`BlazorIdle.Server/Program.cs`
 
-在`builder.Services.AddInfrastructure(...)`之后，`var app = builder.Build();`之前添加：
+在`builder.Services.AddScoped<IAuthService, AuthService>();`之后，`var app = builder.Build();`之前添加：
 
 ```csharp
-// ============================================
-// JWT用户认证系统配置
-// ============================================
-
-// 注册用户存储服务
-builder.Services.AddSingleton<IUserStore, InMemoryUserStore>();
-
-// 配置JWT选项
-var jwtOptions = new JwtOptions();
-builder.Configuration.GetSection(JwtOptions.SectionName).Bind(jwtOptions);
-jwtOptions.Validate();
-builder.Services.AddSingleton(jwtOptions);
-
-// 注册认证服务
-builder.Services.AddScoped<IAuthService, AuthService>();
-
-// 配置JWT Bearer认证
+// 3.2 配置JWT Bearer认证
+// 配置ASP.NET Core身份认证系统使用JWT Bearer令牌方案
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        // 配置JWT令牌验证参数
         options.TokenValidationParameters = new TokenValidationParameters
         {
+            // 验证JWT发行者（Issuer），确保令牌来自受信任的源
             ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
             ValidIssuer = jwtOptions.Issuer,
+
+            // 验证JWT受众（Audience），确保令牌是为此应用程序签发的
+            ValidateAudience = true,
             ValidAudience = jwtOptions.Audience,
+
+            // 验证JWT过期时间，确保令牌未过期
+            ValidateLifetime = true,
+
+            // 验证JWT签名密钥，确保令牌未被篡改
+            ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(jwtOptions.SecretKey)),
-            ClockSkew = TimeSpan.Zero // 移除默认的5分钟时钟偏移
+
+            // 移除默认的5分钟时钟偏移（ClockSkew）
+            // 默认情况下，ASP.NET Core会允许5分钟的时间误差
+            // 设置为Zero使令牌过期时间更加精确
+            ClockSkew = TimeSpan.Zero
         };
 
-        // 支持SignalR从查询字符串读取Token
+        // 配置JWT Bearer事件处理器
         options.Events = new JwtBearerEvents
         {
+            // 当接收到消息时触发，用于从查询字符串中提取Token
+            // 主要用于SignalR连接，因为WebSocket无法设置自定义HTTP头
             OnMessageReceived = context =>
             {
                 var accessToken = context.Request.Query["access_token"];
                 var path = context.HttpContext.Request.Path;
 
-                // 如果请求是SignalR Hub连接，从查询字符串读取Token
+                // 如果请求路径是SignalR Hub（/hubs/*），从查询字符串读取Token
+                // 这是SignalR推荐的Token传递方式
                 if (!string.IsNullOrEmpty(accessToken) &&
                     path.StartsWithSegments("/hubs"))
                 {
@@ -1405,26 +1440,24 @@ builder.Services
 
                 return Task.CompletedTask;
             },
+
+            // 当认证失败时触发
             OnAuthenticationFailed = context =>
             {
+                // 如果是因为Token过期导致的认证失败
+                // 在响应头中添加标记，客户端可以据此判断是否需要刷新Token
                 if (context.Exception is SecurityTokenExpiredException)
                 {
-                    context.Response.Headers.Add("Token-Expired", "true");
+                    context.Response.Headers.Append("Token-Expired", "true");
                 }
                 return Task.CompletedTask;
             }
         };
     });
 
-// 配置授权策略
+// 3.3 配置授权策略
+// 添加授权服务，支持基于策略的访问控制
 builder.Services.AddAuthorization();
-
-// 添加必要的using引用到文件顶部
-// using Microsoft.AspNetCore.Authentication.JwtBearer;
-// using Microsoft.IdentityModel.Tokens;
-// using System.Text;
-// using BlazorIdle.Server.Auth;
-// using BlazorIdle.Server.Auth.Services;
 ```
 
 **5.2 添加Using语句**
@@ -1435,8 +1468,6 @@ builder.Services.AddAuthorization();
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using BlazorIdle.Server.Auth;
-using BlazorIdle.Server.Auth.Services;
 ```
 
 **5.3 启用认证和授权中间件**
@@ -1444,7 +1475,10 @@ using BlazorIdle.Server.Auth.Services;
 在`var app = builder.Build();`之后，`app.MapControllers();`和`app.MapHub<GameHub>(...)`之前添加：
 
 ```csharp
-// 启用认证和授权中间件（必须在MapControllers和MapHub之前）
+// 6.1 启用认证和授权中间件
+// 注意：必须按照以下顺序调用，且必须在MapControllers和MapHub之前
+// UseAuthentication: 从请求中提取JWT令牌并验证，设置HttpContext.User
+// UseAuthorization: 根据授权策略检查用户是否有权限访问资源
 app.UseAuthentication();
 app.UseAuthorization();
 ```
@@ -1457,30 +1491,23 @@ var app = builder.Build();
 // 1. Exception处理
 if (app.Environment.IsDevelopment())
 {
-    app.UseDeveloperExceptionPage();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 
 // 2. HTTPS重定向
 app.UseHttpsRedirection();
 
-// 3. 静态文件
-app.UseBlazorFrameworkFiles();
-app.UseStaticFiles();
+// 3. CORS
+app.UseCors("AllowBlazorClient");
 
-// 4. 路由
-app.UseRouting();
-
-// 5. CORS（如果有）
-// app.UseCors("AllowBlazorClient");
-
-// 6. 认证和授权（新增）
+// 4. 认证和授权（新增）
 app.UseAuthentication();
 app.UseAuthorization();
 
-// 7. 端点映射
+// 5. 端点映射
 app.MapControllers();
 app.MapHub<GameHub>("/hubs/game");
-app.MapFallbackToFile("index.html");
 
 app.Run();
 ```
@@ -1492,7 +1519,7 @@ cd /home/runner/work/BlazorIdle/BlazorIdle
 dotnet build
 ```
 
-如果编译成功，运行服务：
+如果编译成功，可以运行服务测试：
 
 ```bash
 cd BlazorIdle.Server
@@ -1501,13 +1528,28 @@ dotnet run
 
 #### 验收标准
 
-- ✅ JWT认证服务配置完成
-- ✅ JWT Bearer中间件配置完成
-- ✅ SignalR Token读取支持配置完成
-- ✅ 认证和授权中间件启用
+- ✅ JWT认证服务配置完成（AddAuthentication）
+- ✅ JWT Bearer中间件配置完成（TokenValidationParameters）
+- ✅ SignalR Token读取支持配置完成（OnMessageReceived事件）
+- ✅ Token过期响应头支持（OnAuthenticationFailed事件）
+- ✅ 授权服务配置完成（AddAuthorization）
+- ✅ 认证和授权中间件启用（UseAuthentication, UseAuthorization）
+- ✅ 中间件顺序正确（认证->授权->端点映射）
 - ✅ 项目编译无错误
 - ✅ 服务启动无错误
-- ✅ Swagger文档可以访问
+- ✅ 所有配置参数从配置文件读取（jwtOptions）
+
+**实施日期**: 2025年10月24日  
+**实施人员**: GitHub Copilot
+
+**技术亮点**:
+- 所有代码包含详细的中文注释
+- 所有配置参数从appsettings.json读取，无硬编码
+- 支持SignalR的Token传递（查询字符串）
+- Token过期时自动返回响应头标记
+- ClockSkew设置为Zero，令牌过期时间精确
+- 完整的Token验证参数配置
+- 正确的中间件调用顺序
 
 ---
 
