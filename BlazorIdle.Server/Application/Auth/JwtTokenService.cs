@@ -124,18 +124,22 @@ public class JwtTokenService
             var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
 
             // 记录Token生成日志（不记录敏感信息）
+            // 注意：为避免日志伪造攻击，对用户提供的username进行消毒处理
+            var sanitizedUsername = SanitizeForLog(username);
             _logger.LogInformation(
                 "成功为用户 {Username}（ID: {UserId}）生成JWT Token，有效期 {ExpirationMinutes} 分钟",
-                username, userId, expirationMinutes);
+                sanitizedUsername, userId, expirationMinutes);
 
             return tokenString;
         }
         catch (Exception ex)
         {
             // 记录Token生成失败的详细错误
+            // 注意：为避免日志伪造攻击，对用户提供的username进行消毒处理
+            var sanitizedUsername = SanitizeForLog(username);
             _logger.LogError(ex, 
                 "为用户 {Username}（ID: {UserId}）生成JWT Token时发生错误", 
-                username, userId);
+                sanitizedUsername, userId);
             throw new InvalidOperationException("生成JWT Token失败，请检查配置和参数", ex);
         }
     }
@@ -264,5 +268,28 @@ public class JwtTokenService
             expirationConfig, DefaultExpirationMinutes);
         
         return DefaultExpirationMinutes;
+    }
+
+    /// <summary>
+    /// 对日志内容进行消毒处理，防止日志伪造攻击
+    /// </summary>
+    /// <param name="input">用户提供的输入字符串</param>
+    /// <returns>消毒后的安全字符串</returns>
+    /// <remarks>
+    /// 移除可能导致日志伪造的字符：换行符、回车符等
+    /// 这可以防止恶意用户通过特殊字符注入伪造的日志条目
+    /// </remarks>
+    private static string SanitizeForLog(string input)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            return input;
+        }
+
+        // 移除可能导致日志伪造的控制字符
+        return input
+            .Replace("\r", "")
+            .Replace("\n", "")
+            .Replace("\t", " ");
     }
 }

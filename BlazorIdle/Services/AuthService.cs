@@ -324,7 +324,9 @@ public class AuthService
             var loginEndpoint = _configuration[ConfigKeyLoginEndpoint] ?? DefaultLoginEndpoint;
             var fullUrl = $"{apiBaseUrl}{loginEndpoint}";
 
-            _logger.LogInformation("尝试登录: {UsernameOrEmail}", usernameOrEmail);
+            // 注意：不记录完整的用户名/邮箱，仅记录首字符以保护隐私
+            var maskedIdentifier = MaskSensitiveData(usernameOrEmail);
+            _logger.LogInformation("尝试登录: {MaskedIdentifier}", maskedIdentifier);
 
             // 发送登录请求到服务端
             var response = await _http.PostAsJsonAsync(fullUrl, new
@@ -483,6 +485,35 @@ public class AuthService
 
         // 通知UI组件更新认证状态显示
         NotifyAuthStateChanged();
+    }
+
+    /// <summary>
+    /// 对敏感数据进行掩码处理，用于日志记录
+    /// </summary>
+    /// <param name="sensitiveData">敏感数据（如用户名、邮箱等）</param>
+    /// <returns>掩码后的数据</returns>
+    /// <remarks>
+    /// 仅保留首尾字符，中间用*替代，以保护用户隐私
+    /// 例如：user@example.com -> u***m
+    /// </remarks>
+    private static string MaskSensitiveData(string sensitiveData)
+    {
+        if (string.IsNullOrEmpty(sensitiveData))
+        {
+            return "***";
+        }
+
+        if (sensitiveData.Length <= 2)
+        {
+            return "***";
+        }
+
+        if (sensitiveData.Length <= 4)
+        {
+            return $"{sensitiveData[0]}***{sensitiveData[^1]}";
+        }
+
+        return $"{sensitiveData[0]}{sensitiveData[1]}***{sensitiveData[^2]}{sensitiveData[^1]}";
     }
 
     /// <summary>
