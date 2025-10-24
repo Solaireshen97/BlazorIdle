@@ -1,0 +1,148 @@
+@using BlazorIdle.Services.Auth
+@using BlazorIdle.Models.Auth
+@inject IAuthenticationService AuthService
+@inject NavigationManager Navigation
+@inject ILogger<LoginStatus> Logger
+
+@*
+    登录状态组件
+    显示当前登录状态和用户信息
+    提供登录/登出功能
+*@
+
+@if (isLoading)
+{
+    <!-- 加载中 -->
+    <div class="spinner-border spinner-border-sm" role="status">
+        <span class="visually-hidden">加载中...</span>
+    </div>
+}
+else if (isAuthenticated && currentUser != null)
+{
+    <!-- 已登录，显示用户信息和登出按钮 -->
+    <div class="dropdown">
+        <button class="btn btn-outline-light dropdown-toggle" type="button" id="userMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-person-circle"></i> @currentUser.Username
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenuButton">
+            <li>
+                <a class="dropdown-item disabled" href="javascript:void(0)">
+                    <small class="text-muted">用户ID: @currentUser.Id.Substring(0, Math.Min(8, currentUser.Id.Length))</small>
+                </a>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+                <button class="dropdown-item" @onclick="HandleLogout" disabled="@isLoggingOut">
+                    @if (isLoggingOut)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        <span>登出中...</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-box-arrow-right"></i>
+                        <span>登出</span>
+                    }
+                </button>
+            </li>
+        </ul>
+    </div>
+}
+else
+{
+    <!-- 未登录，显示登录按钮 -->
+    <a class="btn btn-primary" href="/login">
+        <i class="bi bi-box-arrow-in-right"></i> 登录
+    </a>
+}
+
+@code {
+    // 是否正在加载
+    private bool isLoading = true;
+    
+    // 是否已认证
+    private bool isAuthenticated = false;
+    
+    // 当前用户信息
+    private UserInfo? currentUser;
+    
+    // 是否正在登出
+    private bool isLoggingOut = false;
+
+    /// <summary>
+    /// 组件初始化时加载登录状态
+    /// </summary>
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLoginStatus();
+    }
+
+    /// <summary>
+    /// 加载登录状态和用户信息
+    /// </summary>
+    private async Task LoadLoginStatus()
+    {
+        try
+        {
+            isLoading = true;
+            
+            // 检查是否已登录
+            isAuthenticated = await AuthService.IsAuthenticatedAsync();
+            
+            if (isAuthenticated)
+            {
+                // 获取当前用户信息
+                currentUser = await AuthService.GetCurrentUserAsync();
+                Logger.LogDebug("加载用户信息：{Username}", currentUser?.Username);
+            }
+            else
+            {
+                currentUser = null;
+                Logger.LogDebug("用户未登录");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "加载登录状态失败");
+            isAuthenticated = false;
+            currentUser = null;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// 处理登出操作
+    /// </summary>
+    private async Task HandleLogout()
+    {
+        try
+        {
+            isLoggingOut = true;
+            Logger.LogInformation("用户登出：{Username}", currentUser?.Username);
+            
+            // 调用认证服务登出
+            await AuthService.LogoutAsync();
+            
+            // 重置状态
+            isAuthenticated = false;
+            currentUser = null;
+            
+            // 短暂延迟
+            await Task.Delay(300);
+            
+            // 跳转到登录页面
+            Navigation.NavigateTo("/login");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "登出失败");
+        }
+        finally
+        {
+            isLoggingOut = false;
+        }
+    }
+}

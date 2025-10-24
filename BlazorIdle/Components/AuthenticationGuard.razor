@@ -1,0 +1,108 @@
+@using BlazorIdle.Services.Auth
+@inject IAuthenticationService AuthService
+@inject NavigationManager Navigation
+@inject ILogger<AuthenticationGuard> Logger
+
+@* 
+    认证守卫组件
+    用于保护需要登录才能访问的页面
+    如果用户未登录，自动重定向到登录页面
+*@
+
+@if (isChecking)
+{
+    <!-- 正在检查认证状态，显示加载指示器 -->
+    <div class="d-flex justify-content-center align-items-center" style="min-height: 50vh;">
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">加载中...</span>
+            </div>
+            <p class="mt-3 text-muted">正在验证身份...</p>
+        </div>
+    </div>
+}
+else if (isAuthenticated)
+{
+    <!-- 已认证，显示子内容 -->
+    @ChildContent
+}
+else
+{
+    <!-- 未认证，显示未授权提示（实际上会立即重定向，这个不会显示） -->
+    <div class="alert alert-warning" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> 请先登录
+    </div>
+}
+
+@code {
+    /// <summary>
+    /// 子内容（被保护的页面内容）
+    /// </summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// 是否需要认证（默认true）
+    /// 设置为false时不进行认证检查
+    /// </summary>
+    [Parameter]
+    public bool RequireAuthentication { get; set; } = true;
+
+    // 是否正在检查认证状态
+    private bool isChecking = true;
+    
+    // 是否已认证
+    private bool isAuthenticated = false;
+
+    /// <summary>
+    /// 组件初始化时检查认证状态
+    /// </summary>
+    protected override async Task OnInitializedAsync()
+    {
+        // 如果不需要认证，直接显示内容
+        if (!RequireAuthentication)
+        {
+            isChecking = false;
+            isAuthenticated = true;
+            return;
+        }
+
+        try
+        {
+            Logger.LogDebug("检查用户认证状态");
+            
+            // 检查用户是否已登录
+            isAuthenticated = await AuthService.IsAuthenticatedAsync();
+
+            if (!isAuthenticated)
+            {
+                Logger.LogInformation("用户未登录，重定向到登录页面");
+                
+                // 构建返回URL，登录成功后可以返回到当前页面
+                var currentUrl = Navigation.ToBaseRelativePath(Navigation.Uri);
+                var loginUrl = $"/login?returnUrl={Uri.EscapeDataString(currentUrl)}";
+                
+                Logger.LogDebug("重定向到：{LoginUrl}", loginUrl);
+                
+                // 重定向到登录页面
+                Navigation.NavigateTo(loginUrl);
+            }
+            else
+            {
+                Logger.LogDebug("用户已登录");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "检查认证状态时发生错误");
+            
+            // 发生错误时，为了安全起见，假定未认证
+            isAuthenticated = false;
+            Navigation.NavigateTo("/login");
+        }
+        finally
+        {
+            isChecking = false;
+        }
+    }
+}
