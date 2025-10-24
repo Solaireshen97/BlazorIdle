@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Bunit;
+using Bunit.TestDoubles;
 
 namespace BlazorIdle.Tests.Pages;
 
@@ -17,18 +18,19 @@ namespace BlazorIdle.Tests.Pages;
 public class LoginPageTests : TestContext
 {
     private readonly Mock<IAuthenticationService> _mockAuthService;
-    private readonly Mock<NavigationManager> _mockNavigationManager;
     private readonly Mock<ILogger<Login>> _mockLogger;
 
     public LoginPageTests()
     {
         _mockAuthService = new Mock<IAuthenticationService>();
-        _mockNavigationManager = new Mock<NavigationManager>();
         _mockLogger = new Mock<ILogger<Login>>();
+
+        // 使用BUnit的FakeNavigationManager - 添加using Bunit.TestDoubles
+        var navManager = this.Services.AddSingleton<NavigationManager>(
+            new FakeNavigationManager(this));
 
         // 注册模拟服务
         Services.AddSingleton(_mockAuthService.Object);
-        Services.AddSingleton(_mockNavigationManager.Object);
         Services.AddSingleton(_mockLogger.Object);
     }
 
