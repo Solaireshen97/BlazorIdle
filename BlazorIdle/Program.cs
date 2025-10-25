@@ -42,7 +42,7 @@ builder.Services.AddScoped<IAuthenticationService>(sp =>
     var httpClient = httpClientFactory.CreateClient("UnauthenticatedHttpClient");
     var localStorage = sp.GetRequiredService<ILocalStorageService>();
     var logger = sp.GetRequiredService<ILogger<AuthenticationService>>();
-    
+
     return new AuthenticationService(httpClient, localStorage, logger);
 });
 
@@ -66,9 +66,8 @@ signalROptions.Validate(); // 验证配置有效性
 // 注册SignalR客户端选项为单例
 builder.Services.AddSingleton(signalROptions);
 
-// 注册SignalRConnectionManager为单例服务
-// 使用单例确保整个应用程序共享同一个SignalR连接
-// 这样用户在不同页面切换时可以保持连接状态
-builder.Services.AddSingleton<SignalRConnectionManager>();
+// 在 Blazor WebAssembly 中，Scoped 等同于应用级单例（每个浏览器标签页一个实例）
+// 改为 Scoped 可避免 “Singleton 依赖 Scoped” 的生命周期冲突
+builder.Services.AddScoped<SignalRConnectionManager>();
 
 await builder.Build().RunAsync();
