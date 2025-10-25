@@ -15,31 +15,46 @@ var apiBase = builder.Configuration["ApiBaseUrl"] ?? "https://localhost:7056";
 // 用于在浏览器本地存储中保存和读取数据（如JWT Token、用户信息等）
 builder.Services.AddBlazoredLocalStorage();
 
-// 注册认证相关服务
-// 认证服务提供登录、注册、登出等功能
-builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
-
 // 注册HTTP消息处理器（用于自动附加JWT Token到请求头）
 builder.Services.AddScoped<AuthorizingHttpMessageHandler>();
 
-// 配置HttpClient（使用拦截器自动附加Token）
-// 使用Scoped生命周期确保每个用户会话有独立的HttpClient实例
-builder.Services.AddScoped(sp =>
+// 配置未认证的HttpClient（用于认证服务 - 登录、注册等不需要Token的请求）
+// 这个HttpClient不使用AuthorizingHttpMessageHandler，避免循环依赖
+builder.Services.AddHttpClient("UnauthenticatedHttpClient", client =>
 {
-    // 获取消息处理器
-    var handler = sp.GetRequiredService<AuthorizingHttpMessageHandler>();
-    handler.InnerHandler = new HttpClientHandler();
-
-    // 创建HttpClient并设置基础地址
-    var httpClient = new HttpClient(handler)
-    {
-        BaseAddress = new Uri(apiBase)
-    };
-
-    return httpClient;
+    client.BaseAddress = new Uri(apiBase);
 });
 
-// 保留原有的ApiClient注册（但使用新的HttpClient配置）
+// 配置已认证的HttpClient（使用拦截器自动附加Token）
+// 使用Scoped生命周期确保每个用户会话有独立的HttpClient实例
+builder.Services.AddHttpClient("AuthenticatedHttpClient")
+    .ConfigureHttpClient(client =>
+    {
+        client.BaseAddress = new Uri(apiBase);
+    })
+    .AddHttpMessageHandler<AuthorizingHttpMessageHandler>();
+
+// 注册认证相关服务
+// 认证服务使用未认证的HttpClient避免循环依赖
+builder.Services.AddScoped<IAuthenticationService>(sp =>
+{
+    var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+    var httpClient = httpClientFactory.CreateClient("UnauthenticatedHttpClient");
+    var localStorage = sp.GetRequiredService<ILocalStorageService>();
+    var logger = sp.GetRequiredService<ILogger<AuthenticationService>>();
+    
+    return new AuthenticationService(httpClient, localStorage, logger);
+});
+
+// 配置默认HttpClient（使用已认证的HttpClient）
+// 保持向后兼容性，其他服务可以继续直接注入HttpClient
+builder.Services.AddScoped(sp =>
+{
+    var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+    return httpClientFactory.CreateClient("AuthenticatedHttpClient");
+});
+
+// 保留原有的ApiClient注册（使用已认证的HttpClient配置）
 builder.Services.AddScoped<BlazorIdle.Client.Services.ApiClient>();
 
 // 配置SignalR客户端服务
